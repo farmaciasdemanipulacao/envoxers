@@ -114,6 +114,8 @@ function AppShell() {
     kanban: "Operação / Kanban",
     dashboard: "Operação / Dashboard do dia",
     solicitacoes: "Farol / Solicitações do cliente",
+    farol: "Farol / Farol Inteligente",
+    alertas: "Farol / Alertas",
   };
 
   return (
@@ -142,6 +144,8 @@ function AppShell() {
           />
         )}
         {view === "solicitacoes" && <SolicitacoesScreen onAbrirTarefa={abrirTarefa} />}
+        {view === "farol" && <FarolScreen />}
+        {view === "alertas" && <AlertasScreen />}
       </main>
       <FocoBar
         focoAtivo={focoAtivo}

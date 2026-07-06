@@ -11,3 +11,5 @@ from app.models.alteracao import Alteracao  # noqa: F401
 from app.models.solicitacao import Solicitacao  # noqa: F401
 from app.models.pulso_satisfacao import PulsoSatisfacao  # noqa: F401
 from app.models.check_in import CheckIn  # noqa: F401
+from app.models.farol_calculo import FarolCalculo, FarolCalculoHistorico  # noqa: F401
+from app.models.alerta_farol import AlertaFarol  # noqa: F401

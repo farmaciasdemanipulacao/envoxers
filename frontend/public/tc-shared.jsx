@@ -109,10 +109,17 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
             "Solicitações",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="2" width="11" height="12" rx="1" /><path d="M5 6h6M5 9h6M5 12h3" /></svg>
           )}
+          {item(
+            "farol",
+            "Farol",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><circle cx="8" cy="8" r="2.2" /></svg>
+          )}
+          {item(
+            "alertas",
+            "Alertas",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l6.5 11H1.5z" /><path d="M8 6.5v3.2" /><circle cx="8" cy="11.8" r="0.4" fill="currentColor" /></svg>
+          )}
         </nav>
-        <div style={{ padding: "0 10px", fontSize: 11, color: "var(--ink-4)", lineHeight: 1.6 }}>
-          Farol e Alertas chegam nos próximos módulos do F2.
-        </div>
       </div>
 
       <div className="sidebar-user">
