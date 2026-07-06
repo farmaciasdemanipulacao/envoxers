@@ -25,6 +25,7 @@ class RegistroFocoResponse(BaseModel):
     pausado_em: Optional[datetime] = None
     duracao_pausada_min: int = 0
     comentario: Optional[str] = None
+    descartado: bool = False
 
     class Config:
         from_attributes = True

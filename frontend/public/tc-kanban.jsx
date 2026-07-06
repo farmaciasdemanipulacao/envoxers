@@ -272,6 +272,10 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
   const [alteracaoSolicitante, setAlteracaoSolicitante] = useStateKb("");
   const [acaoLoading, setAcaoLoading] = useStateKb(false);
 
+  // Resumo básico do cliente — usado só na visão bloqueada (sem Foco ativo nesta tarefa).
+  const [tarefasConcluidas, setTarefasConcluidas] = useStateKb([]);
+  const [tarefasProximas, setTarefasProximas] = useStateKb([]);
+
   useEffectKb(() => {
     (async () => {
       try {
@@ -292,12 +296,31 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
           setEtiquetaCor(t.etiqueta_cor || "cinza");
           setLegenda(t.legenda || "");
 
-          const [aprovs, alts] = await Promise.all([
+          const [aprovs, alts, tarefasCliente] = await Promise.all([
             EnvoxersAPI.api(`/tarefas/${tarefaId}/aprovacoes`),
             EnvoxersAPI.api(`/tarefas/${tarefaId}/alteracoes`),
+            EnvoxersAPI.api(`/tarefas?cliente_id=${t.cliente_id}`),
           ]);
           setAprovacoes(aprovs);
           setAlteracoesLista(alts);
+
+          const outras = tarefasCliente.filter((x) => x.id !== tarefaId);
+          setTarefasConcluidas(
+            outras
+              .filter((x) => x.status === "finalizado" && x.finalizada_em)
+              .sort((a, b) => new Date(b.finalizada_em) - new Date(a.finalizada_em))
+              .slice(0, 3)
+          );
+          setTarefasProximas(
+            outras
+              .filter((x) => x.status !== "finalizado")
+              .sort((a, b) => {
+                if (!a.prazo) return 1;
+                if (!b.prazo) return -1;
+                return new Date(a.prazo) - new Date(b.prazo);
+              })
+              .slice(0, 3)
+          );
         }
       } catch (err) {
         toast(err.message, "error");
@@ -476,6 +499,11 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
   const responsavel = envoxersList.find((e) => String(e.id) === responsavelId);
   const focoNestaTarefa = focoAtivo && isEdit && focoAtivo.tarefa_id === tarefaId;
   const focoEmOutraTarefa = focoAtivo && isEdit && focoAtivo.tarefa_id !== tarefaId;
+  // Foco "ativo de verdade" (não pausado) nesta tarefa é o que desbloqueia o conteúdo —
+  // pausar volta a ocultar, igual finalizar.
+  const desbloqueado = !isEdit || (focoNestaTarefa && !focoAtivo.pausado_em);
+  const bloqueado = isEdit && !desbloqueado;
+  const statusLabel = (STATUS_COLS.find((c) => c.key === status) || {}).label || status;
 
   return (
     <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -502,6 +530,61 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
         ) : (
           <div className="modal-body">
             <div className="modal-main">
+              {bloqueado ? (
+                <>
+                  <div className="foco-lock-banner">
+                    <div className="foco-lock-text">Ative o Foco para ver os detalhes e agir nesta tarefa</div>
+                    <button className="btn btn-envox btn-sm" onClick={() => onIniciarFoco(tarefaId)} disabled={!!focoEmOutraTarefa}>
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><path d="M3 2l7 4-7 4z" /></svg>
+                      Iniciar Foco
+                    </button>
+                    {focoEmOutraTarefa && <div className="foco-control-sub" style={{ marginTop: 6 }}>Você já está em Foco em outra tarefa.</div>}
+                  </div>
+
+                  <div className="modal-section-title">Status atual</div>
+                  <div className="pill">{statusLabel}</div>
+
+                  <div className="modal-section-title" style={{ marginTop: 16 }}>Histórico — últimas concluídas do cliente</div>
+                  {tarefasConcluidas.length === 0 ? (
+                    <div style={{ color: "var(--ink-4)", fontSize: 13 }}>nenhuma tarefa concluída ainda</div>
+                  ) : (
+                    <div>
+                      {tarefasConcluidas.map((t) => (
+                        <div className="comment" key={"hist-" + t.id}>
+                          <div className="comment-body">
+                            <div className="comment-head"><span className="comment-author">{t.titulo}</span></div>
+                            <div className="comment-text">
+                              Concluída em {t.finalizada_em ? new Date(t.finalizada_em).toLocaleDateString("pt-BR") : "—"}
+                              {t.responsavel_nome ? ` · ${t.responsavel_nome}` : ""}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="modal-section-title" style={{ marginTop: 16 }}>Próximas do cliente</div>
+                  {tarefasProximas.length === 0 ? (
+                    <div style={{ color: "var(--ink-4)", fontSize: 13 }}>nenhuma outra tarefa em andamento</div>
+                  ) : (
+                    <div>
+                      {tarefasProximas.map((t) => (
+                        <div className="comment" key={"prox-" + t.id}>
+                          <div className="comment-body">
+                            <div className="comment-head"><span className="comment-author">{t.titulo}</span></div>
+                            <div className="comment-text">
+                              {(STATUS_COLS.find((c) => c.key === t.status) || {}).label || t.status}
+                              {t.prazo ? ` · prazo ${fmtPrazoKb(t.prazo)}` : ""}
+                              {t.responsavel_nome ? ` · ${t.responsavel_nome}` : ""}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
 
               <div className="modal-section-title">Campos</div>
               <div className="form-row">
@@ -725,6 +808,8 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
                   </div>
                 </>
               )}
+                </>
+              )}
             </div>
 
             <div className="modal-side">
@@ -768,19 +853,21 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
                 </div>
               )}
 
-              <div className="modal-side-block">
-                <div className="modal-side-label">Ações</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
-                  <button className="btn btn-sm" style={{ width: "100%", justifyContent: "flex-start" }} onClick={handleSave} disabled={saving}>
-                    {saving ? "Salvando…" : "Salvar alterações"}
-                  </button>
-                  {isEdit && (
-                    <button className="btn btn-sm" style={{ width: "100%", justifyContent: "flex-start", color: "var(--farol-vermelho)", borderColor: "transparent" }} onClick={handleExcluir}>
-                      Excluir
+              {!bloqueado && (
+                <div className="modal-side-block">
+                  <div className="modal-side-label">Ações</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                    <button className="btn btn-sm" style={{ width: "100%", justifyContent: "flex-start" }} onClick={handleSave} disabled={saving}>
+                      {saving ? "Salvando…" : "Salvar alterações"}
                     </button>
-                  )}
+                    {isEdit && (
+                      <button className="btn btn-sm" style={{ width: "100%", justifyContent: "flex-start", color: "var(--farol-vermelho)", borderColor: "transparent" }} onClick={handleExcluir}>
+                        Excluir
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}

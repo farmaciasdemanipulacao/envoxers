@@ -849,6 +849,11 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
   overflow-y: auto;
 }
 .modal-overlay.open { display: flex; }
+
+/* Confirmação de Finalizar Foco precisa aparecer por cima do card aberto (TaskModal
+   também usa .modal-overlay, z-index 40 — sem isso, quem renderiza depois no JSX vence). */
+.foco-finalizar-overlay { z-index: 60; }
+
 .modal {
   background: var(--bg-elev);
   border-radius: var(--r-lg);
@@ -1194,6 +1199,21 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 .foco-control.active .btn.stop {
   background: var(--farol-vermelho);
   border-color: var(--farol-vermelho);
+}
+
+/* Faixa de bloqueio no modal do card — sem Foco ativo nesta tarefa */
+.foco-lock-banner {
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+  padding: 20px;
+  text-align: center;
+  background: var(--bg-inset);
+  margin-bottom: 16px;
+}
+.foco-lock-text {
+  color: var(--ink-3);
+  font-size: 13px;
+  margin-bottom: 12px;
 }
 
 /* Meu foco hoje/semana — mini widget */

@@ -23,6 +23,9 @@ router = APIRouter(prefix="/foco", tags=["foco"])
 # "meta média" de horas de Foco por semana, exibida no widget "Meu Foco" (ver wireframe F1).
 META_SEMANAL_MIN = 32 * 60
 
+# Grace period — Foco iniciado e finalizado em menos disso é "abriu por engano" (ver TaskModal).
+GRACE_PERIOD_SEGUNDOS = 120
+
 
 async def _sessao_ativa(db: AsyncSession, envoxer_id: int) -> Optional[RegistroFoco]:
     result = await db.execute(
@@ -51,6 +54,7 @@ async def _to_response(db: AsyncSession, registro: RegistroFoco) -> RegistroFoco
         pausado_em=registro.pausado_em,
         duracao_pausada_min=registro.duracao_pausada_min,
         comentario=registro.comentario,
+        descartado=registro.descartado,
     )
 
 
@@ -149,6 +153,7 @@ async def finalizar_foco(
     registro.duracao_min = max(duracao_min, 0)
     registro.custo_hora_snapshot = envoxer.custo_hora
     registro.custo = round((registro.duracao_min / 60) * float(envoxer.custo_hora), 2)
+    registro.descartado = duracao_segundos < GRACE_PERIOD_SEGUNDOS
 
     await db.flush()
     await db.refresh(registro)
@@ -174,6 +179,7 @@ async def resumo_foco(
     ).where(and_(
         RegistroFoco.envoxer_id == envoxer.id,
         RegistroFoco.fim.is_not(None),
+        RegistroFoco.descartado.is_(False),
         RegistroFoco.inicio >= inicio_hoje,
         RegistroFoco.inicio < fim_hoje,
     ))
@@ -184,6 +190,7 @@ async def resumo_foco(
     ).where(and_(
         RegistroFoco.envoxer_id == envoxer.id,
         RegistroFoco.fim.is_not(None),
+        RegistroFoco.descartado.is_(False),
         RegistroFoco.inicio >= inicio_semana,
         RegistroFoco.inicio < fim_semana,
     ))

@@ -151,7 +151,7 @@ function FocoFinalizarModal({ aberto, focoAtivo, focoElapsed, onCancelar, onConf
   };
 
   return (
-    <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onCancelar(); }}>
+    <div className="modal-overlay open foco-finalizar-overlay" onClick={(e) => { if (e.target === e.currentTarget) onCancelar(); }}>
       <div className="modal" style={{ maxWidth: 420, marginTop: 100 }}>
         <div className="modal-head">
           <h2 className="modal-title" style={{ fontSize: 18 }}>Finalizar Foco</h2>

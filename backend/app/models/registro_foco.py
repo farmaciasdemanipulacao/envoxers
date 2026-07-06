@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Integer, Numeric, DateTime, Text, ForeignKey
+from sqlalchemy import BigInteger, Boolean, Integer, Numeric, DateTime, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -36,3 +36,7 @@ class RegistroFoco(Base, TimestampMixin):
     tenant_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=1)
 
     comentario: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Grace period: sessão iniciada e finalizada em <2min (abriu por engano) — sai do
+    # relatório de tempo×custo, da meta semanal e do cálculo de margem do Farol.
+    descartado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

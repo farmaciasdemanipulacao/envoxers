@@ -158,7 +158,10 @@ async def _sinal_margem(db: AsyncSession, cliente: Cliente, hoje: date) -> tuple
         select(func.coalesce(func.sum(RegistroFoco.custo), 0))
         .select_from(RegistroFoco)
         .join(Tarefa, Tarefa.id == RegistroFoco.tarefa_id)
-        .where(Tarefa.cliente_id == cliente.id, RegistroFoco.fim.is_not(None), RegistroFoco.inicio >= desde)
+        .where(
+            Tarefa.cliente_id == cliente.id, RegistroFoco.fim.is_not(None),
+            RegistroFoco.descartado.is_(False), RegistroFoco.inicio >= desde,
+        )
     )
     custo_total = float(result.scalar_one())
     if custo_total == 0:

@@ -56,7 +56,10 @@ async def relatorio_tempo_custo(
             .select_from(RegistroFoco)
             .join(Tarefa, Tarefa.id == RegistroFoco.tarefa_id)
             .join(Cliente, Cliente.id == Tarefa.cliente_id)
-            .where(RegistroFoco.fim.is_not(None), RegistroFoco.inicio >= inicio_dt, RegistroFoco.inicio < fim_dt)
+            .where(
+                RegistroFoco.fim.is_not(None), RegistroFoco.descartado.is_(False),
+                RegistroFoco.inicio >= inicio_dt, RegistroFoco.inicio < fim_dt,
+            )
             .group_by(Cliente.id, Cliente.nome, Cliente.segmento, Cliente.valor_contrato)
         )
         rows = (await db.execute(stmt)).all()
@@ -88,7 +91,10 @@ async def relatorio_tempo_custo(
             .select_from(RegistroFoco)
             .join(Tarefa, Tarefa.id == RegistroFoco.tarefa_id)
             .outerjoin(Servico, Servico.id == Tarefa.servico_id)
-            .where(RegistroFoco.fim.is_not(None), RegistroFoco.inicio >= inicio_dt, RegistroFoco.inicio < fim_dt)
+            .where(
+                RegistroFoco.fim.is_not(None), RegistroFoco.descartado.is_(False),
+                RegistroFoco.inicio >= inicio_dt, RegistroFoco.inicio < fim_dt,
+            )
             .group_by(Servico.id, Servico.nome)
         )
         rows = (await db.execute(stmt)).all()
@@ -115,7 +121,10 @@ async def relatorio_tempo_custo(
             )
             .select_from(RegistroFoco)
             .join(Tarefa, Tarefa.id == RegistroFoco.tarefa_id)
-            .where(RegistroFoco.fim.is_not(None), RegistroFoco.inicio >= inicio_dt, RegistroFoco.inicio < fim_dt)
+            .where(
+                RegistroFoco.fim.is_not(None), RegistroFoco.descartado.is_(False),
+                RegistroFoco.inicio >= inicio_dt, RegistroFoco.inicio < fim_dt,
+            )
             .group_by(Tarefa.tipo_tarefa)
         )
         rows = (await db.execute(stmt)).all()
