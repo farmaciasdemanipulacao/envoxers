@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from app.schemas.perfil import PerfilClienteResponse
+
 
 class ClienteServicoItem(BaseModel):
     servico_id: int
@@ -62,6 +64,7 @@ class ClienteResponse(ClienteBase):
     status_farol: str
     created_at: datetime
     updated_at: datetime
+    perfil: Optional[PerfilClienteResponse] = None
 
     class Config:
         from_attributes = True

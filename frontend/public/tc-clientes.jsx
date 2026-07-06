@@ -18,6 +18,9 @@ const MOTIVO_CHECKIN_LABELS = {
 const HUMOR_CHECKIN_LABELS = { positivo: "Positivo", neutro: "Neutro", negativo: "Negativo", critico: "Crítico" };
 const HUMOR_CHECKIN_COLOR = { positivo: "var(--farol-verde)", neutro: "var(--farol-amarelo)", negativo: "var(--farol-vermelho)", critico: "var(--farol-vermelho)" };
 
+const PERFIL_CLIENTE_LABELS = { facil: "Fácil", neutro: "Neutro", dificil: "Difícil" };
+const PERFIL_CLIENTE_COLOR = { facil: "var(--farol-verde)", neutro: "var(--farol-amarelo)", dificil: "var(--farol-vermelho)" };
+
 function anoMesAtual() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -203,6 +206,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
   const [site, setSite] = useStateCli("");
   const [observacoes, setObservacoes] = useStateCli("");
 
+  const [perfil, setPerfil] = useStateCli(null);
   const [pulsoList, setPulsoList] = useStateCli([]);
   const [checkinList, setCheckinList] = useStateCli([]);
   const [savingPulso, setSavingPulso] = useStateCli(false);
@@ -256,6 +260,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           setTicket(c.ticket ?? "");
           setMaturidade(c.maturidade_digital || "media");
           setObservacoes(c.observacoes || "");
+          setPerfil(c.perfil || null);
           if (c.links_redes) {
             setInstagram(c.links_redes.instagram || "");
             setFacebook(c.links_redes.facebook || "");
@@ -406,7 +411,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
     return <div className="page"><div className="app-loading">Carregando cliente…</div></div>;
   }
 
-  const secoes = ["Identidade", "Contrato", "ICP", "Serviços", "Escopo mensal", "Links & obs.", "Pulso & Check-in"];
+  const secoes = ["Identidade", "Contrato", "ICP", "Serviços", "Escopo mensal", "Links & obs.", "Pulso & Check-in", "Perfil Comportamental"];
 
   const proximoSugerido = checkinList.find((c) => c.proximo_sugerido && !c.proximo_realizado)?.proximo_sugerido;
 
@@ -742,8 +747,54 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             )}
           </div>
 
+          <div className="form-section">
+            <div className="form-section-title">08 · Perfil Comportamental</div>
+            <div className="form-section-hint">Calculado automaticamente a partir do histórico de aprovações e alterações — base do ICP Builder (F3).</div>
+
+            {!isEdit && (
+              <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
+                Salve o cadastro do cliente primeiro para calcular o perfil.
+              </div>
+            )}
+
+            {isEdit && perfil && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                  <span
+                    className="pill"
+                    style={{ color: PERFIL_CLIENTE_COLOR[perfil.perfil], fontWeight: 700, fontSize: 14 }}
+                  >
+                    {PERFIL_CLIENTE_LABELS[perfil.perfil] || perfil.perfil}
+                  </span>
+                  <span style={{ color: "var(--ink-3)", fontSize: 12 }}>score {perfil.score}/100</span>
+                </div>
+                <div className="form-row three">
+                  <div className="modal-side-block">
+                    <div className="modal-side-label">Velocidade de aprovação</div>
+                    <div className="modal-side-value">
+                      {perfil.velocidade_aprovacao_dias != null ? `${perfil.velocidade_aprovacao_dias} dia(s)` : "sem dado"}
+                    </div>
+                  </div>
+                  <div className="modal-side-block">
+                    <div className="modal-side-label">Alterações por tarefa</div>
+                    <div className="modal-side-value">
+                      {perfil.alteracoes_media_por_tarefa != null ? perfil.alteracoes_media_por_tarefa : "sem dado"}
+                    </div>
+                  </div>
+                  <div className="modal-side-block">
+                    <div className="modal-side-label">Atrasos causados pelo cliente</div>
+                    <div className="modal-side-value">{perfil.atrasos_causados_pelo_cliente}</div>
+                  </div>
+                </div>
+                <div className="field-help" style={{ marginTop: 12 }}>
+                  Baseado em {perfil.tarefas_avaliadas} tarefa(s) avaliada(s). Recalculado a cada vez que a ficha é aberta.
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="form-footer">
-            <span className="save-hint">Confira as 7 seções antes de salvar.</span>
+            <span className="save-hint">Confira as 8 seções antes de salvar.</span>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn" onClick={onCancel}>Cancelar</button>
               <button className="btn btn-envox" onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Salvar cliente"}</button>

@@ -11,7 +11,10 @@ from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
 from app.models.cliente_servico import ClienteServico
 from app.models.escopo import Escopo
+from app.models.perfil_cliente import PerfilCliente, PerfilClienteHistorico
 from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse, ClienteListItem
+from app.schemas.perfil import PerfilClienteResponse
+from app.services.perfil import calcular_perfil_cliente
 
 router = APIRouter(prefix="/clientes", tags=["clientes"])
 
@@ -81,7 +84,40 @@ async def obter_cliente(
     cliente = result.scalar_one_or_none()
     if cliente is None:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
-    return cliente
+
+    resp = ClienteResponse.model_validate(cliente)
+    if cliente.ativo:
+        resp.perfil = await _recalcular_e_persistir_perfil(db, cliente_id)
+    return resp
+
+
+async def _recalcular_e_persistir_perfil(db: AsyncSession, cliente_id: int) -> PerfilClienteResponse:
+    """Recalcula o perfil comportamental de um cliente e faz upsert + log de histórico.
+
+    Sem scheduler (mesmo padrão do Farol) — roda a cada GET /clientes/{id}.
+    """
+    calculo = await calcular_perfil_cliente(db, cliente_id)
+
+    snapshot_result = await db.execute(select(PerfilCliente).where(PerfilCliente.cliente_id == cliente_id))
+    snapshot = snapshot_result.scalar_one_or_none()
+    if snapshot is None:
+        snapshot = PerfilCliente(cliente_id=cliente_id)
+        db.add(snapshot)
+
+    snapshot.perfil = calculo["perfil"]
+    snapshot.score = calculo["score"]
+    snapshot.velocidade_aprovacao_dias = calculo["velocidade_aprovacao_dias"]
+    snapshot.alteracoes_media_por_tarefa = calculo["alteracoes_media_por_tarefa"]
+    snapshot.atrasos_causados_pelo_cliente = calculo["atrasos_causados_pelo_cliente"]
+    snapshot.tarefas_avaliadas = calculo["tarefas_avaliadas"]
+
+    db.add(PerfilClienteHistorico(
+        cliente_id=cliente_id, perfil=calculo["perfil"], score=calculo["score"],
+    ))
+
+    await db.flush()
+    await db.refresh(snapshot)
+    return PerfilClienteResponse.model_validate(snapshot)
 
 
 @router.post("", response_model=ClienteResponse, status_code=201)
