@@ -207,6 +207,12 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
   const [observacoes, setObservacoes] = useStateCli("");
 
   const [perfil, setPerfil] = useStateCli(null);
+  const [churn, setChurn] = useStateCli(null);
+  const [motivosChurnList, setMotivosChurnList] = useStateCli([]);
+  const [cancelando, setCancelando] = useStateCli(false);
+  const [motivoCodigo, setMotivoCodigo] = useStateCli("");
+  const [motivoDetalhe, setMotivoDetalhe] = useStateCli("");
+  const [savingCancelamento, setSavingCancelamento] = useStateCli(false);
   const [pulsoList, setPulsoList] = useStateCli([]);
   const [checkinList, setCheckinList] = useStateCli([]);
   const [savingPulso, setSavingPulso] = useStateCli(false);
@@ -240,12 +246,14 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
   useEffectCli(() => {
     (async () => {
       try {
-        const [envs, servs] = await Promise.all([
+        const [envs, servs, motivos] = await Promise.all([
           EnvoxersAPI.api("/envoxers"),
           EnvoxersAPI.api("/servicos"),
+          EnvoxersAPI.api("/motivos-churn"),
         ]);
         setEnvoxersList(envs.filter((e) => e.ativo));
         setServicosList(servs.filter((s) => s.ativo));
+        setMotivosChurnList(motivos);
 
         if (isEdit) {
           const c = await EnvoxersAPI.api(`/clientes/${clienteId}`);
@@ -261,6 +269,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           setMaturidade(c.maturidade_digital || "media");
           setObservacoes(c.observacoes || "");
           setPerfil(c.perfil || null);
+          setChurn(c.churn || null);
           if (c.links_redes) {
             setInstagram(c.links_redes.instagram || "");
             setFacebook(c.links_redes.facebook || "");
@@ -341,6 +350,28 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
       toast(err.message, "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCancelarContrato = async () => {
+    if (!motivoCodigo) {
+      toast("Selecione o motivo do cancelamento", "error");
+      return;
+    }
+    if (!confirm("Cancelar o contrato deste cliente? Essa ação não pode ser desfeita.")) return;
+    setSavingCancelamento(true);
+    try {
+      const resp = await EnvoxersAPI.api(`/clientes/${clienteId}/cancelar`, {
+        method: "POST",
+        body: JSON.stringify({ motivo_codigo: motivoCodigo, motivo_detalhe: motivoDetalhe || null }),
+      });
+      setChurn(resp);
+      setCancelando(false);
+      toast("Contrato cancelado", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSavingCancelamento(false);
     }
   };
 
@@ -484,6 +515,49 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
                 <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
               </div>
             </div>
+
+            {isEdit && churn && (
+              <div style={{ marginTop: 16, padding: "12px 14px", background: "var(--bg-inset)", borderRadius: "var(--r-md)", borderLeft: "3px solid var(--farol-vermelho)" }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "var(--farol-vermelho)", marginBottom: 4 }}>Contrato cancelado</div>
+                <div style={{ fontSize: 13 }}>
+                  <strong>{churn.motivo_nome || churn.motivo_codigo}</strong> · {formatDataCurta(churn.data_cancelamento)} · {churn.meses_de_casa} mês(es) de casa
+                </div>
+                {churn.motivo_detalhe && <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 4 }}>{churn.motivo_detalhe}</div>}
+              </div>
+            )}
+
+            {isEdit && !churn && (
+              <div style={{ marginTop: 16 }}>
+                {!cancelando ? (
+                  <button className="btn btn-sm" style={{ color: "var(--farol-vermelho)" }} onClick={() => setCancelando(true)}>
+                    Cancelar contrato
+                  </button>
+                ) : (
+                  <div style={{ padding: "12px 14px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Cancelar contrato</div>
+                    <div className="form-row">
+                      <div className="field span-2">
+                        <label>Motivo <span className="req">*</span></label>
+                        <select id="cancelar-motivo-select" value={motivoCodigo} onChange={(e) => setMotivoCodigo(e.target.value)}>
+                          <option value="">Selecionar…</option>
+                          {motivosChurnList.map((m) => <option key={m.codigo} value={m.codigo}>{m.nome}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="field" style={{ marginTop: 8 }}>
+                      <label>Detalhe <span className="hint">opcional</span></label>
+                      <textarea value={motivoDetalhe} onChange={(e) => setMotivoDetalhe(e.target.value)} placeholder="Contexto adicional do cancelamento…"></textarea>
+                    </div>
+                    <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                      <button className="btn btn-sm" style={{ color: "var(--farol-vermelho)" }} onClick={handleCancelarContrato} disabled={savingCancelamento}>
+                        {savingCancelamento ? "Cancelando…" : "Confirmar cancelamento"}
+                      </button>
+                      <button className="btn btn-sm" onClick={() => setCancelando(false)}>Voltar</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="form-section">

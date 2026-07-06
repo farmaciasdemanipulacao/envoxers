@@ -12,8 +12,11 @@ from app.models.cliente import Cliente
 from app.models.cliente_servico import ClienteServico
 from app.models.escopo import Escopo
 from app.models.perfil_cliente import PerfilCliente, PerfilClienteHistorico
+from app.models.churn_snapshot import ChurnSnapshot
+from app.models.motivo_churn import MotivoChurnCatalogo
 from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse, ClienteListItem
 from app.schemas.perfil import PerfilClienteResponse
+from app.schemas.churn import ChurnSnapshotResponse
 from app.services.perfil import calcular_perfil_cliente
 
 router = APIRouter(prefix="/clientes", tags=["clientes"])
@@ -86,8 +89,25 @@ async def obter_cliente(
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
     resp = ClienteResponse.model_validate(cliente)
-    if cliente.ativo:
+    if cliente.data_cancelamento is not None:
+        resp.churn = await _obter_churn_snapshot(db, cliente_id)
+    elif cliente.ativo:
         resp.perfil = await _recalcular_e_persistir_perfil(db, cliente_id)
+    return resp
+
+
+async def _obter_churn_snapshot(db: AsyncSession, cliente_id: int) -> Optional[ChurnSnapshotResponse]:
+    result = await db.execute(
+        select(ChurnSnapshot, MotivoChurnCatalogo.nome)
+        .join(MotivoChurnCatalogo, MotivoChurnCatalogo.codigo == ChurnSnapshot.motivo_codigo)
+        .where(ChurnSnapshot.cliente_id == cliente_id)
+    )
+    row = result.first()
+    if row is None:
+        return None
+    snapshot, motivo_nome = row
+    resp = ChurnSnapshotResponse.model_validate(snapshot)
+    resp.motivo_nome = motivo_nome
     return resp
 
 

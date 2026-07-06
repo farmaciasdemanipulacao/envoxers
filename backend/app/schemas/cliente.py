@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from app.schemas.perfil import PerfilClienteResponse
+from app.schemas.churn import ChurnSnapshotResponse
 
 
 class ClienteServicoItem(BaseModel):
@@ -62,9 +63,11 @@ class ClienteUpdate(BaseModel):
 class ClienteResponse(ClienteBase):
     id: int
     status_farol: str
+    data_cancelamento: Optional[date] = None
     created_at: datetime
     updated_at: datetime
     perfil: Optional[PerfilClienteResponse] = None
+    churn: Optional[ChurnSnapshotResponse] = None
 
     class Config:
         from_attributes = True

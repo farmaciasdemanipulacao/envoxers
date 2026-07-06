@@ -14,3 +14,5 @@ from app.models.check_in import CheckIn  # noqa: F401
 from app.models.farol_calculo import FarolCalculo, FarolCalculoHistorico  # noqa: F401
 from app.models.alerta_farol import AlertaFarol  # noqa: F401
 from app.models.perfil_cliente import PerfilCliente, PerfilClienteHistorico  # noqa: F401
+from app.models.motivo_churn import MotivoChurnCatalogo  # noqa: F401
+from app.models.churn_snapshot import ChurnSnapshot  # noqa: F401

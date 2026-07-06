@@ -14,7 +14,8 @@ from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
 from app.models.envoxer import Envoxer
 from app.models.servico import Servico
-from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol
+from app.models.motivo_churn import MotivoChurnCatalogo
+from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn
 
 logger = structlog.get_logger()
 
@@ -26,6 +27,21 @@ SERVICOS_PADRAO = [
     ("SDR", "sdr", "Prospecção ativa e pré-venda"),
     ("Site", "site", "Landing pages e websites"),
     ("Atendimento", "atendimento", "Gestão de conta e relacionamento"),
+]
+
+MOTIVOS_CHURN_PADRAO = [
+    ("preco_alto", "Preço acima do orçamento", "preco", 10),
+    ("sem_retorno", "Não viu retorno / ROI", "entrega", 20),
+    ("atraso_entrega", "Atrasos ou falha de entrega", "entrega", 30),
+    ("qualidade_criativo", "Qualidade do criativo abaixo do esperado", "entrega", 40),
+    ("mudou_estrategia", "Mudou de estratégia (internalizou / parou marketing)", "externa", 50),
+    ("trocou_agencia", "Trocou por outra agência", "ativa", 60),
+    ("perfil_errado", "Serviço não era o que o cliente precisava", "encaixe", 70),
+    ("cliente_dificil", "Relação difícil / expectativa desalinhada", "encaixe", 80),
+    ("empresa_encerrada", "Empresa fechou ou reduziu operação", "externa", 90),
+    ("financeiro", "Problema financeiro do cliente", "externa", 100),
+    ("sem_resposta", "Sumiu — sem resposta ao contato", "sem_resposta", 110),
+    ("outro", "Outro", "externa", 120),
 ]
 
 
@@ -53,6 +69,13 @@ async def seed_dados_iniciais():
                 db.add(Servico(nome=nome, slug=slug, descricao=descricao))
             await db.commit()
             logger.info("servicos_seed_criado")
+
+        result = await db.execute(select(MotivoChurnCatalogo))
+        if result.scalars().first() is None:
+            for codigo, nome, categoria, ordem in MOTIVOS_CHURN_PADRAO:
+                db.add(MotivoChurnCatalogo(codigo=codigo, nome=nome, categoria=categoria, ordem=ordem))
+            await db.commit()
+            logger.info("motivos_churn_seed_criado")
 
         result = await db.execute(select(Envoxer).where(Envoxer.email == "admin@envox.com.br"))
         if result.scalar_one_or_none() is None:
@@ -93,6 +116,7 @@ app.include_router(aprovacoes.router, prefix=API_PREFIX)
 app.include_router(solicitacoes.router, prefix=API_PREFIX)
 app.include_router(pulso_checkin.router, prefix=API_PREFIX)
 app.include_router(farol.router, prefix=API_PREFIX)
+app.include_router(churn.router, prefix=API_PREFIX)
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount(f"{API_PREFIX}/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
