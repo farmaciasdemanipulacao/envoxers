@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tarefa import Tarefa
 from app.models.aprovacao import Aprovacao
+from app.models.perfil_cliente import PerfilCliente, PerfilClienteHistorico
+from app.schemas.perfil import PerfilClienteResponse
 from app.services.farol import DIAS_APROVACAO_PARADA
 
 SCORE_CORTE_FACIL = 70
@@ -137,3 +139,34 @@ async def calcular_perfil_cliente(db: AsyncSession, cliente_id: int, hoje: Optio
         "atrasos_causados_pelo_cliente": atrasos,
         "tarefas_avaliadas": tarefas_avaliadas,
     }
+
+
+async def recalcular_e_persistir_perfil(db: AsyncSession, cliente_id: int):
+    """Recalcula o perfil comportamental de um cliente e faz upsert + log de histórico.
+
+    Sem scheduler (mesmo padrão do Farol) — chamado a cada GET /clientes/{id} e a cada
+    GET /icp/comparativo (recalcula todos os retidos, mesmo padrão do Farol recalculando
+    todo mundo a cada GET /farol).
+    """
+    calculo = await calcular_perfil_cliente(db, cliente_id)
+
+    snapshot_result = await db.execute(select(PerfilCliente).where(PerfilCliente.cliente_id == cliente_id))
+    snapshot = snapshot_result.scalar_one_or_none()
+    if snapshot is None:
+        snapshot = PerfilCliente(cliente_id=cliente_id)
+        db.add(snapshot)
+
+    snapshot.perfil = calculo["perfil"]
+    snapshot.score = calculo["score"]
+    snapshot.velocidade_aprovacao_dias = calculo["velocidade_aprovacao_dias"]
+    snapshot.alteracoes_media_por_tarefa = calculo["alteracoes_media_por_tarefa"]
+    snapshot.atrasos_causados_pelo_cliente = calculo["atrasos_causados_pelo_cliente"]
+    snapshot.tarefas_avaliadas = calculo["tarefas_avaliadas"]
+
+    db.add(PerfilClienteHistorico(
+        cliente_id=cliente_id, perfil=calculo["perfil"], score=calculo["score"],
+    ))
+
+    await db.flush()
+    await db.refresh(snapshot)
+    return PerfilClienteResponse.model_validate(snapshot)
