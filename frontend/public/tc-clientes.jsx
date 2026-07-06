@@ -5,6 +5,40 @@ const SEGMENTOS_SUGERIDOS = [
   "Advocacia", "Imobiliária", "E-commerce", "Restaurante",
 ];
 
+const METODO_PULSO_LABELS = {
+  ligacao: "Ligação", pesquisa: "Pesquisa", estimativa_interna: "Estimativa interna", conversa_avulsa: "Conversa avulsa",
+};
+const TIPO_CHECKIN_LABELS = {
+  ligacao: "Ligação", reuniao: "Reunião", mensagem: "Mensagem", email: "E-mail", presencial: "Presencial",
+};
+const MOTIVO_CHECKIN_LABELS = {
+  rotina: "Rotina", checkpoint_retencao: "Checkpoint de retenção", alerta_farol: "Alerta do farol",
+  alteracao_escopo: "Alteração de escopo", outro: "Outro",
+};
+const HUMOR_CHECKIN_LABELS = { positivo: "Positivo", neutro: "Neutro", negativo: "Negativo", critico: "Crítico" };
+const HUMOR_CHECKIN_COLOR = { positivo: "var(--farol-verde)", neutro: "var(--farol-amarelo)", negativo: "var(--farol-vermelho)", critico: "var(--farol-vermelho)" };
+
+function anoMesAtual() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function agoraDatetimeLocal() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+function formatDataHora(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDataCurta(iso) {
+  if (!iso) return "—";
+  return new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-BR");
+}
+
 function ClientesScreen({ permissao }) {
   const [clientes, setClientes] = useStateCli([]);
   const [loading, setLoading] = useStateCli(true);
@@ -169,6 +203,36 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
   const [site, setSite] = useStateCli("");
   const [observacoes, setObservacoes] = useStateCli("");
 
+  const [pulsoList, setPulsoList] = useStateCli([]);
+  const [checkinList, setCheckinList] = useStateCli([]);
+  const [savingPulso, setSavingPulso] = useStateCli(false);
+  const [savingCheckin, setSavingCheckin] = useStateCli(false);
+  const [pulsoAnoMes, setPulsoAnoMes] = useStateCli(anoMesAtual());
+  const [pulsoNota, setPulsoNota] = useStateCli(8);
+  const [pulsoMetodo, setPulsoMetodo] = useStateCli("ligacao");
+  const [pulsoRespondente, setPulsoRespondente] = useStateCli("");
+  const [pulsoComentario, setPulsoComentario] = useStateCli("");
+  const [checkinData, setCheckinData] = useStateCli(agoraDatetimeLocal());
+  const [checkinTipo, setCheckinTipo] = useStateCli("ligacao");
+  const [checkinMotivo, setCheckinMotivo] = useStateCli("rotina");
+  const [checkinHumor, setCheckinHumor] = useStateCli("");
+  const [checkinObs, setCheckinObs] = useStateCli("");
+  const [checkinProximo, setCheckinProximo] = useStateCli("");
+
+  const carregarPulsoCheckin = async () => {
+    if (!isEdit) return;
+    try {
+      const [pulsos, checkins] = await Promise.all([
+        EnvoxersAPI.api(`/clientes/${clienteId}/pulso`),
+        EnvoxersAPI.api(`/clientes/${clienteId}/checkins`),
+      ]);
+      setPulsoList(pulsos);
+      setCheckinList(checkins);
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
   useEffectCli(() => {
     (async () => {
       try {
@@ -197,6 +261,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             setFacebook(c.links_redes.facebook || "");
             setSite(c.links_redes.site || "");
           }
+          await carregarPulsoCheckin();
         }
       } catch (err) {
         toast(err.message, "error");
@@ -274,11 +339,76 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
     }
   };
 
+  const handleRegistrarPulso = async () => {
+    if (!pulsoAnoMes) {
+      toast("Selecione o mês do pulso", "error");
+      return;
+    }
+    const nota = Number(pulsoNota);
+    if (Number.isNaN(nota) || nota < 0 || nota > 10) {
+      toast("Nota deve estar entre 0 e 10", "error");
+      return;
+    }
+    setSavingPulso(true);
+    try {
+      await EnvoxersAPI.api(`/clientes/${clienteId}/pulso`, {
+        method: "POST",
+        body: JSON.stringify({
+          ano_mes: pulsoAnoMes,
+          nota,
+          metodo: pulsoMetodo,
+          respondente_cliente_nome: pulsoRespondente || null,
+          comentario: pulsoComentario || null,
+        }),
+      });
+      toast("Pulso registrado!", "success");
+      setPulsoComentario("");
+      setPulsoRespondente("");
+      await carregarPulsoCheckin();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSavingPulso(false);
+    }
+  };
+
+  const handleRegistrarCheckin = async () => {
+    if (!checkinData) {
+      toast("Informe a data do check-in", "error");
+      return;
+    }
+    setSavingCheckin(true);
+    try {
+      await EnvoxersAPI.api(`/clientes/${clienteId}/checkins`, {
+        method: "POST",
+        body: JSON.stringify({
+          data_realizado: checkinData,
+          tipo: checkinTipo,
+          motivo: checkinMotivo,
+          humor: checkinHumor || null,
+          observacao: checkinObs || null,
+          proximo_sugerido: checkinProximo || null,
+        }),
+      });
+      toast("Check-in registrado!", "success");
+      setCheckinObs("");
+      setCheckinProximo("");
+      setCheckinData(agoraDatetimeLocal());
+      await carregarPulsoCheckin();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSavingCheckin(false);
+    }
+  };
+
   if (loading) {
     return <div className="page"><div className="app-loading">Carregando cliente…</div></div>;
   }
 
-  const secoes = ["Identidade", "Contrato", "ICP", "Serviços", "Escopo mensal", "Links & obs."];
+  const secoes = ["Identidade", "Contrato", "ICP", "Serviços", "Escopo mensal", "Links & obs.", "Pulso & Check-in"];
+
+  const proximoSugerido = checkinList.find((c) => c.proximo_sugerido && !c.proximo_realizado)?.proximo_sugerido;
 
   return (
     <div className="page">
@@ -464,8 +594,156 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             </div>
           </div>
 
+          <div className="form-section">
+            <div className="form-section-title">07 · Pulso & Check-in</div>
+            <div className="form-section-hint">Nota mensal de satisfação e registro de contatos com o cliente.</div>
+
+            {!isEdit && (
+              <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
+                Salve o cadastro do cliente primeiro para registrar pulso e check-in.
+              </div>
+            )}
+
+            {isEdit && (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Pulso de satisfação</div>
+                <div className="form-row three">
+                  <div className="field">
+                    <label>Mês</label>
+                    <input type="month" value={pulsoAnoMes} onChange={(e) => setPulsoAnoMes(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Nota (0 a 10)</label>
+                    <input type="number" min="0" max="10" value={pulsoNota} onChange={(e) => setPulsoNota(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Método</label>
+                    <select value={pulsoMetodo} onChange={(e) => setPulsoMetodo(e.target.value)}>
+                      {Object.entries(METODO_PULSO_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="field span-2">
+                    <label>Respondente (nome do cliente) <span className="hint">opcional</span></label>
+                    <input type="text" value={pulsoRespondente} onChange={(e) => setPulsoRespondente(e.target.value)} placeholder="Ex.: Marcos (sócio)" />
+                  </div>
+                </div>
+                <div className="field" style={{ marginTop: 8 }}>
+                  <label>Comentário</label>
+                  <textarea value={pulsoComentario} onChange={(e) => setPulsoComentario(e.target.value)} placeholder="O que o cliente disse, contexto da nota…"></textarea>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn btn-envox" onClick={handleRegistrarPulso} disabled={savingPulso}>
+                    {savingPulso ? "Salvando…" : "Registrar pulso"}
+                  </button>
+                  <span className="field-help" style={{ marginLeft: 8 }}>Já existe nota para o mês? Registrar de novo substitui a anterior.</span>
+                </div>
+
+                <div className="table-wrap" style={{ marginTop: 12 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mês</th>
+                        <th>Nota</th>
+                        <th className="table-mobile-hide">Método</th>
+                        <th className="table-mobile-hide">Comentário</th>
+                        <th className="table-mobile-hide">Registrado por</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pulsoList.length === 0 && <tr><td colSpan="5">Nenhum pulso registrado ainda.</td></tr>}
+                      {pulsoList.map((p) => (
+                        <tr key={p.id}>
+                          <td>{p.ano_mes}</td>
+                          <td><strong>{p.nota}</strong></td>
+                          <td className="table-mobile-hide">{METODO_PULSO_LABELS[p.metodo] || p.metodo}</td>
+                          <td className="table-mobile-hide">{p.comentario || "—"}</td>
+                          <td className="table-mobile-hide">{p.registrado_por_envoxer_nome || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ fontWeight: 600, fontSize: 13, margin: "24px 0 8px" }}>Check-in</div>
+
+                {proximoSugerido && (
+                  <div style={{ fontSize: 12, color: "var(--ink-3)", padding: "8px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)", marginBottom: 10 }}>
+                    Próximo check-in sugerido: <strong style={{ color: "var(--ink)" }}>{formatDataCurta(proximoSugerido)}</strong>
+                  </div>
+                )}
+
+                <div className="form-row three">
+                  <div className="field">
+                    <label>Data e hora</label>
+                    <input type="datetime-local" value={checkinData} onChange={(e) => setCheckinData(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Tipo</label>
+                    <select value={checkinTipo} onChange={(e) => setCheckinTipo(e.target.value)}>
+                      {Object.entries(TIPO_CHECKIN_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Motivo</label>
+                    <select value={checkinMotivo} onChange={(e) => setCheckinMotivo(e.target.value)}>
+                      {Object.entries(MOTIVO_CHECKIN_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Humor do cliente <span className="hint">opcional</span></label>
+                    <select value={checkinHumor} onChange={(e) => setCheckinHumor(e.target.value)}>
+                      <option value="">—</option>
+                      {Object.entries(HUMOR_CHECKIN_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Próximo check-in sugerido <span className="hint">opcional</span></label>
+                    <input type="date" value={checkinProximo} onChange={(e) => setCheckinProximo(e.target.value)} />
+                  </div>
+                </div>
+                <div className="field" style={{ marginTop: 8 }}>
+                  <label>Observação</label>
+                  <textarea value={checkinObs} onChange={(e) => setCheckinObs(e.target.value)} placeholder="O que foi tratado no contato…"></textarea>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn btn-envox" onClick={handleRegistrarCheckin} disabled={savingCheckin}>
+                    {savingCheckin ? "Salvando…" : "Registrar check-in"}
+                  </button>
+                </div>
+
+                <div className="table-wrap" style={{ marginTop: 12 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Data</th>
+                        <th className="table-mobile-hide">Tipo</th>
+                        <th className="table-mobile-hide">Motivo</th>
+                        <th>Humor</th>
+                        <th className="table-mobile-hide">Responsável</th>
+                        <th className="table-mobile-hide">Próximo sugerido</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {checkinList.length === 0 && <tr><td colSpan="6">Nenhum check-in registrado ainda.</td></tr>}
+                      {checkinList.map((c) => (
+                        <tr key={c.id}>
+                          <td>{formatDataHora(c.data_realizado)}</td>
+                          <td className="table-mobile-hide">{TIPO_CHECKIN_LABELS[c.tipo] || c.tipo}</td>
+                          <td className="table-mobile-hide">{MOTIVO_CHECKIN_LABELS[c.motivo] || c.motivo}</td>
+                          <td>{c.humor ? <span style={{ color: HUMOR_CHECKIN_COLOR[c.humor] }}>{HUMOR_CHECKIN_LABELS[c.humor]}</span> : "—"}</td>
+                          <td className="table-mobile-hide">{c.responsavel_nome || "—"}</td>
+                          <td className="table-mobile-hide">{c.proximo_sugerido ? formatDataCurta(c.proximo_sugerido) : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="form-footer">
-            <span className="save-hint">Confira as 6 seções antes de salvar.</span>
+            <span className="save-hint">Confira as 7 seções antes de salvar.</span>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn" onClick={onCancel}>Cancelar</button>
               <button className="btn btn-envox" onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Salvar cliente"}</button>

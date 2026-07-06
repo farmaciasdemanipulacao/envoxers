@@ -14,7 +14,7 @@ from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
 from app.models.envoxer import Envoxer
 from app.models.servico import Servico
-from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes
+from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin
 
 logger = structlog.get_logger()
 
@@ -91,6 +91,7 @@ app.include_router(registro_foco.router, prefix=API_PREFIX)
 app.include_router(relatorio.router, prefix=API_PREFIX)
 app.include_router(aprovacoes.router, prefix=API_PREFIX)
 app.include_router(solicitacoes.router, prefix=API_PREFIX)
+app.include_router(pulso_checkin.router, prefix=API_PREFIX)
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount(f"{API_PREFIX}/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
