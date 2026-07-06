@@ -1,0 +1,30 @@
+# Environment
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Uploads (user-generated, not source)
+uploads/*
+!uploads/.gitkeep
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

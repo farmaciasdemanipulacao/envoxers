@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Envoxers — Sistema de Gestão Interna</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="envox-tokens.css" />
+<style>
+  /* Ajustes específicos do F0 — não fazem parte do design system do wireframe */
+  .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+  .login-box { width: 360px; padding: 32px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-2); }
+  .login-error { color: var(--farol-vermelho); font-size: 12px; margin-top: 10px; }
+  .app-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" src="tc-api.jsx"></script>
+<script type="text/babel" src="tc-shared.jsx"></script>
+<script type="text/babel" src="tc-auth.jsx"></script>
+<script type="text/babel" src="tc-envoxers.jsx"></script>
+<script type="text/babel" src="tc-servicos.jsx"></script>
+<script type="text/babel" src="tc-clientes.jsx"></script>
+<script type="text/babel" src="tc-kanban.jsx"></script>
+<script type="text/babel" src="tc-dashboard.jsx"></script>
+<script type="text/babel" src="tc-foco.jsx"></script>
+<script type="text/babel" src="tc-solicitacoes.jsx"></script>
+<script type="text/babel" src="tc-app.jsx"></script>
+
+</body>
+</html>

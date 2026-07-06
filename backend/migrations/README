@@ -1,0 +1,1 @@
+Alembic — migrations do banco envox_kanban. Rodar `alembic upgrade head` de dentro de /docker/envoxers/backend.

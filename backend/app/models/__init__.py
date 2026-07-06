@@ -1,0 +1,11 @@
+"""Import de todos os models para o Alembic autogenerate e Base.metadata.create_all enxergarem as tabelas."""
+from app.models.envoxer import Envoxer  # noqa: F401
+from app.models.servico import Servico  # noqa: F401
+from app.models.cliente import Cliente  # noqa: F401
+from app.models.cliente_servico import ClienteServico  # noqa: F401
+from app.models.escopo import Escopo  # noqa: F401
+from app.models.tarefa import Tarefa  # noqa: F401
+from app.models.registro_foco import RegistroFoco  # noqa: F401
+from app.models.aprovacao import Aprovacao  # noqa: F401
+from app.models.alteracao import Alteracao  # noqa: F401
+from app.models.solicitacao import Solicitacao  # noqa: F401
