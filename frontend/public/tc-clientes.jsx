@@ -1,4 +1,4 @@
-const { useState: useStateCli, useEffect: useEffectCli, useMemo: useMemoCli } = React;
+const { useState: useStateCli, useEffect: useEffectCli, useMemo: useMemoCli, useRef: useRefCli } = React;
 
 const SEGMENTOS_SUGERIDOS = [
   "Farmácia de manipulação", "Clínica estética", "Clínica odontológica",
@@ -181,6 +181,10 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
   const [loading, setLoading] = useStateCli(isEdit);
   const [saving, setSaving] = useStateCli(false);
   const [secaoAtiva, setSecaoAtiva] = useStateCli(0);
+  const secaoRefs = useRefCli([]);
+  const fimRef = useRefCli(null);
+  const suprimirObserverRef = useRefCli(false);
+  const suprimirTimeoutRef = useRefCli(null);
 
   const [envoxersList, setEnvoxersList] = useStateCli([]);
   const [servicosList, setServicosList] = useStateCli([]);
@@ -443,6 +447,48 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
     }
   };
 
+  const irParaSecao = (i) => {
+    setSecaoAtiva(i);
+    suprimirObserverRef.current = true;
+    secaoRefs.current[i]?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const liberar = () => { suprimirObserverRef.current = false; };
+    if (suprimirTimeoutRef.current) clearTimeout(suprimirTimeoutRef.current);
+    if ("onscrollend" in window) {
+      window.addEventListener("scrollend", liberar, { once: true });
+    } else {
+      suprimirTimeoutRef.current = setTimeout(liberar, 700);
+    }
+  };
+
+  useEffectCli(() => {
+    if (loading) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (suprimirObserverRef.current) return;
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const idx = secaoRefs.current.indexOf(entry.target);
+          if (idx !== -1) setSecaoAtiva(idx);
+        }
+      });
+    }, { root: null, rootMargin: "-35% 0px -55% 0px", threshold: 0 });
+    secaoRefs.current.forEach((el) => { if (el) observer.observe(el); });
+
+    // A última seção pode ser curta demais pra nunca cruzar sozinha a faixa de 35-45%
+    // (não sobra espaço abaixo dela pra rolar) — sentinela no fim da página, com um
+    // observer próprio (rootMargin cheio, não a faixa estreita), força o destaque nesse
+    // caso. Criado depois do observer das seções pra ser notificado depois e ter a
+    // palavra final, sem depender de listener de scroll manual (que teria timing
+    // imprevisível em relação ao callback assíncrono do IntersectionObserver).
+    const observerFim = new IntersectionObserver((entries) => {
+      if (suprimirObserverRef.current) return;
+      if (entries[0]?.isIntersecting) setSecaoAtiva(secaoRefs.current.length - 1);
+    }, { root: null, threshold: 0 });
+    if (fimRef.current) observerFim.observe(fimRef.current);
+
+    return () => { observer.disconnect(); observerFim.disconnect(); };
+  }, [loading]);
+
   if (loading) {
     return <div className="page"><div className="app-loading">Carregando cliente…</div></div>;
   }
@@ -468,7 +514,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           <h3>Seções</h3>
           <ul className="form-tabs">
             {secoes.map((s, i) => (
-              <li key={s} className={secaoAtiva === i ? "active" : ""} onClick={() => setSecaoAtiva(i)} style={{ cursor: "pointer" }}>
+              <li key={s} className={secaoAtiva === i ? "active" : ""} onClick={() => irParaSecao(i)} style={{ cursor: "pointer" }}>
                 <span className="num">{String(i + 1).padStart(2, "0")}</span> {s}
               </li>
             ))}
@@ -477,7 +523,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
 
         <div className="form-panel">
 
-          <div className="form-section">
+          <div className="form-section" id="secao-identidade" ref={(el) => (secaoRefs.current[0] = el)}>
             <div className="form-section-title">01 · Identidade</div>
             <div className="form-section-hint">Como o cliente aparece no sistema.</div>
             <div className="form-row">
@@ -499,7 +545,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             </div>
           </div>
 
-          <div className="form-section">
+          <div className="form-section" id="secao-contrato" ref={(el) => (secaoRefs.current[1] = el)}>
             <div className="form-section-title">02 · Contrato</div>
             <div className="form-section-hint">O que decide MRR, projeção 90d e retenção.</div>
             <div className="form-row three">
@@ -565,7 +611,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             )}
           </div>
 
-          <div className="form-section">
+          <div className="form-section" id="secao-icp" ref={(el) => (secaoRefs.current[2] = el)}>
             <div className="form-section-title">03 · ICP</div>
             <div className="form-section-hint">Estes campos são o que permite, em F3, dizer <em>quem</em> devemos aceitar e quem não.</div>
             <div className="form-row">
@@ -603,7 +649,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             </div>
           </div>
 
-          <div className="form-section">
+          <div className="form-section" id="secao-servicos" ref={(el) => (secaoRefs.current[3] = el)}>
             <div className="form-section-title">04 · Serviços contratados</div>
             <div className="form-section-hint">Marque o que este cliente contratou e o valor por serviço.</div>
             <div className="service-grid">
@@ -639,7 +685,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             </div>
           </div>
 
-          <div className="form-section">
+          <div className="form-section" id="secao-escopo" ref={(el) => (secaoRefs.current[4] = el)}>
             <div className="form-section-title">05 · Escopo mensal</div>
             <div className="form-section-hint">Volumes contratados. O <em>limite de alterações</em> vira sinal do Farol em F2.</div>
             <div className="form-row three">
@@ -667,7 +713,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             </div>
           </div>
 
-          <div className="form-section">
+          <div className="form-section" id="secao-links" ref={(el) => (secaoRefs.current[5] = el)}>
             <div className="form-section-title">06 · Links & observações</div>
             <div className="form-row">
               <div className="field">
@@ -689,7 +735,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             </div>
           </div>
 
-          <div className="form-section">
+          <div className="form-section" id="secao-pulso" ref={(el) => (secaoRefs.current[6] = el)}>
             <div className="form-section-title">07 · Pulso & Check-in</div>
             <div className="form-section-hint">Nota mensal de satisfação e registro de contatos com o cliente.</div>
 
@@ -837,7 +883,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             )}
           </div>
 
-          <div className="form-section">
+          <div className="form-section" id="secao-perfil" ref={(el) => (secaoRefs.current[7] = el)}>
             <div className="form-section-title">08 · Perfil Comportamental</div>
             <div className="form-section-hint">Calculado automaticamente a partir do histórico de aprovações e alterações — base do ICP Builder (F3).</div>
 
@@ -890,6 +936,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
               <button className="btn btn-envox" onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Salvar cliente"}</button>
             </div>
           </div>
+          <div ref={fimRef} style={{ height: 1 }} aria-hidden="true" />
 
         </div>
       </div>
