@@ -157,6 +157,11 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
             "ICP Builder",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="5" cy="5" r="2.2" /><circle cx="11" cy="5" r="2.2" /><path d="M2.8 13c0-2 1-3.5 2.2-3.5S7.2 11 7.2 13" /><path d="M8.8 13c0-2 1-3.5 2.2-3.5s2.2 1.5 2.2 3.5" /></svg>
           )}
+          {item(
+            "faturamento",
+            "Painel de faturamento",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13l4-6 3 3 5-7" /><path d="M9 3h5v5" /></svg>
+          )}
         </nav>
       </div>
 

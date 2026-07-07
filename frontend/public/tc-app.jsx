@@ -117,6 +117,7 @@ function AppShell() {
     farol: "Farol / Farol Inteligente",
     alertas: "Farol / Alertas",
     icp: "ICP / ICP Builder",
+    faturamento: "Faturamento / Painel de faturamento",
   };
 
   return (
@@ -148,6 +149,7 @@ function AppShell() {
         {view === "farol" && <FarolScreen />}
         {view === "alertas" && <AlertasScreen />}
         {view === "icp" && <IcpScreen />}
+        {view === "faturamento" && <FaturamentoScreen />}
       </main>
       <FocoBar
         focoAtivo={focoAtivo}
