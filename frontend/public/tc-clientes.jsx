@@ -500,7 +500,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             <div className="form-row three">
               <div className="field">
                 <label>Valor do contrato/mês <span className="req">*</span></label>
-                <div className="money-input"><input type="number" step="0.01" value={valorContrato} onChange={(e) => setValorContrato(e.target.value)} placeholder="0,00" /></div>
+                <EnvoxersShared.MoneyInput value={valorContrato} onChange={setValorContrato} />
                 <div className="field-help">Snapshot financeiro — pode diferir da soma dos serviços.</div>
               </div>
               <div className="field">
@@ -585,7 +585,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
               </div>
               <div className="field">
                 <label>Ticket do cliente <span className="hint">faturamento dele</span></label>
-                <div className="money-input"><input type="number" step="0.01" value={ticket} onChange={(e) => setTicket(e.target.value)} placeholder="0,00" /></div>
+                <EnvoxersShared.MoneyInput value={ticket} onChange={setTicket} />
               </div>
               <div className="field">
                 <label>Maturidade digital</label>
@@ -605,14 +605,25 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
               {servicosList.map((s) => {
                 const sel = servicosSelecionados[s.id];
                 return (
-                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "1px solid var(--line)", borderRadius: "var(--r-md)" }}>
-                    <input type="checkbox" checked={!!sel} onChange={() => toggleServico(s.id)} />
-                    <span style={{ flex: 1, fontSize: 13 }}>{s.nome}</span>
-                    {sel && (
-                      <div className="money-input" style={{ width: 110 }}>
-                        <input type="number" step="0.01" value={sel.valor_mensal} onChange={(e) => setValorServico(s.id, e.target.value)} placeholder="0,00" />
-                      </div>
-                    )}
+                  <div
+                    key={s.id}
+                    className={`service-card${sel ? " checked" : ""}`}
+                    onClick={() => toggleServico(s.id)}
+                    role="checkbox"
+                    aria-checked={!!sel}
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleServico(s.id); } }}
+                  >
+                    <div className="service-card-head">
+                      <span className="service-card-name">{s.nome}</span>
+                      <span className="service-card-check">
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 6l3 3 5-5" /></svg>
+                      </span>
+                    </div>
+                    {s.descricao && <div className="service-card-desc">{s.descricao}</div>}
+                    <div className="service-card-value" onClick={(e) => e.stopPropagation()}>
+                      <EnvoxersShared.MoneyInput value={sel ? sel.valor_mensal : 0} onChange={(v) => setValorServico(s.id, v)} />
+                    </div>
                   </div>
                 );
               })}

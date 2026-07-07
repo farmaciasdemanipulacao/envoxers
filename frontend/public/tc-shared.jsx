@@ -5,6 +5,33 @@ function formatMoney(v) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+// Extrai só os dígitos do que foi digitado e trata como centavos (mesmo
+// comportamento de máscara monetária dos apps de banco: "300000" -> 3000,00)
+function parseMoneyInput(raw) {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  return digits ? parseInt(digits, 10) / 100 : 0;
+}
+
+// Input de dinheiro com máscara em tempo real. `value` é number, `onChange`
+// recebe number. Reusa formatMoney como única fonte de formatação (só tira
+// o prefixo "R$" porque o "R$" já vem do ::before de .money-input no CSS).
+function MoneyInput({ value, onChange, placeholder = "0,00", disabled = false, readOnly = false, className = "", style }) {
+  const display = value || value === 0 ? formatMoney(value).replace(/^R\$\s?/, "") : "";
+  return (
+    <div className={`money-input ${className}`.trim()} style={style}>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={display}
+        placeholder={placeholder}
+        disabled={disabled}
+        readOnly={readOnly}
+        onChange={(e) => { if (!readOnly && !disabled && onChange) onChange(parseMoneyInput(e.target.value)); }}
+      />
+    </div>
+  );
+}
+
 // ==================== TOAST ====================
 const ToastContext = createContext(null);
 
@@ -169,4 +196,4 @@ function Topbar({ crumb, onLogout }) {
   );
 }
 
-window.EnvoxersShared = { formatMoney, ToastProvider, useToast, Sidebar, PageHeader, Topbar };
+window.EnvoxersShared = { formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar };

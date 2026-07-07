@@ -173,7 +173,7 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
             <div className="form-row">
               <div className="field">
                 <label>Salário mensal (R$) <span className="req">*</span></label>
-                <div className="money-input"><input type="number" step="0.01" value={salarioMensal} onChange={(e) => setSalarioMensal(e.target.value)} placeholder="0,00" /></div>
+                <EnvoxersShared.MoneyInput value={salarioMensal} onChange={setSalarioMensal} />
               </div>
               <div className="field">
                 <label>Horas/mês <span className="req">*</span></label>
@@ -181,7 +181,7 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
               </div>
               <div className="field">
                 <label>Custo/hora (calculado)</label>
-                <div className="money-input"><input type="text" value={EnvoxersShared.formatMoney(custoHoraCalculado)} readOnly disabled /></div>
+                <EnvoxersShared.MoneyInput value={custoHoraCalculado} readOnly disabled />
                 <div className="field-help">Salário mensal ÷ horas/mês, atualizado automaticamente.</div>
               </div>
               <div className="field">
