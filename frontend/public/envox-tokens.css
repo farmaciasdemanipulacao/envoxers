@@ -461,7 +461,9 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
   font-size: 22px;
   font-weight: 400;
   letter-spacing: -0.01em;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
 }
 .form-section-hint {
   color: var(--ink-3);
