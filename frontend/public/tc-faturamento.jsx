@@ -7,11 +7,6 @@ function mesLabelFat(anoMes) {
   return MESES_ABREV_FAT[mes - 1] + "/" + String(ano).slice(2);
 }
 
-function formatMilFat(v) {
-  const mil = v / 1000;
-  return mil.toLocaleString("pt-BR", { minimumFractionDigits: mil % 1 === 0 ? 0 : 1, maximumFractionDigits: 1 });
-}
-
 const MRR_CHART_ALTURA_PX = 180; // bate com ".mrr-bars { height: 180px }" (envox-tokens.css) —
 // necessário calcular em px porque .mrr-bar-col não estica pra altura total do
 // container (align-items: flex-end), então uma altura em % no filho colapsa.
@@ -30,9 +25,9 @@ function FaturamentoMrrChart({ historico }) {
           const cls = h.tipo === "atual" ? "current" : h.tipo === "projetado" ? "projected" : "";
           const mostrarValor = h.tipo === "atual" || i === historico.length - 1;
           return (
-            <div className="mrr-bar-col" key={h.ano_mes} title={`${mesLabelFat(h.ano_mes)}: R$ ${formatMilFat(h.valor)} mil`}>
+            <div className="mrr-bar-col" key={h.ano_mes} title={`${mesLabelFat(h.ano_mes)}: ${EnvoxersShared.formatMoney(h.valor)}`}>
               <div className={`mrr-bar ${cls}`} style={{ height: `${h_px}px` }}>
-                {mostrarValor && <span className="mrr-bar-value">{formatMilFat(h.valor)}k</span>}
+                {mostrarValor && <span className="mrr-bar-value">{EnvoxersShared.formatMoney(h.valor)}</span>}
               </div>
               <div className="mrr-bar-label">{mesLabelFat(h.ano_mes)}</div>
             </div>
@@ -150,10 +145,10 @@ function FaturamentoScreen() {
           <div className="fat-hero">
             <div className="fat-mrr-card">
               <div className="fat-mrr-label">MRR — Recorrente</div>
-              <div className="fat-mrr-value">R$ {formatMilFat(dados.mrr_atual)}<span className="unit">mil</span></div>
+              <div className="fat-mrr-value">{EnvoxersShared.formatMoney(dados.mrr_atual)}</div>
               <div className={`fat-mrr-delta ${dados.mrr_delta < 0 ? "neg" : ""}`}>
                 <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor" style={dados.mrr_delta < 0 ? { transform: "rotate(180deg)" } : undefined}><path d="M6 2l4 4H2z" /></svg>
-                {dados.mrr_delta >= 0 ? "+" : ""}R$ {formatMilFat(Math.abs(dados.mrr_delta))} mil vs. mês anterior{dados.mrr_delta_pct != null ? ` · ${dados.mrr_delta_pct >= 0 ? "+" : ""}${dados.mrr_delta_pct}%` : ""}
+                {dados.mrr_delta >= 0 ? "+" : "-"}{EnvoxersShared.formatMoney(Math.abs(dados.mrr_delta))} vs. mês anterior{dados.mrr_delta_pct != null ? ` · ${dados.mrr_delta_pct >= 0 ? "+" : ""}${dados.mrr_delta_pct}%` : ""}
               </div>
               <div className="fat-mrr-sub">
                 {dados.qtd_recorrentes_ativos} contrato{dados.qtd_recorrentes_ativos !== 1 ? "s" : ""} recorrente{dados.qtd_recorrentes_ativos !== 1 ? "s" : ""} ativo{dados.qtd_recorrentes_ativos !== 1 ? "s" : ""}
@@ -174,7 +169,7 @@ function FaturamentoScreen() {
               </div>
               <div className="fat-side-card" style={{ borderLeft: "3px solid var(--farol-vermelho)" }}>
                 <div className="fat-side-label">Receita em risco</div>
-                <div className="fat-side-value danger">R$ {formatMilFat(dados.receita_em_risco)}<span className="unit"> mil</span></div>
+                <div className="fat-side-value danger">{EnvoxersShared.formatMoney(dados.receita_em_risco)}</div>
                 <div className="fat-side-sub">{dados.qtd_em_risco} cliente{dados.qtd_em_risco !== 1 ? "s" : ""} em farol amarelo/vermelho — {dados.receita_em_risco_pct}% do MRR está em atenção.</div>
               </div>
             </div>
@@ -183,7 +178,7 @@ function FaturamentoScreen() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
             <div className="fat-side-card">
               <div className="fat-side-label">Projeção 90 dias</div>
-              <div className="fat-side-value" style={{ color: "var(--envox)" }}>R$ {formatMilFat(dados.projecao_90d)}<span className="unit"> mil</span></div>
+              <div className="fat-side-value" style={{ color: "var(--envox)" }}>{EnvoxersShared.formatMoney(dados.projecao_90d)}</div>
               <div className="fat-side-sub">MRR menos os clientes em farol vermelho. Amarelos entram como incerteza, não são descontados.</div>
             </div>
             <div className="fat-side-card">
