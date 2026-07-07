@@ -32,6 +32,7 @@ function AppShell() {
   const abrirTarefa = (id) => setTarefaAberta({ id });
   const abrirNovaTarefa = (statusInicial) => {
     setNovaStatusInicial(statusInicial || "nova");
+    carregarListasBase(); // garante dropdown de Cliente/Responsável atualizado, não só após salvar
     setTarefaAberta({});
   };
 

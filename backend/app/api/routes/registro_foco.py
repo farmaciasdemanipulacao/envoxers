@@ -128,18 +128,10 @@ async def pausar_ou_retomar_foco(
     return await _to_response(db, registro)
 
 
-@router.post("/{registro_id}/finalizar", response_model=RegistroFocoResponse)
-async def finalizar_foco(
-    registro_id: int,
-    payload: FocoFinalizarRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
-):
-    registro = await _obter_registro_do_envoxer(db, registro_id, envoxer.id)
-    if registro.fim is not None:
-        raise HTTPException(status_code=409, detail="Este Foco já foi finalizado")
-
-    registro.comentario = payload.comentario
+def _finalizar_registro(registro: RegistroFoco, custo_hora: float, comentario: Optional[str] = None) -> None:
+    """Mesma lógica usada pelo botão Finalizar — calcula duração/custo e marca `descartado`
+    se a sessão inteira (bruta, sem descontar pausa) durou menos que o grace period."""
+    registro.comentario = comentario
     registro.fim = datetime.now(timezone.utc)
 
     # Se estava pausado no momento de finalizar, fecha esse último intervalo antes de calcular.
@@ -151,9 +143,42 @@ async def finalizar_foco(
     duracao_segundos = (registro.fim - registro.inicio).total_seconds()
     duracao_min = round(duracao_segundos / 60) - registro.duracao_pausada_min
     registro.duracao_min = max(duracao_min, 0)
-    registro.custo_hora_snapshot = envoxer.custo_hora
-    registro.custo = round((registro.duracao_min / 60) * float(envoxer.custo_hora), 2)
+    registro.custo_hora_snapshot = custo_hora
+    registro.custo = round((registro.duracao_min / 60) * float(custo_hora), 2)
     registro.descartado = duracao_segundos < GRACE_PERIOD_SEGUNDOS
+
+
+async def finalizar_foco_ativo_da_tarefa(
+    db: AsyncSession, tarefa_id: int, comentario: Optional[str] = None
+) -> Optional[RegistroFoco]:
+    """Chamado ao excluir uma Tarefa — nunca deixar um RegistroFoco "fantasma" ativo
+    indefinidamente (travaria `/foco/iniciar` pro envoxer dono da sessão pra sempre)."""
+    result = await db.execute(
+        select(RegistroFoco).where(and_(RegistroFoco.tarefa_id == tarefa_id, RegistroFoco.fim.is_(None)))
+    )
+    registro = result.scalar_one_or_none()
+    if registro is None:
+        return None
+
+    dono = (await db.execute(select(Envoxer).where(Envoxer.id == registro.envoxer_id))).scalar_one_or_none()
+    custo_hora = dono.custo_hora if dono is not None else 0
+    _finalizar_registro(registro, custo_hora, comentario)
+    await db.flush()
+    return registro
+
+
+@router.post("/{registro_id}/finalizar", response_model=RegistroFocoResponse)
+async def finalizar_foco(
+    registro_id: int,
+    payload: FocoFinalizarRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    registro = await _obter_registro_do_envoxer(db, registro_id, envoxer.id)
+    if registro.fim is not None:
+        raise HTTPException(status_code=409, detail="Este Foco já foi finalizado")
+
+    _finalizar_registro(registro, envoxer.custo_hora, payload.comentario)
 
     await db.flush()
     await db.refresh(registro)

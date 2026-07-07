@@ -6,6 +6,7 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
+from app.api.routes.registro_foco import finalizar_foco_ativo_da_tarefa
 from app.core.uploads import salvar_upload
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
@@ -211,6 +212,11 @@ async def excluir_tarefa(
     _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
+    # Nunca deixar uma tarefa sumir com um RegistroFoco travado nela — finaliza
+    # automaticamente (mesma lógica do botão Finalizar) antes do soft-delete.
+    await finalizar_foco_ativo_da_tarefa(
+        db, tarefa_id, comentario="Finalizado automaticamente — tarefa excluída"
+    )
     tarefa.deleted_at = datetime.now(timezone.utc)
     await db.flush()
 

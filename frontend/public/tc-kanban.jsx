@@ -330,6 +330,19 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
     })();
   }, [tarefaId]);
 
+  const buildPayload = () => ({
+    cliente_id: Number(clienteId),
+    servico_id: servicoId ? Number(servicoId) : null,
+    titulo,
+    tipo_tarefa: tipoTarefa || null,
+    responsavel_envoxer_id: responsavelId ? Number(responsavelId) : null,
+    status,
+    prazo: prazo || null,
+    etiqueta: etiqueta || null,
+    etiqueta_cor: etiqueta ? etiquetaCor : null,
+    legenda: legenda || null,
+  });
+
   const handleSave = async () => {
     if (!clienteId || !titulo) {
       toast("Cliente e título são obrigatórios", "error");
@@ -337,22 +350,10 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
     }
     setSaving(true);
     try {
-      const payload = {
-        cliente_id: Number(clienteId),
-        servico_id: servicoId ? Number(servicoId) : null,
-        titulo,
-        tipo_tarefa: tipoTarefa || null,
-        responsavel_envoxer_id: responsavelId ? Number(responsavelId) : null,
-        status,
-        prazo: prazo || null,
-        etiqueta: etiqueta || null,
-        etiqueta_cor: etiqueta ? etiquetaCor : null,
-        legenda: legenda || null,
-      };
       if (isEdit) {
-        await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "PATCH", body: JSON.stringify(payload) });
+        await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "PATCH", body: JSON.stringify(buildPayload()) });
       } else {
-        await EnvoxersAPI.api("/tarefas", { method: "POST", body: JSON.stringify(payload) });
+        await EnvoxersAPI.api("/tarefas", { method: "POST", body: JSON.stringify(buildPayload()) });
       }
       toast("Demanda salva!", "success");
       onSaved();
@@ -401,9 +402,14 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
     }
   };
 
+  // As 4 ações abaixo (decisão de aprovação/alteração) validam o STATUS PERSISTIDO no banco,
+  // mas o painel que as exibe usa o `status` local do <select> — se o usuário mudou o dropdown
+  // sem clicar em "Salvar" antes, o backend rejeita com 400 sem o usuário entender por quê.
+  // Fix: salvar o formulário atual (via buildPayload) numa única ação, antes da decisão em si.
   const handleAprovarInterno = async () => {
     setAcaoLoading(true);
     try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "PATCH", body: JSON.stringify(buildPayload()) });
       await EnvoxersAPI.api(`/tarefas/${tarefaId}/aprovacao`, {
         method: "POST",
         body: JSON.stringify({ etapa: "interna", decisao: "aprovada" }),
@@ -424,6 +430,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
     }
     setAcaoLoading(true);
     try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "PATCH", body: JSON.stringify(buildPayload()) });
       await EnvoxersAPI.api(`/tarefas/${tarefaId}/aprovacao`, {
         method: "POST",
         body: JSON.stringify({ etapa: "interna", decisao: "pediu_ajuste", comentario: ajusteComentario }),
@@ -440,6 +447,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
   const handleAprovarCliente = async () => {
     setAcaoLoading(true);
     try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "PATCH", body: JSON.stringify(buildPayload()) });
       await EnvoxersAPI.api(`/tarefas/${tarefaId}/aprovacao`, {
         method: "POST",
         body: JSON.stringify({ etapa: "cliente", decisao: "aprovada" }),
@@ -460,6 +468,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
     }
     setAcaoLoading(true);
     try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "PATCH", body: JSON.stringify(buildPayload()) });
       const resp = await EnvoxersAPI.api(`/tarefas/${tarefaId}/alteracoes`, {
         method: "POST",
         body: JSON.stringify({
