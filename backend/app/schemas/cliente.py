@@ -68,6 +68,7 @@ class ClienteResponse(ClienteBase):
     updated_at: datetime
     perfil: Optional[PerfilClienteResponse] = None
     churn: Optional[ChurnSnapshotResponse] = None
+    servicos: list[ClienteServicoItem] = []
 
     class Config:
         from_attributes = True

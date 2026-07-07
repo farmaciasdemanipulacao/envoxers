@@ -13,7 +13,7 @@ from app.models.cliente_servico import ClienteServico
 from app.models.escopo import Escopo
 from app.models.churn_snapshot import ChurnSnapshot
 from app.models.motivo_churn import MotivoChurnCatalogo
-from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse, ClienteListItem
+from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse, ClienteListItem, ClienteServicoItem
 from app.schemas.churn import ChurnSnapshotResponse
 from app.services.perfil import recalcular_e_persistir_perfil
 
@@ -91,6 +91,14 @@ async def obter_cliente(
         resp.churn = await _obter_churn_snapshot(db, cliente_id)
     elif cliente.ativo:
         resp.perfil = await recalcular_e_persistir_perfil(db, cliente_id)
+
+    servicos_result = await db.execute(
+        select(ClienteServico).where(ClienteServico.cliente_id == cliente_id)
+    )
+    resp.servicos = [
+        ClienteServicoItem(servico_id=cs.servico_id, valor_mensal=float(cs.valor_mensal), observacao=cs.observacao)
+        for cs in servicos_result.scalars().all()
+    ]
     return resp
 
 

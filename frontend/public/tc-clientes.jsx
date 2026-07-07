@@ -270,6 +270,11 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           setObservacoes(c.observacoes || "");
           setPerfil(c.perfil || null);
           setChurn(c.churn || null);
+          if (Array.isArray(c.servicos)) {
+            const sel = {};
+            c.servicos.forEach((cs) => { sel[cs.servico_id] = { valor_mensal: cs.valor_mensal }; });
+            setServicosSelecionados(sel);
+          }
           if (c.links_redes) {
             setInstagram(c.links_redes.instagram || "");
             setFacebook(c.links_redes.facebook || "");
@@ -617,7 +622,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
                     <div className="service-card-head">
                       <span className="service-card-name">{s.nome}</span>
                       <span className="service-card-check">
-                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 6l3 3 5-5" /></svg>
+                        {!!sel && <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 6l3 3 5-5" /></svg>}
                       </span>
                     </div>
                     {s.descricao && <div className="service-card-desc">{s.descricao}</div>}
