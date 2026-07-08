@@ -309,6 +309,7 @@ const HELP_TEXTS = {
   icp_dim_ticket: { t: "Ticket", b: "<p>Faturamento anual declarado pelo cliente. Serve para segmentar por porte. Ticket muito baixo geralmente = churn cedo por não conseguir pagar.</p>" },
   icp_dim_matur: { t: "Maturidade digital", b: "<p>Quão pronto o cliente está para marketing digital. Baixa maturidade = espera resultado sem entender o processo = churn por frustração.</p>" },
   icp_dim_perfil: { t: "Perfil comportamental", b: "<p>Fácil / neutro / difícil — como o cliente se comporta na operação. Detectável em 60-90 dias, antes de decidir se vale continuar.</p>" },
+  icp_como_ler: { t: "Como ler as barras", b: "<p>Verde = % do grupo A (retidos). Vermelho = % do grupo B (perdidos). Coluna <em>Δ</em> mostra a diferença em pontos percentuais.</p><p>Δ acima de +15pp = característica preditiva de retenção. Abaixo de −15pp = fator de churn cedo.</p>" },
 
   // --- Painel de faturamento
   fat_mrr: { t: "MRR", b: "<p>Monthly Recurring Revenue — soma de <code>valor_contrato</code> dos clientes com <code>tipo_receita = recorrente</code>. É o número que separa faturamento previsível de projeto pontual.</p>" },
