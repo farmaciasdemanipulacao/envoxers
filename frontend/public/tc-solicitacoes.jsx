@@ -76,6 +76,7 @@ function SolicitacoesScreen({ onAbrirTarefa }) {
               {s === "todas" ? "Todas" : STATUS_SOLICITACAO_LABELS[s]}
             </button>
           ))}
+          <EnvoxersShared.HelpIcon helpKey="solic_tab_novas" />
         </div>
       </div>
 
@@ -392,6 +393,9 @@ function SolicitacaoModal({ solicitacaoId, onClose, onSaved, onListChanged, onAb
                   )}
                   {isEdit && (solicitacao.status === "nova" || solicitacao.status === "em_analise") && (
                     <>
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <EnvoxersShared.HelpIcon helpKey="solic_acao" />
+                      </div>
                       <button className="btn btn-envox btn-sm" style={{ width: "100%", justifyContent: "center" }} onClick={handleVirarDemanda} disabled={saving}>
                         Virar demanda
                       </button>

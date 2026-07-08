@@ -111,7 +111,8 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
           {item(
             "servicos",
             "Serviços",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 4h10M3 8h10M3 12h6" /></svg>
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 4h10M3 8h10M3 12h6" /></svg>,
+            "nav_servicos"
           )}
         </nav>
       </div>
@@ -152,7 +153,8 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
           {item(
             "solicitacoes",
             "Solicitações",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12v8l-3-2H2z" /><path d="M5 7h6M5 9h4" /></svg>
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12v8l-3-2H2z" /><path d="M5 7h6M5 9h4" /></svg>,
+            "nav_solic"
           )}
           {item(
             "farol",
@@ -242,6 +244,7 @@ const HELP_TEXTS = {
   nav_relatorio: { t: "Relatório de custo", b: "<p>Horas de Foco × custo do time × contrato. Mostra margem por cliente/serviço/tipo/envoxer. Sinaliza margem &lt;20% em amarelo, &lt;10% em vermelho.</p>" },
   nav_dashboard: { t: "Dashboard do dia", b: "<p>Resumo do que precisa da sua atenção hoje: farol dos clientes em risco, atrasos, aprovações pendentes, publicações dos próximos 3 dias, e captações do dia.</p>" },
   nav_kanban: { t: "Kanban de demandas", b: "<p>Todas as tarefas de todos os clientes em 8 colunas (Nova → Finalizado). Arraste cards entre colunas. Filtre por cliente, responsável, tipo e atrasadas.</p>" },
+  nav_solic: { t: "Solicitações do cliente", b: "<p>Inbox de pedidos: novo post, alteração, material extra, campanha, dúvida, evento. Triar aqui evita que pedidos virem WhatsApp perdido.</p>" },
 
   // --- Dashboard
   dash_farol_widget: { t: "Farol do topo do Dashboard", b: "<p>Os até 5 clientes com pior health score aparecem aqui todo dia. Se você abrir o sistema só para uma coisa, é esta.</p><p>Clique no cliente para abrir a ficha.</p>" },
@@ -252,6 +255,15 @@ const HELP_TEXTS = {
   dash_next3: { t: "Próximos 3 dias", b: "<p>Tarefas com prazo nos próximos 3 dias. Ajuda a decidir o que priorizar hoje para não atrasar a entrega.</p>" },
   dash_hoje_eventos: { t: "Captações e eventos de hoje", b: "<p>Reuniões, captações e eventos externos agendados para hoje. Cabe checar antes das 10h.</p>" },
   dash_rel_rapido: { t: "Relatório rápido", b: "<p>Prévia do Relatório de custo (menu Operação → Relatório). Mostra os clientes com pior situação de margem para você ver antes de abrir a tela cheia.</p>" },
+
+  // --- Foco
+  foco_hoje: { t: "Foco de hoje", b: "<p>Soma de todas as sessões de Foco finalizadas hoje, e quanto isso vale em custo gerado (horas × custo/hora do Envoxer).</p>" },
+  foco_semana: { t: "Foco da semana", b: "<p>Soma da semana. A meta média (32h) é o benchmark para operadores; heads e gestores fazem menos por dividir tempo com gestão.</p>" },
+
+  // --- Solicitações
+  solic_tab_novas: { t: "Solicitações novas", b: "<p>Pedidos que ainda não foram vistos por ninguém do time. Meta: zerar em 24h.</p>" },
+  solic_tab_analise: { t: "Em análise", b: "<p>Vistas, sendo avaliadas. Cliente vê \"estamos avaliando\".</p>" },
+  solic_acao: { t: "Ações da solicitação", b: "<p><strong>Virar demanda</strong> cria um card no Kanban com os dados. <strong>Em análise</strong> só marca como vista. <strong>Recusar</strong> exige motivo — cliente é notificado.</p>" },
   nav_farol: { t: "Farol de clientes", b: "<p>Todos os clientes ordenados por risco (health score 0-100). Vermelho = ligação essa semana. Amarelo = próximos 15 dias. Verde = mensal.</p>" },
   nav_alertas: { t: "Central de alertas", b: "<p>Toda vez que um cliente muda de farol, um alerta é criado com motivo específico e sugestão de ação. Reconheça, resolva, ou ignore com justificativa.</p>" },
   nav_icp: { t: "ICP Builder", b: "<p>Compara clientes que ficaram &gt;12 meses com os que saíram em &lt;6 meses. A diferença entre os dois grupos é o seu ICP (quem buscar) e anti-ICP (quem evitar).</p>" },
@@ -259,6 +271,7 @@ const HELP_TEXTS = {
   nav_faturamento: { t: "Painel de faturamento", b: "<p>MRR real, concentração top 3, receita em risco, projeção 90 dias, curva de retenção por cohort. A previsibilidade que substitui a montanha-russa.</p>" },
   nav_clientes: { t: "Cadastro de clientes", b: "<p>Base viva de contas. Cada cliente carrega dados de contrato + dados de ICP (segmento, canal, ticket, maturidade) — capturados no cadastro para uso em F3.</p>" },
   nav_envoxers: { t: "Cadastro de Envoxers", b: "<p>Time interno. O <code>custo/hora</code> aqui alimenta a margem em todos os relatórios — use salário + encargos (~1,5-1,8×), não salário puro.</p>" },
+  nav_servicos: { t: "Cadastro de serviços", b: "<p>Catálogo fixo do que a Envox oferece. Editar aqui reflete em contratos históricos — mude com cuidado.</p>" },
 
   // --- Farol
   farol_kpi_score: { t: "Score médio", b: "<p>Média do health score de todos os clientes ativos. Passar de 80 significa base saudável.</p>" },
