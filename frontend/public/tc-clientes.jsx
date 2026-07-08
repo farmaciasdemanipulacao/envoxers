@@ -47,6 +47,7 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
   const [loading, setLoading] = useStateCli(true);
   const [busca, setBusca] = useStateCli("");
   const [filtroFarol, setFiltroFarol] = useStateCli("todos");
+  const [filtroTipo, setFiltroTipo] = useStateCli("todos");
   const [editando, setEditando] = useStateCli(null); // null = lista, {} = novo, {id} = editar
   const toast = EnvoxersShared.useToast();
   const podeEditar = permissao === "admin" || permissao === "gestor";
@@ -75,10 +76,11 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
   const filtrados = useMemoCli(() => {
     return clientes.filter((c) => {
       if (filtroFarol !== "todos" && c.status_farol !== filtroFarol) return false;
+      if (filtroTipo !== "todos" && c.tipo_receita !== filtroTipo) return false;
       if (busca && !(`${c.nome} ${c.segmento || ""}`.toLowerCase().includes(busca.toLowerCase()))) return false;
       return true;
     });
-  }, [clientes, busca, filtroFarol]);
+  }, [clientes, busca, filtroFarol, filtroTipo]);
 
   const kpis = useMemoCli(() => {
     const ativos = clientes.filter((c) => c.ativo);
@@ -186,6 +188,12 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
           <button className={"chip" + (filtroFarol === "vermelho" ? " active" : "")} onClick={() => setFiltroFarol("vermelho")}>
             <span className="farol-dot" style={{ width: 7, height: 7, background: "var(--farol-vermelho)", boxShadow: "none", display: "inline-block", borderRadius: "50%" }}></span> Vermelho
           </button>
+          <button className={"chip" + (filtroTipo === "recorrente" ? " active" : "")} onClick={() => setFiltroTipo(filtroTipo === "recorrente" ? "todos" : "recorrente")}>
+            Recorrente
+          </button>
+          <button className={"chip" + (filtroTipo === "pontual" ? " active" : "")} onClick={() => setFiltroTipo(filtroTipo === "pontual" ? "todos" : "pontual")}>
+            Pontual
+          </button>
         </div>
       </div>
 
@@ -197,14 +205,15 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
               <th>Cliente</th>
               <th className="table-mobile-hide">Segmento</th>
               <th className="table-mobile-hide">Responsável</th>
+              <th className="table-mobile-hide">Início</th>
               <th className="table-mobile-hide">Meses</th>
               <th style={{ textAlign: "right" }}>Contrato/mês</th>
               <th style={{ width: 80 }} className="table-mobile-hide">Tipo</th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan="7">Carregando…</td></tr>}
-            {!loading && filtrados.length === 0 && <tr><td colSpan="7">Nenhum cliente encontrado.</td></tr>}
+            {loading && <tr><td colSpan="8">Carregando…</td></tr>}
+            {!loading && filtrados.length === 0 && <tr><td colSpan="8">Nenhum cliente encontrado.</td></tr>}
             {filtrados.map((c) => (
               <tr key={c.id} onClick={() => podeEditar && setEditando({ id: c.id })} style={{ cursor: podeEditar ? "pointer" : "default" }}>
                 <td><span className="farol-dot" style={{ width: 7, height: 7, borderRadius: "50%", display: "inline-block", background: `var(--farol-${c.status_farol})` }}></span></td>
@@ -223,6 +232,7 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
                     </div>
                   ) : "—"}
                 </td>
+                <td className="table-mobile-hide">{formatDataCurta(c.data_inicio_contrato)}</td>
                 <td className="table-mobile-hide">{c.meses_de_casa ?? "—"}</td>
                 <td style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(c.valor_contrato)}</td>
                 <td className="table-mobile-hide">{c.tipo_receita === "recorrente" ? "Recorrente" : "Pontual"}</td>
