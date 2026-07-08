@@ -126,7 +126,8 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
           {item(
             "dashboard",
             "Dashboard do dia",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5" /><path d="M2 7h12M7 2v12" /></svg>
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5" /><path d="M2 7h12M7 2v12" /></svg>,
+            "nav_dashboard"
           )}
           {item(
             "calendario",
@@ -235,6 +236,17 @@ const HELP_TEXTS = {
   // --- Navegação
   nav_calendario: { t: "Calendário geral", b: "<p>Publicações programadas + reuniões + captações + eventos externos, tudo numa agenda. Filtro por cliente.</p>" },
   nav_relatorio: { t: "Relatório de custo", b: "<p>Horas de Foco × custo do time × contrato. Mostra margem por cliente/serviço/tipo/envoxer. Sinaliza margem &lt;20% em amarelo, &lt;10% em vermelho.</p>" },
+  nav_dashboard: { t: "Dashboard do dia", b: "<p>Resumo do que precisa da sua atenção hoje: farol dos clientes em risco, atrasos, aprovações pendentes, publicações dos próximos 3 dias, e captações do dia.</p>" },
+
+  // --- Dashboard
+  dash_farol_widget: { t: "Farol do topo do Dashboard", b: "<p>Os até 5 clientes com pior health score aparecem aqui todo dia. Se você abrir o sistema só para uma coisa, é esta.</p><p>Clique no cliente para abrir a ficha.</p>" },
+  dash_meu_foco: { t: "Meu Foco", b: "<p>Tempo total que você registrou <strong>hoje</strong> e <strong>esta semana</strong>, com o quanto isso vale em custo gerado.</p><p>A meta de 32h semanais é o benchmark: 4 dias × 8h. Envoxer com gestão registra menos (~120h/mês); operador registra mais (~160h/mês).</p>" },
+  dash_progress: { t: "Em andamento", b: "<p>Tarefas nas colunas <em>Produção</em>, <em>Revisão interna</em> e <em>Ajustes</em>. É o que o time está tocando agora mesmo.</p>" },
+  dash_late: { t: "Atrasadas", b: "<p>Tarefas com prazo interno vencido e ainda não finalizadas. Este é <strong>o número que precisa ir a zero</strong> — atraso alimenta o sinal 2 do farol.</p>" },
+  dash_approvals: { t: "Aprovações pendentes", b: "<p>Tarefas em <em>Aprovação cliente</em>. Se ficarem paradas, viram sinal no farol.</p>" },
+  dash_next3: { t: "Próximos 3 dias", b: "<p>Tarefas com prazo nos próximos 3 dias. Ajuda a decidir o que priorizar hoje para não atrasar a entrega.</p>" },
+  dash_hoje_eventos: { t: "Captações e eventos de hoje", b: "<p>Reuniões, captações e eventos externos agendados para hoje. Cabe checar antes das 10h.</p>" },
+  dash_rel_rapido: { t: "Relatório rápido", b: "<p>Prévia do Relatório de custo (menu Operação → Relatório). Mostra os clientes com pior situação de margem para você ver antes de abrir a tela cheia.</p>" },
   nav_farol: { t: "Farol de clientes", b: "<p>Todos os clientes ordenados por risco (health score 0-100). Vermelho = ligação essa semana. Amarelo = próximos 15 dias. Verde = mensal.</p>" },
   nav_alertas: { t: "Central de alertas", b: "<p>Toda vez que um cliente muda de farol, um alerta é criado com motivo específico e sugestão de ação. Reconheça, resolva, ou ignore com justificativa.</p>" },
   nav_icp: { t: "ICP Builder", b: "<p>Compara clientes que ficaram &gt;12 meses com os que saíram em &lt;6 meses. A diferença entre os dois grupos é o seu ICP (quem buscar) e anti-ICP (quem evitar).</p>" },

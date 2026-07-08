@@ -147,6 +147,7 @@ function AppShell() {
             permissao={permissao}
             dataVersion={dataVersion}
             onAbrirTarefa={abrirTarefa}
+            onNavigate={setView}
           />
         )}
         {view === "solicitacoes" && <SolicitacoesScreen onAbrirTarefa={abrirTarefa} />}
