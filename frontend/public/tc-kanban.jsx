@@ -1,14 +1,14 @@
 const { useState: useStateKb, useEffect: useEffectKb, useMemo: useMemoKb } = React;
 
 const STATUS_COLS = [
-  { key: "nova", label: "Nova demanda", phase: "entrada" },
-  { key: "planejamento", label: "Planejamento", phase: "entrada" },
-  { key: "producao", label: "Produção", phase: "producao" },
-  { key: "revisao_interna", label: "Revisão interna", phase: "producao" },
-  { key: "aprovacao_cliente", label: "Aprovação cliente", phase: "aprovacao" },
-  { key: "ajustes", label: "Ajustes", phase: "aprovacao" },
-  { key: "programado", label: "Programado", phase: "saida" },
-  { key: "finalizado", label: "Finalizado", phase: "saida" },
+  { key: "nova", label: "Nova demanda", phase: "entrada", helpKey: "kanban_col_nova" },
+  { key: "planejamento", label: "Planejamento", phase: "entrada", helpKey: "kanban_col_planejamento" },
+  { key: "producao", label: "Produção", phase: "producao", helpKey: "kanban_col_producao" },
+  { key: "revisao_interna", label: "Revisão interna", phase: "producao", helpKey: "kanban_col_revisao_interna" },
+  { key: "aprovacao_cliente", label: "Aprovação cliente", phase: "aprovacao", helpKey: "kanban_col_aprovacao_cliente" },
+  { key: "ajustes", label: "Ajustes", phase: "aprovacao", helpKey: "kanban_col_ajustes" },
+  { key: "programado", label: "Programado", phase: "saida", helpKey: "kanban_col_programado" },
+  { key: "finalizado", label: "Finalizado", phase: "saida", helpKey: "kanban_col_finalizado" },
 ];
 
 const TIPOS_TAREFA = [
@@ -188,7 +188,7 @@ function KanbanColuna({ col, tarefas, focoAtivo, focoElapsed, onDropTarefa, onAb
       }}
     >
       <div className="kb-col-head">
-        <span className="kb-col-name">{col.label}</span>
+        <span className="kb-col-name">{col.label} <EnvoxersShared.HelpIcon helpKey={col.helpKey} /></span>
         <span className="kb-col-count">{tarefas.length}</span>
         <button className="kb-col-add" onClick={onNovaNestaColuna} title="Nova nesta coluna">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 2v8M2 6h8" /></svg>
@@ -671,7 +671,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
 
               {isEdit && (
                 <>
-                  <div className="modal-section-title">Criativo</div>
+                  <div className="modal-section-title">Criativo <EnvoxersShared.HelpIcon helpKey="modal_criativo" /></div>
                   {tarefa?.criativo ? (
                     <div className="creative-preview">
                       <a href={tarefa.criativo} target="_blank" rel="noreferrer">{tarefa.criativo.split("/").pop()}</a>
@@ -686,12 +686,12 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
                 </>
               )}
 
-              <div className="modal-section-title">Legenda</div>
+              <div className="modal-section-title">Legenda <EnvoxersShared.HelpIcon helpKey="modal_legenda" /></div>
               <textarea value={legenda} onChange={(e) => setLegenda(e.target.value)} placeholder="Texto que acompanha o criativo" style={{ width: "100%", minHeight: 70 }}></textarea>
 
               {isEdit && status === "revisao_interna" && (permissao === "admin" || permissao === "gestor") && (
                 <>
-                  <div className="modal-section-title">Aprovação — Revisão interna</div>
+                  <div className="modal-section-title">Aprovação — Revisão interna <EnvoxersShared.HelpIcon helpKey="modal_aprovacao_int" /></div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                     <button className="btn btn-envox btn-sm" onClick={handleAprovarInterno} disabled={acaoLoading}>
                       Aprovar interno
@@ -722,14 +722,14 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
 
               {isEdit && status === "aprovacao_cliente" && (
                 <>
-                  <div className="modal-section-title">Aprovação — Aprovação cliente</div>
+                  <div className="modal-section-title">Aprovação — Aprovação cliente <EnvoxersShared.HelpIcon helpKey="modal_aprovacao_cli" /></div>
                   {(() => {
                     const limite = cliente?.escopo?.limite_alteracoes;
                     const qtd = tarefa?.qtd_alteracoes || 0;
                     const noLimite = limite != null && qtd >= limite;
                     return (
                       <div className="pill" style={{ marginBottom: 8, color: noLimite ? "var(--farol-vermelho)" : "inherit" }}>
-                        Alterações: {qtd}{limite != null ? ` / ${limite}` : ""}
+                        Alterações <EnvoxersShared.HelpIcon helpKey="modal_alteracoes" />: {qtd}{limite != null ? ` / ${limite}` : ""}
                         {noLimite ? " — limite do escopo atingido" : ""}
                       </div>
                     );
@@ -799,7 +799,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
               {isEdit && (
                 <>
                   <div className="modal-section-title">
-                    Anexos <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0 }}>· {tarefa?.anexos?.length || 0} arquivo(s)</span>
+                    Anexos <EnvoxersShared.HelpIcon helpKey="modal_anexos" /> <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0 }}>· {tarefa?.anexos?.length || 0} arquivo(s)</span>
                   </div>
                   <div className="attach-list">
                     {(tarefa?.anexos || []).map((a, i) => (
@@ -813,7 +813,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
                     </label>
                   </div>
 
-                  <div className="modal-section-title">Comentários</div>
+                  <div className="modal-section-title">Comentários <EnvoxersShared.HelpIcon helpKey="modal_comentarios" /></div>
                   <div>
                     {(tarefa?.comentarios || []).map((c, i) => (
                       <div className="comment" key={i}>
@@ -853,7 +853,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
 
               {isEdit && (
                 <div className="modal-side-block">
-                  <div className="modal-side-label">Foco na tarefa</div>
+                  <div className="modal-side-label">Foco na tarefa <EnvoxersShared.HelpIcon helpKey="modal_foco" /></div>
                   {focoNestaTarefa ? (
                     <div className={"foco-control active" + (focoAtivo.pausado_em ? " paused" : "")}>
                       <div className="foco-control-time">{fmtHMS(focoElapsed)}</div>

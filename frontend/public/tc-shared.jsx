@@ -122,7 +122,8 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
           {item(
             "kanban",
             "Kanban",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="3" width="3" height="10" rx="1" /><rect x="6.5" y="3" width="3" height="7" rx="1" /><rect x="11" y="3" width="3" height="4" rx="1" /></svg>
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="3" width="3" height="10" rx="1" /><rect x="6.5" y="3" width="3" height="7" rx="1" /><rect x="11" y="3" width="3" height="4" rx="1" /></svg>,
+            "nav_kanban"
           )}
           {item(
             "dashboard",
@@ -240,6 +241,7 @@ const HELP_TEXTS = {
   nav_calendario: { t: "Calendário geral", b: "<p>Publicações programadas + reuniões + captações + eventos externos, tudo numa agenda. Filtro por cliente.</p>" },
   nav_relatorio: { t: "Relatório de custo", b: "<p>Horas de Foco × custo do time × contrato. Mostra margem por cliente/serviço/tipo/envoxer. Sinaliza margem &lt;20% em amarelo, &lt;10% em vermelho.</p>" },
   nav_dashboard: { t: "Dashboard do dia", b: "<p>Resumo do que precisa da sua atenção hoje: farol dos clientes em risco, atrasos, aprovações pendentes, publicações dos próximos 3 dias, e captações do dia.</p>" },
+  nav_kanban: { t: "Kanban de demandas", b: "<p>Todas as tarefas de todos os clientes em 8 colunas (Nova → Finalizado). Arraste cards entre colunas. Filtre por cliente, responsável, tipo e atrasadas.</p>" },
 
   // --- Dashboard
   dash_farol_widget: { t: "Farol do topo do Dashboard", b: "<p>Os até 5 clientes com pior health score aparecem aqui todo dia. Se você abrir o sistema só para uma coisa, é esta.</p><p>Clique no cliente para abrir a ficha.</p>" },
@@ -338,6 +340,27 @@ const HELP_TEXTS = {
   rep_tab_servico: { t: "Por serviço", b: "<p>Onde o time está gastando horas por tipo de serviço. Mostra o \"peso\" de cada oferta na operação.</p>" },
   rep_tab_tipo: { t: "Por tipo de tarefa", b: "<p>Custo médio por Reels, Carrossel, Story, etc. Serve para saber se o preço do escopo cobre o custo real de cada peça.</p>" },
   rep_tab_env: { t: "Por Envoxer", b: "<p>Horas + custo gerado + <em>utilização</em> (horas registradas ÷ meta). Utilização &gt;90% = sobrealocado; &lt;60% = subutilizado.</p>" },
+
+  // --- Kanban
+  kanban_col_nova: { t: "Nova demanda", b: "<p>Ponto de entrada. Tarefa cadastrada mas sem responsável ou prazo ainda.</p>" },
+  kanban_col_planejamento: { t: "Planejamento", b: "<p>Definindo roteiro, briefing, referências. Pré-produção.</p>" },
+  kanban_col_producao: { t: "Produção", b: "<p>Executando. Arte, edição, escrita. É onde o Foco geralmente acontece.</p>" },
+  kanban_col_revisao_interna: { t: "Revisão interna", b: "<p>Gestor confere antes de mostrar ao cliente. <strong>Ninguém pula essa etapa</strong> — problemas aqui custam menos que problemas na aprovação do cliente.</p>" },
+  kanban_col_aprovacao_cliente: { t: "Aprovação cliente", b: "<p>Cliente recebe criativo + legenda. Aprovando, vai para Programado. Solicitando ajuste, volta para Ajustes e incrementa o contador de alterações (sinal 3 do farol).</p>" },
+  kanban_col_ajustes: { t: "Ajustes", b: "<p>Cliente pediu alteração. Executar e devolver para Aprovação cliente.</p>" },
+  kanban_col_programado: { t: "Programado", b: "<p>Aprovado, aguardando data de publicação.</p>" },
+  kanban_col_finalizado: { t: "Finalizado", b: "<p>Publicado ou entregue. Some do quadro por padrão (toggle \"Ocultar finalizadas\" acima).</p>" },
+  card_farol: { t: "Listra colorida do card", b: "<p>É o farol do <strong>cliente</strong>, não da tarefa. Verde/amarelo/vermelho.</p><p>Facilita ver cards de clientes em risco sem precisar ler o nome.</p>" },
+  card_etiqueta: { t: "Etiquetas do card", b: "<p>Texto livre com cor. Use para agrupar campanhas, sinalizar urgência ou marcar contexto (ex.: \"Cliente vermelho\", \"Campanha julho\", \"Urgente\").</p>" },
+  card_prazo: { t: "Prazo interno", b: "<p>Quando o <strong>time</strong> precisa terminar. Diferente de <em>data de publicação</em>, que é quando o conteúdo vai ao ar. Confundir os dois é erro clássico.</p>" },
+  modal_criativo: { t: "Criativo", b: "<p>Peça pronta para revisão. Substituída conforme entra em Ajustes.</p>" },
+  modal_legenda: { t: "Legenda", b: "<p>Texto que acompanha o criativo. Fica visível ao cliente na aprovação.</p>" },
+  modal_foco: { t: "Foco", b: "<p>Cronômetro por tarefa. Só um Foco ativo por Envoxer por vez — o banco impede duas sessões simultâneas.</p><p>Registre para entregarmos melhor e cobrarmos o preço justo.</p>" },
+  modal_aprovacao_int: { t: "Aprovação interna", b: "<p>Etapa 1 de aprovação: <strong>gestor</strong> confere antes de o cliente ver. Aprovado, vai para o cliente. Pedir ajuste devolve para Produção.</p>" },
+  modal_aprovacao_cli: { t: "Aprovação do cliente", b: "<p>Etapa 2 de aprovação: <strong>cliente</strong> aprova ou pede alteração. Cada alteração é registrada com descrição, número sequencial e conta contra o limite do contrato.</p>" },
+  modal_alteracoes: { t: "Alterações", b: "<p>Pedidos de ajuste do cliente, numerados. Comparado ao <em>limite de alterações</em> do escopo. Passar do limite gera alerta e alimenta o sinal 3 do farol.</p>" },
+  modal_comentarios: { t: "Comentários internos", b: "<p>Mural da tarefa. Não é visto pelo cliente. Use para alinhar com o time.</p>" },
+  modal_anexos: { t: "Anexos", b: "<p>Referências, briefings, arquivos-fonte. Diferente do criativo (que é a peça pronta), anexos são apoio.</p>" },
 
   // --- Cancelamentos
   churn_total: { t: "Total no histórico", b: "<p>Últimos 24 meses de cancelamentos registrados. Base de dados para o ICP builder.</p>" },
