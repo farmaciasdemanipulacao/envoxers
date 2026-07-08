@@ -151,6 +151,7 @@ function AppShell() {
             dataVersion={dataVersion}
             onAbrirTarefa={abrirTarefa}
             onAbrirNovaTarefa={abrirNovaTarefa}
+            onNavigate={setView}
           />
         )}
         {view === "dashboard" && (

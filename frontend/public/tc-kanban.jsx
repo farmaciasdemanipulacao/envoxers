@@ -43,7 +43,7 @@ function fmtHMS(totalSegundos) {
   return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
-function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAbrirNovaTarefa }) {
+function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAbrirNovaTarefa, onNavigate }) {
   const [tarefas, setTarefas] = useStateKb([]);
   const [clientes, setClientes] = useStateKb([]);
   const [envoxersList, setEnvoxersList] = useStateKb([]);
@@ -111,9 +111,14 @@ function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAb
           <h1>Kanban</h1>
           <div className="page-sub">Fluxo de demandas. Arraste os cards entre as colunas — a listra colorida do card é o farol do cliente.</div>
         </div>
-        <button className="btn btn-envox" onClick={() => onAbrirNovaTarefa("nova")}>
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg> Nova demanda
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" onClick={() => onNavigate("calendario")}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="12" height="10" rx="1" /><path d="M2 7h12M6 2v3M10 2v3" /></svg> Calendário
+          </button>
+          <button className="btn btn-envox" onClick={() => onAbrirNovaTarefa("nova")}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg> Nova demanda
+          </button>
+        </div>
       </div>
 
       <div className="kanban-toolbar">
