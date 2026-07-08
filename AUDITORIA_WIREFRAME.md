@@ -139,7 +139,7 @@ Alertas bate estruturalmente com o wireframe (real ainda adiciona o filtro "igno
 
 ## Aguardando decisão do Gus (atualizado)
 
-1. **ICP Builder — reconstruir a estrutura visual pra bater com o wireframe?** As classes CSS existem prontas (`.icp-header-cards`, `.icp-pop-card`, `.note-bar`, `.icp-dims`, `.icp-bar-fill`, `.icp-insights`), mas a tela atual (construída em D-046) usa uma estrutura própria funcional e já testada. Reconstruir do zero é essencialmente refazer a tela inteira — risco de regressão numa tela que funciona, só por fidelidade visual. **Não mexi nisso.** Se quiser, é só pedir numa próxima demanda — o levantamento de quais classes usar já está pronto neste relatório (seção 6).
+1. ~~**ICP Builder — reconstruir a estrutura visual pra bater com o wireframe?**~~ **RESOLVIDO na Rodada 2 (D-066, 2026-07-08)** — Gus pediu explicitamente, tela reconstruída com as classes do wireframe. Ver seção "Rodada 2" no fim deste documento.
 2. **View `cliente-ficha`** — já decidido no D-063 (tooltips aproximados pro `ClienteForm` em vez de construir a ficha read-only separada). Só re-registrando formalmente aqui pra constar na auditoria; meu entendimento é que essa decisão continua valendo, não revisitei sozinho.
 
 ## O que NÃO foi tocado (limites de segurança respeitados)
@@ -148,3 +148,29 @@ Alertas bate estruturalmente com o wireframe (real ainda adiciona o filtro "igno
 - Nenhum arquivo fora de `/docker/envoxers/`
 - Nenhum dado `SEED_DATA_2026` nem dado real de cliente/envoxer foi lido, alterado ou apagado — todos os testes desta sessão usaram harness Playwright com API mockada, ou leitura (`GET`/chamadas de função só-leitura) direto contra o banco real, nunca escrita
 - 9 commits distintos, push feito a cada um — nenhum trabalho acumulado sem salvar
+
+---
+
+## Rodada 2 (2026-07-08, [[demand_log]] D-066) — gaps achados por comparação visual direta do Gus
+
+Gus comparou o app real lado a lado com o wireframe (não uma auditoria automática) e achou gaps que a Fase 1/2 acima não pegou — a maioria em granularidade de dado exibido, não em CSS/estrutura. Corrigidos na ordem Crítico → Estrutural → Cosmético, um item por vez, commit+push a cada um, teste Playwright (harness com API mockada) antes de avançar. Nenhuma migration nova; nenhum dado real tocado (só leituras/dry-run com rollback contra o banco de produção pra validar).
+
+**Crítico — Farol/Alertas tinham perdido a granularidade do dado real:**
+- `motivo_texto` resumia pra rótulo categórico ("Sinais críticos: Tarefas atrasadas, Margem…"); agora formata o valor real de cada sinal não-verde por extenso (`services/farol.py::_motivo_texto_detalhado`)
+- `sugestao_acao` reescrita com as mesmas regras condicionais do wireframe (pulso/whatsapp vermelho = recomendação única; senão combina por sinal vermelho) — regras, não IA
+- Farol ganhou health-orb colorido, valor/mês e "Xm de casa" por linha (`FarolClienteResponse.valor_contrato`/`meses_de_casa` novos)
+- Alertas ganhou a mesma granularidade + botões inline "Reconhecer"/"Abrir ficha" (ficha = navega pro `ClienteForm`, mesma decisão do D-063 de não existir `view-cliente-ficha`)
+- Fix de borda descoberto no meio do trabalho: sinal de silêncio sem nenhum check-in mostrava literalmente "None dia(s) sem contato"
+
+**Estrutural — Solicitações virou mestre-detalhe:** `tc-solicitacoes.jsx` reconstruída — lista à esquerda com tabs Novas/Análise/Todas (contagem) + painel de detalhe à direita, igual ao wireframe (`.solic-grid`/`.solic-list`/`.solic-detail`). Não é mais tabela+modal.
+
+**Cosmético:**
+- KPIs de Clientes e Farol ganharam a legenda descritiva (`kpi-hint`) do wireframe — a de "Score médio" precisou de endpoint novo (`GET /farol/kpis`, compara com `farol_calculo_historico` de ~7 dias atrás; retorna `None` enquanto não existir snapshot antigo o bastante — Farol só tem 2 dias de vida)
+- Envoxers ganhou os chips "Todos/Admin/Gestor/Envoxer" com contagem + avatar circular com iniciais (Envoxers e Clientes/Responsável), reaproveitando `.avatar`/`.avatar.gray` do wireframe
+- Kanban ganhou o botão "Calendário" ao lado de "+ Nova demanda"
+- Clientes ganhou chips "Recorrente"/"Pontual" + coluna "Início"
+- **ICP Builder reconstruído com as classes do wireframe** (`.icp-header-cards`, `.icp-pop-card`, `.note-bar`, `.icp-dim`/`.icp-row`/`.icp-bar-fill`/`.icp-row-diff`) — isso **fecha a pendência "Aguardando decisão do Gus" da Rodada 1**: Gus pediu explicitamente os 4 elementos (cards de resumo com texto completo, box "Como ler", legenda de cor, coluna Δ), então deixou de ser uma decisão em aberto
+- Tooltips: reauditados sistematicamente (script comparando `data-hlp` do wireframe × `HELP_TEXTS`/uso real no app); único gap de verdade era `icp_como_ler` (sem elemento até a reconstrução do ICP), corrigido. Os outros 18 "gaps" que o script apontou eram falso positivo (helpKey passado via variável/objeto, não string literal) — confirmados já implementados lendo o código
+- Fontes: reconfirmado tecnicamente — `index.html` idêntico byte-a-byte ao wireframe, `--font-ui`/`--font-serif`/`--font-mono` idênticas, nenhum componente sobrescreve com fonte de sistema (5 usos de `fontFamily` inline, todos via variável CSS)
+
+**Aguardando decisão do Gus:** nenhuma pendência nova. A única da Rodada 1 (ICP Builder) foi fechada nesta rodada.
