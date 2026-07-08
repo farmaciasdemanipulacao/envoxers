@@ -32,15 +32,14 @@ function SolicitacoesScreen({ onAbrirTarefa }) {
   const toast = EnvoxersShared.useToast();
   const [solicitacoes, setSolicitacoes] = useStateSol([]);
   const [loading, setLoading] = useStateSol(true);
-  const [filtroStatus, setFiltroStatus] = useStateSol("todas");
+  const [tab, setTab] = useStateSol("nova"); // nova | em_analise | todas
+  const [selecionadaId, setSelecionadaId] = useStateSol(null);
   const [abrindoNova, setAbrindoNova] = useStateSol(false);
-  const [abrindoId, setAbrindoId] = useStateSol(null);
 
   const carregar = async () => {
     setLoading(true);
     try {
-      const params = filtroStatus !== "todas" ? `?status=${filtroStatus}` : "";
-      const data = await EnvoxersAPI.api(`/solicitacoes${params}`);
+      const data = await EnvoxersAPI.api("/solicitacoes");
       setSolicitacoes(data);
     } catch (err) {
       toast(err.message, "error");
@@ -49,15 +48,25 @@ function SolicitacoesScreen({ onAbrirTarefa }) {
     }
   };
 
-  useEffectSol(() => { carregar(); }, [filtroStatus]);
+  useEffectSol(() => { carregar(); }, []);
 
-  const statusOptions = ["todas", "nova", "em_analise", "virou_demanda", "recusada"];
+  const contagem = useMemoSol(() => ({
+    nova: solicitacoes.filter((s) => s.status === "nova").length,
+    em_analise: solicitacoes.filter((s) => s.status === "em_analise").length,
+  }), [solicitacoes]);
+
+  const listaFiltrada = useMemoSol(() => {
+    if (tab === "todas") return solicitacoes;
+    return solicitacoes.filter((s) => s.status === tab);
+  }, [solicitacoes, tab]);
+
+  const selecionada = solicitacoes.find((s) => s.id === selecionadaId) || null;
 
   return (
     <div className="page">
       <EnvoxersShared.PageHeader
         title="Solicitações do cliente"
-        subtitle="Pedidos que o atendimento registra em nome do cliente — vira demanda no Kanban quando aprovado."
+        subtitle="Inbox de pedidos do cliente. Triar, aprovar/recusar, virar demanda."
         actions={(
           <button className="btn btn-envox" onClick={() => setAbrindoNova(true)}>
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg> Nova solicitação
@@ -65,79 +74,210 @@ function SolicitacoesScreen({ onAbrirTarefa }) {
         )}
       />
 
-      <div className="toolbar">
-        <div className="filter-group">
-          {statusOptions.map((s) => (
-            <button
-              key={s}
-              className={"chip" + (filtroStatus === s ? " active" : "")}
-              onClick={() => setFiltroStatus(s)}
-            >
-              {s === "todas" ? "Todas" : STATUS_SOLICITACAO_LABELS[s]}
+      <div className="solic-grid">
+        <div className="solic-list">
+          <div className="solic-list-tabs">
+            <button className={tab === "nova" ? "active" : ""} onClick={() => setTab("nova")}>
+              Novas <span className="count">{contagem.nova}</span>
             </button>
+            <button className={tab === "em_analise" ? "active" : ""} onClick={() => setTab("em_analise")}>
+              Análise <span className="count">{contagem.em_analise}</span>
+            </button>
+            <button className={tab === "todas" ? "active" : ""} onClick={() => setTab("todas")}>
+              Todas
+            </button>
+            <EnvoxersShared.HelpIcon helpKey="solic_tab_novas" />
+          </div>
+
+          {loading && <div className="empty" style={{ border: "none", padding: "40px 12px" }}>Carregando…</div>}
+          {!loading && listaFiltrada.length === 0 && <div className="empty" style={{ border: "none", padding: "40px 12px" }}>— vazio —</div>}
+          {!loading && listaFiltrada.map((s) => (
+            <div
+              key={s.id}
+              className={"solic-item" + (s.status === "nova" ? " nova" : "") + (selecionadaId === s.id ? " active" : "")}
+              onClick={() => setSelecionadaId(s.id)}
+            >
+              <div className="solic-item-head">
+                <span className="solic-item-cliente">{s.cliente_nome || "—"}</span>
+                <span className="solic-item-time">{fmtDataSol(s.created_at)}</span>
+              </div>
+              <div className="solic-item-title">{s.titulo}</div>
+              <div className="solic-item-tags">
+                <span className="pill">{TIPO_SOLICITACAO_LABELS[s.tipo] || s.tipo}</span>
+                {s.status === "em_analise" && <span className="pill" style={{ color: "var(--farol-amarelo)" }}>Em análise</span>}
+              </div>
+            </div>
           ))}
-          <EnvoxersShared.HelpIcon helpKey="solic_tab_novas" />
+        </div>
+
+        <div className="solic-detail">
+          {!selecionada && (
+            <div className="empty" style={{ border: "none", padding: "60px 20px" }}>
+              <h3>Selecione uma solicitação</h3>
+              <div>Clique numa solicitação na lista ao lado para ver os detalhes.</div>
+            </div>
+          )}
+          {selecionada && (
+            <SolicitacaoDetalhe
+              key={selecionada.id}
+              solicitacao={selecionada}
+              onAbrirTarefa={onAbrirTarefa}
+              onAtualizada={carregar}
+            />
+          )}
         </div>
       </div>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Título</th>
-              <th className="table-mobile-hide">Tipo</th>
-              <th style={{ width: 120 }}>Status</th>
-              <th className="table-mobile-hide" style={{ width: 100 }}>Criada em</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan="5">Carregando…</td></tr>}
-            {!loading && solicitacoes.length === 0 && <tr><td colSpan="5">Nenhuma solicitação encontrada.</td></tr>}
-            {solicitacoes.map((s) => (
-              <tr key={s.id} onClick={() => setAbrindoId(s.id)} style={{ cursor: "pointer" }}>
-                <td>{s.cliente_nome || "—"}</td>
-                <td>{s.titulo}</td>
-                <td className="table-mobile-hide">{TIPO_SOLICITACAO_LABELS[s.tipo] || s.tipo}</td>
-                <td>
-                  <span className="pill" style={{ color: STATUS_SOLICITACAO_CORES[s.status] }}>
-                    {STATUS_SOLICITACAO_LABELS[s.status] || s.status}
-                  </span>
-                </td>
-                <td className="table-mobile-hide">{fmtDataSol(s.created_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
       {abrindoNova && (
-        <SolicitacaoModal
-          solicitacaoId={null}
+        <NovaSolicitacaoModal
           onClose={() => setAbrindoNova(false)}
-          onSaved={(novaId) => { setAbrindoNova(false); setAbrindoId(novaId); carregar(); }}
-          onAbrirTarefa={onAbrirTarefa}
-        />
-      )}
-      {abrindoId !== null && (
-        <SolicitacaoModal
-          solicitacaoId={abrindoId}
-          onClose={() => { setAbrindoId(null); carregar(); }}
-          onSaved={() => { setAbrindoId(null); carregar(); }}
-          onListChanged={carregar}
-          onAbrirTarefa={onAbrirTarefa}
+          onSaved={(novaId) => { setAbrindoNova(false); carregar(); setSelecionadaId(novaId); }}
         />
       )}
     </div>
   );
 }
 
-function SolicitacaoModal({ solicitacaoId, onClose, onSaved, onListChanged, onAbrirTarefa }) {
-  const isEdit = !!solicitacaoId;
+function SolicitacaoDetalhe({ solicitacao, onAbrirTarefa, onAtualizada }) {
   const toast = EnvoxersShared.useToast();
-  const [loading, setLoading] = useStateSol(isEdit);
   const [saving, setSaving] = useStateSol(false);
-  const [solicitacao, setSolicitacao] = useStateSol(null);
+  const [motivoRecusa, setMotivoRecusa] = useStateSol("");
+
+  const atualizarStatus = async (payload) => {
+    setSaving(true);
+    try {
+      await EnvoxersAPI.api(`/solicitacoes/${solicitacao.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      onAtualizada();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEmAnalise = () => atualizarStatus({ status: "em_analise" });
+
+  const handleRecusar = () => {
+    if (!motivoRecusa.trim()) {
+      toast("Descreva o motivo da recusa", "error");
+      return;
+    }
+    atualizarStatus({ status: "recusada", motivo_recusa: motivoRecusa });
+  };
+
+  const handleVirarDemanda = async () => {
+    if (!confirm("Criar uma demanda no Kanban a partir desta solicitação?")) return;
+    setSaving(true);
+    try {
+      await EnvoxersAPI.api(`/solicitacoes/${solicitacao.id}/virar-demanda`, { method: "POST" });
+      toast("Demanda criada no Kanban!", "success");
+      onAtualizada();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUploadAnexo = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      await EnvoxersAPI.upload(`/solicitacoes/${solicitacao.id}/anexos`, file);
+      toast("Anexo enviado!", "success");
+      onAtualizada();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  return (
+    <>
+      <div className="solic-detail-head">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--ink-3)", fontWeight: 500, marginBottom: 6 }}>
+            {solicitacao.cliente_nome || "—"}
+            <span style={{ color: "var(--ink-4)" }}> · </span>
+            <span className="pill">{TIPO_SOLICITACAO_LABELS[solicitacao.tipo] || solicitacao.tipo}</span>
+          </div>
+          <div className="solic-detail-title">{solicitacao.titulo}</div>
+          <div className="solic-detail-meta">
+            {solicitacao.solicitante_nome && <span><strong>{solicitacao.solicitante_nome}</strong></span>}
+            <span>· {fmtDataSol(solicitacao.created_at)}</span>
+            <span style={{ color: STATUS_SOLICITACAO_CORES[solicitacao.status], fontWeight: 600 }}>
+              · {STATUS_SOLICITACAO_LABELS[solicitacao.status]}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal-section-title">Descrição do cliente</div>
+      <div className="modal-desc" style={{ whiteSpace: "pre-wrap" }}>{solicitacao.descricao || "sem descrição"}</div>
+
+      <div className="modal-section-title">
+        Anexos <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0 }}>· {solicitacao.anexos?.length || 0} arquivo(s)</span>
+      </div>
+      <div className="attach-list">
+        {(solicitacao.anexos || []).map((a, i) => (
+          <a key={i} className="attach" href={a.url} target="_blank" rel="noreferrer">
+            <svg className="attach-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="2" width="10" height="12" rx="1" /><path d="M6 6h4M6 9h4M6 12h2" /></svg> {a.nome}
+          </a>
+        ))}
+        {solicitacao.status !== "recusada" && (
+          <label className="attach" style={{ borderStyle: "dashed", color: "var(--ink-3)", cursor: "pointer" }}>
+            + Anexar
+            <input type="file" style={{ display: "none" }} onChange={handleUploadAnexo} />
+          </label>
+        )}
+      </div>
+
+      {solicitacao.status === "recusada" && (
+        <>
+          <div className="modal-section-title">Motivo da recusa</div>
+          <div>{solicitacao.motivo_recusa}</div>
+        </>
+      )}
+
+      {solicitacao.status === "virou_demanda" && (
+        <>
+          <div className="modal-section-title">Demanda gerada</div>
+          <button className="btn btn-sm" onClick={() => onAbrirTarefa && onAbrirTarefa(solicitacao.tarefa_id_gerada)}>
+            Abrir no Kanban →
+          </button>
+        </>
+      )}
+
+      {(solicitacao.status === "nova" || solicitacao.status === "em_analise") && (
+        <>
+          <div className="modal-section-title">Recusar</div>
+          <textarea value={motivoRecusa} onChange={(e) => setMotivoRecusa(e.target.value)} placeholder="Motivo da recusa (obrigatório para recusar)" style={{ width: "100%", minHeight: 50 }}></textarea>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginTop: 20, marginBottom: -4 }}>
+            <EnvoxersShared.HelpIcon helpKey="solic_acao" />
+          </div>
+          <div className="solic-detail-actions">
+            <button className="btn btn-envox" onClick={handleVirarDemanda} disabled={saving}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8l3 3 7-7" /></svg>
+              Virar demanda
+            </button>
+            {solicitacao.status === "nova" && (
+              <button className="btn" onClick={handleEmAnalise} disabled={saving}>
+                Marcar como em análise
+              </button>
+            )}
+            <button className="btn" style={{ color: "var(--farol-vermelho)" }} onClick={handleRecusar} disabled={saving}>
+              Recusar
+            </button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+function NovaSolicitacaoModal({ onClose, onSaved }) {
+  const toast = EnvoxersShared.useToast();
+  const [saving, setSaving] = useStateSol(false);
   const [clientes, setClientes] = useStateSol([]);
 
   const [clienteId, setClienteId] = useStateSol("");
@@ -145,29 +285,16 @@ function SolicitacaoModal({ solicitacaoId, onClose, onSaved, onListChanged, onAb
   const [titulo, setTitulo] = useStateSol("");
   const [descricao, setDescricao] = useStateSol("");
   const [solicitanteNome, setSolicitanteNome] = useStateSol("");
-  const [motivoRecusa, setMotivoRecusa] = useStateSol("");
 
   useEffectSol(() => {
     (async () => {
       try {
-        const cl = await EnvoxersAPI.api("/clientes");
-        setClientes(cl);
-        if (isEdit) {
-          const s = await EnvoxersAPI.api(`/solicitacoes/${solicitacaoId}`);
-          setSolicitacao(s);
-          setClienteId(String(s.cliente_id));
-          setTipo(s.tipo);
-          setTitulo(s.titulo);
-          setDescricao(s.descricao || "");
-          setSolicitanteNome(s.solicitante_nome || "");
-        }
+        setClientes(await EnvoxersAPI.api("/clientes"));
       } catch (err) {
         toast(err.message, "error");
-      } finally {
-        setLoading(false);
       }
     })();
-  }, [solicitacaoId]);
+  }, []);
 
   const handleCriar = async () => {
     if (!clienteId || !titulo.trim()) {
@@ -195,70 +322,6 @@ function SolicitacaoModal({ solicitacaoId, onClose, onSaved, onListChanged, onAb
     }
   };
 
-  const handleEmAnalise = async () => {
-    setSaving(true);
-    try {
-      const s = await EnvoxersAPI.api(`/solicitacoes/${solicitacaoId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "em_analise" }),
-      });
-      setSolicitacao(s);
-      toast("Marcada como em análise", "success");
-    } catch (err) {
-      toast(err.message, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRecusar = async () => {
-    if (!motivoRecusa.trim()) {
-      toast("Descreva o motivo da recusa", "error");
-      return;
-    }
-    setSaving(true);
-    try {
-      const s = await EnvoxersAPI.api(`/solicitacoes/${solicitacaoId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "recusada", motivo_recusa: motivoRecusa }),
-      });
-      setSolicitacao(s);
-      toast("Solicitação recusada", "success");
-      onListChanged && onListChanged();
-    } catch (err) {
-      toast(err.message, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleVirarDemanda = async () => {
-    if (!confirm("Criar uma demanda no Kanban a partir desta solicitação?")) return;
-    setSaving(true);
-    try {
-      const s = await EnvoxersAPI.api(`/solicitacoes/${solicitacaoId}/virar-demanda`, { method: "POST" });
-      setSolicitacao(s);
-      toast("Demanda criada no Kanban!", "success");
-      onListChanged && onListChanged();
-    } catch (err) {
-      toast(err.message, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUploadAnexo = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const s = await EnvoxersAPI.upload(`/solicitacoes/${solicitacaoId}/anexos`, file);
-      setSolicitacao(s);
-      toast("Anexo enviado!", "success");
-    } catch (err) {
-      toast(err.message, "error");
-    }
-  };
-
   return (
     <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal">
@@ -266,154 +329,55 @@ function SolicitacaoModal({ solicitacaoId, onClose, onSaved, onListChanged, onAb
           <div className="modal-eyebrow">
             <span>{clientes.find((c) => String(c.id) === clienteId)?.nome || "Selecione o cliente"}</span>
           </div>
-          <h2 className="modal-title">{isEdit ? (solicitacao?.titulo || "—") : "Nova solicitação"}</h2>
+          <h2 className="modal-title">Nova solicitação</h2>
           <button className="modal-close" onClick={onClose} aria-label="Fechar">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8" /></svg>
           </button>
         </div>
 
-        {loading ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--ink-3)" }}>Carregando…</div>
-        ) : (
-          <div className="modal-body">
-            <div className="modal-main">
-              {!isEdit && (
-                <>
-                  <div className="modal-section-title">Dados da solicitação</div>
-                  <div className="form-row">
-                    <div className="field span-2">
-                      <label>Título <span className="req">*</span></label>
-                      <input type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Campanha para o Dia das Mães" />
-                    </div>
-                    <div className="field">
-                      <label>Cliente <span className="req">*</span></label>
-                      <select value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-                        <option value="">Selecionar…</option>
-                        {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                      </select>
-                    </div>
-                    <div className="field">
-                      <label>Tipo</label>
-                      <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
-                        {Object.entries(TIPO_SOLICITACAO_LABELS).map(([v, label]) => (
-                          <option key={v} value={v}>{label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="field span-2">
-                      <label>Solicitado por (contato do cliente)</label>
-                      <input type="text" value={solicitanteNome} onChange={(e) => setSolicitanteNome(e.target.value)} placeholder="Nome de quem pediu" />
-                    </div>
-                  </div>
-                  <div className="modal-section-title">Descrição</div>
-                  <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="O que o cliente pediu, em detalhes" style={{ width: "100%", minHeight: 90 }}></textarea>
-                </>
-              )}
-
-              {isEdit && (
-                <>
-                  <div className="modal-section-title">Tipo</div>
-                  <div className="pill">{TIPO_SOLICITACAO_LABELS[solicitacao.tipo] || solicitacao.tipo}</div>
-
-                  <div className="modal-section-title">Descrição</div>
-                  <div style={{ whiteSpace: "pre-wrap" }}>{solicitacao.descricao || "sem descrição"}</div>
-
-                  <div className="modal-section-title">
-                    Anexos <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0 }}>· {solicitacao.anexos?.length || 0} arquivo(s)</span>
-                  </div>
-                  <div className="attach-list">
-                    {(solicitacao.anexos || []).map((a, i) => (
-                      <a key={i} className="attach" href={a.url} target="_blank" rel="noreferrer">
-                        <svg className="attach-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="2" width="10" height="12" rx="1" /><path d="M6 6h4M6 9h4M6 12h2" /></svg> {a.nome}
-                      </a>
-                    ))}
-                    {solicitacao.status !== "recusada" && (
-                      <label className="attach" style={{ borderStyle: "dashed", color: "var(--ink-3)", cursor: "pointer" }}>
-                        + Anexar
-                        <input type="file" style={{ display: "none" }} onChange={handleUploadAnexo} />
-                      </label>
-                    )}
-                  </div>
-
-                  {solicitacao.status === "recusada" && (
-                    <>
-                      <div className="modal-section-title">Motivo da recusa</div>
-                      <div>{solicitacao.motivo_recusa}</div>
-                    </>
-                  )}
-
-                  {solicitacao.status === "virou_demanda" && (
-                    <>
-                      <div className="modal-section-title">Demanda gerada</div>
-                      <button className="btn btn-sm" onClick={() => { onAbrirTarefa && onAbrirTarefa(solicitacao.tarefa_id_gerada); onClose(); }}>
-                        Abrir no Kanban →
-                      </button>
-                    </>
-                  )}
-
-                  {(solicitacao.status === "nova" || solicitacao.status === "em_analise") && (
-                    <>
-                      <div className="modal-section-title">Recusar</div>
-                      <textarea value={motivoRecusa} onChange={(e) => setMotivoRecusa(e.target.value)} placeholder="Motivo da recusa (obrigatório para recusar)" style={{ width: "100%", minHeight: 50 }}></textarea>
-                    </>
-                  )}
-                </>
-              )}
+        <div className="modal-body">
+          <div className="modal-main">
+            <div className="modal-section-title">Dados da solicitação</div>
+            <div className="form-row">
+              <div className="field span-2">
+                <label>Título <span className="req">*</span></label>
+                <input type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Campanha para o Dia das Mães" />
+              </div>
+              <div className="field">
+                <label>Cliente <span className="req">*</span></label>
+                <select value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
+                  <option value="">Selecionar…</option>
+                  {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label>Tipo</label>
+                <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                  {Object.entries(TIPO_SOLICITACAO_LABELS).map(([v, label]) => (
+                    <option key={v} value={v}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field span-2">
+                <label>Solicitado por (contato do cliente)</label>
+                <input type="text" value={solicitanteNome} onChange={(e) => setSolicitanteNome(e.target.value)} placeholder="Nome de quem pediu" />
+              </div>
             </div>
+            <div className="modal-section-title">Descrição</div>
+            <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="O que o cliente pediu, em detalhes" style={{ width: "100%", minHeight: 90 }}></textarea>
+          </div>
 
-            <div className="modal-side">
-              {isEdit && (
-                <div className="modal-side-block">
-                  <div className="modal-side-label">Status</div>
-                  <div className="modal-side-value" style={{ color: STATUS_SOLICITACAO_CORES[solicitacao.status] }}>
-                    {STATUS_SOLICITACAO_LABELS[solicitacao.status]}
-                  </div>
-                </div>
-              )}
-
-              {isEdit && solicitacao.solicitante_nome && (
-                <div className="modal-side-block">
-                  <div className="modal-side-label">Solicitado por</div>
-                  <div className="modal-side-value">{solicitacao.solicitante_nome}</div>
-                </div>
-              )}
-
-              <div className="modal-side-block">
-                <div className="modal-side-label">Ações</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
-                  {!isEdit && (
-                    <button className="btn btn-envox btn-sm" style={{ width: "100%", justifyContent: "center" }} onClick={handleCriar} disabled={saving}>
-                      {saving ? "Salvando…" : "Registrar solicitação"}
-                    </button>
-                  )}
-                  {isEdit && solicitacao.status === "nova" && (
-                    <button className="btn btn-sm" style={{ width: "100%", justifyContent: "flex-start" }} onClick={handleEmAnalise} disabled={saving}>
-                      Marcar em análise
-                    </button>
-                  )}
-                  {isEdit && (solicitacao.status === "nova" || solicitacao.status === "em_analise") && (
-                    <>
-                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                        <EnvoxersShared.HelpIcon helpKey="solic_acao" />
-                      </div>
-                      <button className="btn btn-envox btn-sm" style={{ width: "100%", justifyContent: "center" }} onClick={handleVirarDemanda} disabled={saving}>
-                        Virar demanda
-                      </button>
-                      <button
-                        className="btn btn-sm"
-                        style={{ width: "100%", justifyContent: "flex-start", color: "var(--farol-vermelho)" }}
-                        onClick={handleRecusar}
-                        disabled={saving}
-                      >
-                        Recusar
-                      </button>
-                    </>
-                  )}
-                </div>
+          <div className="modal-side">
+            <div className="modal-side-block">
+              <div className="modal-side-label">Ações</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                <button className="btn btn-envox btn-sm" style={{ width: "100%", justifyContent: "center" }} onClick={handleCriar} disabled={saving}>
+                  {saving ? "Salvando…" : "Registrar solicitação"}
+                </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
