@@ -4,6 +4,7 @@ function EnvoxersScreen({ permissao }) {
   const [envoxers, setEnvoxers] = useStateEnv([]);
   const [loading, setLoading] = useStateEnv(true);
   const [editando, setEditando] = useStateEnv(null); // null = lista, {} = novo, {...} = editar
+  const [filtroPermissao, setFiltroPermissao] = useStateEnv("todos");
   const toast = EnvoxersShared.useToast();
   const isAdmin = permissao === "admin";
 
@@ -34,6 +35,14 @@ function EnvoxersScreen({ permissao }) {
   const contagem = { admin: 0, gestor: 0, envoxer: 0 };
   envoxers.forEach((e) => { if (contagem[e.permissao] !== undefined) contagem[e.permissao]++; });
 
+  const filtrados = filtroPermissao === "todos" ? envoxers : envoxers.filter((e) => e.permissao === filtroPermissao);
+  const opcoesFiltro = [
+    ["todos", "Todos", envoxers.length],
+    ["admin", "Admin", contagem.admin],
+    ["gestor", "Gestor", contagem.gestor],
+    ["envoxer", "Envoxer", contagem.envoxer],
+  ];
+
   return (
     <div className="page">
       <EnvoxersShared.PageHeader
@@ -45,6 +54,16 @@ function EnvoxersScreen({ permissao }) {
           </button>
         )}
       />
+
+      <div className="toolbar">
+        <div className="filter-group">
+          {opcoesFiltro.map(([valor, label, qtd]) => (
+            <button key={valor} className={"chip" + (filtroPermissao === valor ? " active" : "")} onClick={() => setFiltroPermissao(valor)}>
+              {label} {qtd}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="table-wrap">
         <table>
@@ -59,10 +78,15 @@ function EnvoxersScreen({ permissao }) {
           </thead>
           <tbody>
             {loading && <tr><td colSpan="5">Carregando…</td></tr>}
-            {!loading && envoxers.length === 0 && <tr><td colSpan="5">Nenhum envoxer cadastrado.</td></tr>}
-            {envoxers.map((e) => (
+            {!loading && filtrados.length === 0 && <tr><td colSpan="5">Nenhum envoxer neste filtro.</td></tr>}
+            {filtrados.map((e) => (
               <tr key={e.id} onClick={() => isAdmin && setEditando(e)} style={{ cursor: isAdmin ? "pointer" : "default" }}>
-                <td>{e.nome}{!e.ativo && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--ink-4)" }}>(inativo)</span>}</td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div className={"avatar md" + (e.permissao === "admin" ? "" : " gray")}>{EnvoxersShared.initials(e.nome)}</div>
+                    <span>{e.nome}{!e.ativo && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--ink-4)" }}>(inativo)</span>}</span>
+                  </div>
+                </td>
                 <td className="table-mobile-hide">{e.cargo}</td>
                 <td className="table-mobile-hide">{e.email}</td>
                 <td className="table-mobile-hide" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(e.custo_hora)}</td>

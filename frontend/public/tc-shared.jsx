@@ -73,9 +73,13 @@ function useToast() {
   return useContext(ToastContext);
 }
 
+function initials(nome) {
+  return (nome || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+}
+
 // ==================== SIDEBAR ====================
 function Sidebar({ view, onNavigate, nome, permissao }) {
-  const iniciais = (nome || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  const iniciais = initials(nome);
 
   const item = (key, label, icon, helpKey) => (
     <a className={view === key ? "active" : ""} onClick={() => onNavigate(key)} style={{ cursor: "pointer" }}>
@@ -474,4 +478,4 @@ function HelpIcon({ helpKey, onDark }) {
   );
 }
 
-window.EnvoxersShared = { formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, HelpIcon };
+window.EnvoxersShared = { formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, HelpIcon, initials };

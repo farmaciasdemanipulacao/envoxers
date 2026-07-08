@@ -208,9 +208,21 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
             {filtrados.map((c) => (
               <tr key={c.id} onClick={() => podeEditar && setEditando({ id: c.id })} style={{ cursor: podeEditar ? "pointer" : "default" }}>
                 <td><span className="farol-dot" style={{ width: 7, height: 7, borderRadius: "50%", display: "inline-block", background: `var(--farol-${c.status_farol})` }}></span></td>
-                <td>{c.nome}</td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div className="avatar sm gray">{EnvoxersShared.initials(c.nome)}</div>
+                    <span>{c.nome}</span>
+                  </div>
+                </td>
                 <td className="table-mobile-hide">{c.segmento || "—"}</td>
-                <td className="table-mobile-hide">{c.responsavel_nome || "—"}</td>
+                <td className="table-mobile-hide">
+                  {c.responsavel_nome ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div className="avatar sm">{EnvoxersShared.initials(c.responsavel_nome)}</div>
+                      <span>{c.responsavel_nome.split(" ")[0]}</span>
+                    </div>
+                  ) : "—"}
+                </td>
                 <td className="table-mobile-hide">{c.meses_de_casa ?? "—"}</td>
                 <td style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(c.valor_contrato)}</td>
                 <td className="table-mobile-hide">{c.tipo_receita === "recorrente" ? "Recorrente" : "Pontual"}</td>
