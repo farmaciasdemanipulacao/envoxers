@@ -23,12 +23,13 @@ function fmtDataAlerta(iso) {
   return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function AlertasScreen() {
+function AlertasScreen({ onAbrirCliente }) {
   const toast = EnvoxersShared.useToast();
   const [alertas, setAlertas] = useStateAlert([]);
   const [loading, setLoading] = useStateAlert(true);
   const [filtro, setFiltro] = useStateAlert("aberto");
   const [abrindoId, setAbrindoId] = useStateAlert(null);
+  const [reconhecendoId, setReconhecendoId] = useStateAlert(null);
 
   const carregar = async () => {
     setLoading(true);
@@ -44,6 +45,25 @@ function AlertasScreen() {
   };
 
   useEffectAlert(() => { carregar(); }, [filtro]);
+
+  const reconhecerInline = async (e, alerta) => {
+    e.stopPropagation();
+    setReconhecendoId(alerta.id);
+    try {
+      await EnvoxersAPI.api(`/alertas/${alerta.id}`, { method: "PATCH", body: JSON.stringify({ status: "reconhecido" }) });
+      toast("Alerta reconhecido!", "success");
+      carregar();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setReconhecendoId(null);
+    }
+  };
+
+  const abrirFichaInline = (e, alerta) => {
+    e.stopPropagation();
+    onAbrirCliente(alerta.cliente_id);
+  };
 
   const statusOptions = ["todos", "aberto", "reconhecido", "resolvido", "ignorado"];
   const alertaAberto = alertas.find((a) => a.id === abrindoId) || null;
@@ -65,39 +85,50 @@ function AlertasScreen() {
         </div>
       </div>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th style={{ width: 130 }}>Transição</th>
-              <th className="table-mobile-hide">Motivo</th>
-              <th style={{ width: 110 }}>Status</th>
-              <th className="table-mobile-hide" style={{ width: 130 }}>Criado em</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan="5">Carregando…</td></tr>}
-            {!loading && alertas.length === 0 && <tr><td colSpan="5">Nenhum alerta neste filtro.</td></tr>}
-            {alertas.map((a) => (
-              <tr key={a.id} onClick={() => setAbrindoId(a.id)} style={{ cursor: "pointer" }}>
-                <td>{a.cliente_nome}</td>
-                <td>
-                  <span style={{ color: FAROL_CORES_ALERT[a.farol_de] }}>{FAROL_LABELS_ALERT[a.farol_de]}</span>
-                  {" → "}
-                  <span style={{ color: FAROL_CORES_ALERT[a.farol_para] }}>{FAROL_LABELS_ALERT[a.farol_para]}</span>
-                </td>
-                <td className="table-mobile-hide">{a.motivo_texto}</td>
-                <td>
-                  <span className="pill" style={{ color: STATUS_ALERTA_CORES[a.status] }}>
-                    {STATUS_ALERTA_LABELS[a.status]}
+      <div className="alert-list">
+        {loading && <div className="empty">Carregando…</div>}
+        {!loading && alertas.length === 0 && <div className="empty">Nenhum alerta neste filtro.</div>}
+        {!loading && alertas.map((a) => {
+          const score = a.motivo_json?.health_score;
+          return (
+            <div key={a.id} className={"alert-item " + a.farol_para + (a.status === "resolvido" ? " resolvido" : "")} onClick={() => setAbrindoId(a.id)} style={{ cursor: "pointer" }}>
+              <div className="alert-item-icon">
+                {a.farol_para === "vermelho" ? (
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M8 2l6 11H2z" /><path d="M8 6v3M8 11v.5" /></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="8" cy="8" r="6" /><path d="M8 5v3M8 11v.5" /></svg>
+                )}
+              </div>
+              <div className="alert-item-body">
+                <div className="alert-item-title">
+                  {a.cliente_nome}
+                  <span style={{ fontWeight: 400, color: "var(--ink-3)", fontSize: 11, marginLeft: 6 }}>
+                    <span style={{ color: FAROL_CORES_ALERT[a.farol_de] }}>{FAROL_LABELS_ALERT[a.farol_de]}</span>
+                    {" → "}
+                    <span style={{ color: FAROL_CORES_ALERT[a.farol_para] }}>{FAROL_LABELS_ALERT[a.farol_para]}</span>
                   </span>
-                </td>
-                <td className="table-mobile-hide">{fmtDataAlerta(a.created_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  {score !== undefined && score !== null && (
+                    <span className={"health-orb " + a.farol_para} style={{ width: 22, height: 22, fontSize: 10, borderWidth: 1.5, marginLeft: 8, verticalAlign: "middle" }}>{score}</span>
+                  )}
+                  <span className="pill" style={{ color: STATUS_ALERTA_CORES[a.status], marginLeft: 8 }}>{STATUS_ALERTA_LABELS[a.status]}</span>
+                </div>
+                <div className="alert-item-motivo">{a.motivo_texto}</div>
+                {a.sugestao_acao && (
+                  <div className="alert-item-suggestion">{a.sugestao_acao} <EnvoxersShared.HelpIcon helpKey="alerta_sugestao" /></div>
+                )}
+              </div>
+              <div className="alert-item-actions">
+                <span className="alert-item-time">{fmtDataAlerta(a.created_at)}</span>
+                {a.status === "aberto" && (
+                  <>
+                    <button className="btn btn-sm" onClick={(e) => reconhecerInline(e, a)} disabled={reconhecendoId === a.id}>Reconhecer</button>
+                    <button className="btn btn-envox btn-sm" onClick={(e) => abrirFichaInline(e, a)}>Abrir ficha</button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {alertaAberto && (

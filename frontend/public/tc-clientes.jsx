@@ -42,7 +42,7 @@ function formatDataCurta(iso) {
   return new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-BR");
 }
 
-function ClientesScreen({ permissao }) {
+function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
   const [clientes, setClientes] = useStateCli([]);
   const [loading, setLoading] = useStateCli(true);
   const [busca, setBusca] = useStateCli("");
@@ -50,6 +50,13 @@ function ClientesScreen({ permissao }) {
   const [editando, setEditando] = useStateCli(null); // null = lista, {} = novo, {id} = editar
   const toast = EnvoxersShared.useToast();
   const podeEditar = permissao === "admin" || permissao === "gestor";
+
+  useEffectCli(() => {
+    if (abrirClienteId) {
+      setEditando({ id: abrirClienteId });
+      if (onClienteAberto) onClienteAberto();
+    }
+  }, [abrirClienteId]);
 
   const carregar = async () => {
     setLoading(true);

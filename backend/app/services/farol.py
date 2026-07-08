@@ -42,15 +42,64 @@ LABELS = {
     "whatsapp": "Termômetro WhatsApp",
 }
 
-SUGESTOES = {
-    "entrega": "Revisar o processo de entrega — a maioria das tarefas recentes saiu fora do prazo combinado.",
-    "atrasadas": "Priorizar as tarefas atrasadas deste cliente e comunicar um novo prazo.",
-    "alteracoes": "Alinhar o escopo com o cliente — as alterações estão passando do limite combinado.",
-    "aprovacoes": "Cobrar a aprovação pendente (interna ou do cliente) — está parada há dias.",
-    "pulso": "Agendar uma ligação para entender a insatisfação por trás da nota baixa.",
-    "margem": "Revisar a alocação de horas neste cliente — a margem do contrato está comprimida.",
-    "silencio": "Fazer um check-in — o cliente está sem contato registrado há muito tempo.",
-}
+def _texto_sinal(nome: str, valor) -> str:
+    """Formata o valor real de um sinal (não a categoria) para exibição por extenso."""
+    if nome == "entrega":
+        return f"entrega {valor}"
+    if nome == "atrasadas":
+        return f"{valor} tarefa(s) atrasada(s)"
+    if nome == "alteracoes":
+        return f"alterações: {valor}"
+    if nome == "aprovacoes":
+        return f"aprovações: {valor}"
+    if nome == "pulso":
+        return f"pulso {valor}"
+    if nome == "margem":
+        return f"margem {valor}%"
+    if nome == "silencio":
+        if valor is None:
+            return "sem check-in registrado desde o início do contrato"
+        return f"{valor} dia(s) sem contato"
+    if nome == "whatsapp":
+        return f"WhatsApp {valor}"
+    return f"{nome}: {valor}"
+
+
+def _motivo_texto_detalhado(sinais: dict) -> str:
+    """Motivo por extenso com o dado real de cada sinal não-verde — não a categoria genérica."""
+    partes = [
+        _texto_sinal(nome, valor)
+        for nome, (cor, valor) in sinais.items()
+        if cor in ("vermelho", "amarelo")
+    ]
+    if not partes:
+        return "Todos os sinais saudáveis."
+    return " · ".join(partes)
+
+
+def _sugestao_acao(sinais: dict, farol: str) -> str:
+    """Recomendação de ação por regras condicionais (sem IA) a partir dos sinais vermelhos/amarelos."""
+    if farol == "verde":
+        return "Manter cadência mensal. Cliente saudável."
+
+    if sinais["pulso"][0] == "vermelho" or sinais["whatsapp"][0] == "vermelho":
+        return "Ligar hoje. Pulso/WhatsApp em vermelho indica insatisfação que vai virar cancelamento em semanas."
+
+    acoes = []
+    if sinais["silencio"][0] == "vermelho":
+        acoes.append("romper o silêncio esta semana")
+    if sinais["entrega"][0] == "vermelho":
+        acoes.append("recuperar entrega do mês antes do dia 25")
+    if sinais["aprovacoes"][0] == "vermelho":
+        acoes.append("destravar aprovações paradas")
+    if sinais["alteracoes"][0] == "vermelho":
+        acoes.append("renegociar limite de alterações")
+    if sinais["margem"][0] == "vermelho":
+        acoes.append("rever escopo ou preço — margem inviável")
+    if acoes:
+        return "Ações: " + "; ".join(acoes) + "."
+
+    return "Ligar essa semana. Um dos sinais está no limite — não deixe virar vermelho."
 
 
 async def _sinal_entrega(db: AsyncSession, cliente_id: int, hoje: date) -> tuple[str, Optional[str]]:
@@ -239,18 +288,8 @@ async def calcular_farol_cliente(db: AsyncSession, cliente: Cliente, hoje: Optio
     else:
         farol = "verde"
 
-    partes_texto = []
-    if vermelhos:
-        partes_texto.append("Sinais críticos: " + ", ".join(LABELS[n] for n in vermelhos))
-    if amarelos:
-        partes_texto.append("Atenção: " + ", ".join(LABELS[n] for n in amarelos))
-    motivo_texto = "; ".join(partes_texto) if partes_texto else "Todos os sinais dentro do esperado."
-
-    sugestao = None
-    for nome in vermelhos + amarelos:
-        if nome in SUGESTOES:
-            sugestao = SUGESTOES[nome]
-            break
+    motivo_texto = _motivo_texto_detalhado(sinais)
+    sugestao = _sugestao_acao(sinais, farol)
 
     return {
         "farol": farol,

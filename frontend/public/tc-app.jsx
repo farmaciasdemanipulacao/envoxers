@@ -19,6 +19,11 @@ function AppShell() {
   const [envoxersList, setEnvoxersList] = useStateApp([]);
   const [dataVersion, setDataVersion] = useStateApp(0); // incrementa a cada save — Kanban/Dashboard refazem fetch
 
+  // "Abrir ficha" do Farol/Alertas navega pra tela Clientes já com o form aberto
+  // (não existe view-cliente-ficha separada — decisão já tomada no D-063).
+  const [clienteParaAbrir, setClienteParaAbrir] = useStateApp(null);
+  const abrirCliente = (id) => { setClienteParaAbrir(id); setView("clientes"); };
+
   const carregarListasBase = async () => {
     try {
       const [cs, es] = await Promise.all([EnvoxersAPI.api("/clientes"), EnvoxersAPI.api("/envoxers")]);
@@ -129,7 +134,13 @@ function AppShell() {
       <EnvoxersShared.Sidebar view={view} onNavigate={setView} nome={nome} permissao={permissao} />
       <main className="main" style={focoAtivo ? { paddingBottom: 60 } : undefined}>
         <EnvoxersShared.Topbar crumb={crumbs[view]} onLogout={handleLogout} />
-        {view === "clientes" && <ClientesScreen permissao={permissao} />}
+        {view === "clientes" && (
+          <ClientesScreen
+            permissao={permissao}
+            abrirClienteId={clienteParaAbrir}
+            onClienteAberto={() => setClienteParaAbrir(null)}
+          />
+        )}
         {view === "envoxers" && <EnvoxersScreen permissao={permissao} />}
         {view === "servicos" && <ServicosScreen permissao={permissao} />}
         {view === "kanban" && (
@@ -154,7 +165,7 @@ function AppShell() {
         {view === "calendario" && <CalendarioScreen />}
         {view === "relatorio" && <RelatorioScreen />}
         {view === "farol" && <FarolScreen />}
-        {view === "alertas" && <AlertasScreen />}
+        {view === "alertas" && <AlertasScreen onAbrirCliente={abrirCliente} />}
         {view === "icp" && <IcpScreen />}
         {view === "faturamento" && <FaturamentoScreen />}
         {view === "churn" && <ChurnListaScreen />}

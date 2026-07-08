@@ -26,6 +26,13 @@ router = APIRouter(tags=["farol"])
 _RISCO_ORDEM = {"vermelho": 0, "amarelo": 1, "verde": 2}
 
 
+def _meses_de_casa(inicio: Optional[date]) -> Optional[int]:
+    if inicio is None:
+        return None
+    hoje = date.today()
+    return (hoje.year - inicio.year) * 12 + (hoje.month - inicio.month)
+
+
 @router.get("/farol", response_model=list[FarolClienteResponse])
 async def listar_farol(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -96,6 +103,8 @@ async def listar_farol(
             sinais_amarelos=calculo["sinais_amarelos"],
             motivo_texto=calculo["motivo_texto"],
             sugestao_acao=calculo["sugestao_acao"],
+            valor_contrato=float(cliente.valor_contrato or 0),
+            meses_de_casa=_meses_de_casa(cliente.data_inicio_contrato),
             calculado_em=agora,
         ))
 

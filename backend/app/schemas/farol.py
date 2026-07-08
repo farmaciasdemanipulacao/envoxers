@@ -16,6 +16,8 @@ class FarolClienteResponse(BaseModel):
     sinais_amarelos: list[str]
     motivo_texto: str
     sugestao_acao: Optional[str] = None
+    valor_contrato: float
+    meses_de_casa: Optional[int] = None
     calculado_em: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -109,32 +109,22 @@ function FarolScreen() {
         </div>
       </div>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th style={{ width: 24 }}></th>
-              <th>Cliente</th>
-              <th className="table-mobile-hide">Responsável</th>
-              <th style={{ width: 90 }}>Score</th>
-              <th className="table-mobile-hide">Motivo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan="5">Calculando farol…</td></tr>}
-            {!loading && filtrados.length === 0 && <tr><td colSpan="5">Nenhum cliente neste filtro.</td></tr>}
-            {filtrados.map((i) => (
-              <tr key={i.cliente_id} onClick={() => setDetalhe(i)} style={{ cursor: "pointer" }}>
-                <td><FarolDot cor={i.farol} /></td>
-                <td>{i.cliente_nome}</td>
-                <td className="table-mobile-hide">{i.responsavel_nome || "—"}</td>
-                <td>{i.health_score}</td>
-                <td className="table-mobile-hide">{i.motivo_texto}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {loading && <div className="empty">Calculando farol…</div>}
+      {!loading && filtrados.length === 0 && <div className="empty">Nenhum cliente neste filtro.</div>}
+      {!loading && filtrados.map((i) => (
+        <div key={i.cliente_id} className={"farol-row " + i.farol} onClick={() => setDetalhe(i)}>
+          <div className={"health-orb " + i.farol}>{i.health_score}</div>
+          <div className="farol-row-body">
+            <div className="farol-row-name">{i.cliente_nome}</div>
+            <div className="farol-row-motivo">{i.motivo_texto} <EnvoxersShared.HelpIcon helpKey="farol_motivo" /></div>
+          </div>
+          <div className="farol-row-side">
+            <div className="kv">{EnvoxersShared.formatMoney(i.valor_contrato)}/mês</div>
+            <div>{i.meses_de_casa ?? "—"}m de casa</div>
+            <div>{i.responsavel_nome ? i.responsavel_nome.split(" ")[0] : "—"}</div>
+          </div>
+        </div>
+      ))}
 
       {detalhe && (
         <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) setDetalhe(null); }}>
