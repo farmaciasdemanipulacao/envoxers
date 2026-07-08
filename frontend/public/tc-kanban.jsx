@@ -52,6 +52,7 @@ function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAb
   const [filtroCliente, setFiltroCliente] = useStateKb("");
   const [filtroResponsavel, setFiltroResponsavel] = useStateKb("");
   const [filtroStatus, setFiltroStatus] = useStateKb("");
+  const [filtroTipo, setFiltroTipo] = useStateKb("");
   const [filtroAtrasadas, setFiltroAtrasadas] = useStateKb(false);
   const [ocultarFinalizadas, setOcultarFinalizadas] = useStateKb(true);
   const toast = EnvoxersShared.useToast();
@@ -82,11 +83,16 @@ function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAb
       if (filtroCliente && String(t.cliente_id) !== filtroCliente) return false;
       if (filtroResponsavel && String(t.responsavel_envoxer_id) !== filtroResponsavel) return false;
       if (filtroStatus && t.status !== filtroStatus) return false;
+      if (filtroTipo && (t.tipo_tarefa || "") !== filtroTipo) return false;
       if (filtroAtrasadas && (t.status === "finalizado" || fmtPrazoKb(t.prazo).cls !== "atrasada")) return false;
       if (busca && !t.titulo.toLowerCase().includes(busca.toLowerCase())) return false;
       return true;
     });
-  }, [tarefas, busca, filtroCliente, filtroResponsavel, filtroStatus, filtroAtrasadas, ocultarFinalizadas]);
+  }, [tarefas, busca, filtroCliente, filtroResponsavel, filtroStatus, filtroTipo, filtroAtrasadas, ocultarFinalizadas]);
+
+  const tiposDisponiveis = useMemoKb(() => {
+    return [...new Set(tarefas.map((t) => t.tipo_tarefa).filter(Boolean))].sort();
+  }, [tarefas]);
 
   const moverCard = async (tarefaId, novoStatus) => {
     setTarefas((prev) => prev.map((t) => (t.id === tarefaId ? { ...t, status: novoStatus } : t)));
@@ -127,6 +133,10 @@ function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAb
           <select className="chip" value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
             <option value="">Todos os status</option>
             {STATUS_COLS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+          <select className="chip" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+            <option value="">Todos os tipos</option>
+            {tiposDisponiveis.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
           <label className="chip" style={{ cursor: "pointer" }}>
             <input type="checkbox" checked={filtroAtrasadas} onChange={(e) => setFiltroAtrasadas(e.target.checked)} style={{ marginRight: 6 }} />
