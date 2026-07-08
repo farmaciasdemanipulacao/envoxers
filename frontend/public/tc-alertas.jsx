@@ -187,7 +187,7 @@ function AlertaModal({ alerta, onClose, onAtualizado }) {
 
             {alerta.sugestao_acao && (
               <>
-                <div className="modal-section-title">Sugestão de ação</div>
+                <div className="modal-section-title">Sugestão de ação <EnvoxersShared.HelpIcon helpKey="alerta_sugestao" /></div>
                 <div>{alerta.sugestao_acao}</div>
               </>
             )}
@@ -209,7 +209,7 @@ function AlertaModal({ alerta, onClose, onAtualizado }) {
 
           <div className="modal-side">
             <div className="modal-side-block">
-              <div className="modal-side-label">Status</div>
+              <div className="modal-side-label">Status <EnvoxersShared.HelpIcon helpKey="alerta_status" /></div>
               <div className="modal-side-value" style={{ color: STATUS_ALERTA_CORES[alerta.status] }}>
                 {STATUS_ALERTA_LABELS[alerta.status]}
               </div>

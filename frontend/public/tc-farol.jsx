@@ -14,6 +14,10 @@ const SINAL_LABELS = {
   whatsapp: "Termômetro WhatsApp",
 };
 const SINAL_ORDEM = ["entrega", "atrasadas", "alteracoes", "aprovacoes", "pulso", "margem", "silencio", "whatsapp"];
+const SINAL_HLP = {
+  entrega: "sig_entrega", atrasadas: "sig_atrasadas", alteracoes: "sig_alteracoes", aprovacoes: "sig_aprovacoes",
+  pulso: "sig_pulso", margem: "sig_margem", silencio: "sig_silencio", whatsapp: "sig_whatsapp",
+};
 
 function FarolDot({ cor, sem_dado }) {
   if (sem_dado) {
@@ -68,15 +72,15 @@ function FarolScreen() {
           <div className="kpi-value">{kpis.total}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Vermelho</div>
+          <div className="kpi-label">Vermelho <EnvoxersShared.HelpIcon helpKey="farol_kpi_verm" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-vermelho)" }}>{kpis.vermelhos}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Amarelo</div>
+          <div className="kpi-label">Amarelo <EnvoxersShared.HelpIcon helpKey="farol_kpi_amar" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-amarelo)" }}>{kpis.amarelos}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Verde</div>
+          <div className="kpi-label">Verde <EnvoxersShared.HelpIcon helpKey="farol_kpi_verde" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-verde)" }}>{kpis.verdes}</div>
         </div>
       </div>
@@ -140,7 +144,7 @@ function FarolScreen() {
                     return (
                       <div key={nome} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                          <FarolDot cor={s.cor} sem_dado={semDado} /> {SINAL_LABELS[nome]}
+                          <FarolDot cor={s.cor} sem_dado={semDado} /> {SINAL_LABELS[nome]} <EnvoxersShared.HelpIcon helpKey={SINAL_HLP[nome]} />
                         </span>
                         <span style={{ fontSize: 12, color: "var(--ink-3)" }}>
                           {semDado ? "sem dado" : (s.valor === null || s.valor === undefined ? "—" : String(s.valor))}
@@ -150,7 +154,7 @@ function FarolScreen() {
                   })}
                 </div>
 
-                <div className="modal-section-title">Motivo</div>
+                <div className="modal-section-title">Motivo <EnvoxersShared.HelpIcon helpKey="farol_motivo" /></div>
                 <div>{detalhe.motivo_texto}</div>
 
                 {detalhe.sugestao_acao && (
@@ -167,7 +171,7 @@ function FarolScreen() {
                   <div className="modal-side-value" style={{ color: FAROL_CORES[detalhe.farol] }}>{FAROL_LABELS[detalhe.farol]}</div>
                 </div>
                 <div className="modal-side-block">
-                  <div className="modal-side-label">Health score</div>
+                  <div className="modal-side-label">Health score <EnvoxersShared.HelpIcon helpKey="farol_health_score" /></div>
                   <div className="modal-side-value">{detalhe.health_score}/100</div>
                 </div>
               </div>

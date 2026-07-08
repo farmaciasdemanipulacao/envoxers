@@ -15,7 +15,7 @@ from app.db.session import AsyncSessionLocal
 from app.models.envoxer import Envoxer
 from app.models.servico import Servico
 from app.models.motivo_churn import MotivoChurnCatalogo
-from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento
+from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario
 
 logger = structlog.get_logger()
 
@@ -119,6 +119,7 @@ app.include_router(farol.router, prefix=API_PREFIX)
 app.include_router(churn.router, prefix=API_PREFIX)
 app.include_router(icp.router, prefix=API_PREFIX)
 app.include_router(faturamento.router, prefix=API_PREFIX)
+app.include_router(calendario.router, prefix=API_PREFIX)
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount(f"{API_PREFIX}/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")

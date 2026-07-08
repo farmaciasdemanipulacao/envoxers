@@ -16,3 +16,4 @@ from app.models.alerta_farol import AlertaFarol  # noqa: F401
 from app.models.perfil_cliente import PerfilCliente, PerfilClienteHistorico  # noqa: F401
 from app.models.motivo_churn import MotivoChurnCatalogo  # noqa: F401
 from app.models.churn_snapshot import ChurnSnapshot  # noqa: F401
+from app.models.evento import Evento  # noqa: F401

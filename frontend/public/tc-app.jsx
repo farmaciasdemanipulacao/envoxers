@@ -114,11 +114,13 @@ function AppShell() {
     servicos: "Cadastros / Serviços",
     kanban: "Operação / Kanban",
     dashboard: "Operação / Dashboard do dia",
+    calendario: "Operação / Calendário",
     solicitacoes: "Farol / Solicitações do cliente",
     farol: "Farol / Farol Inteligente",
     alertas: "Farol / Alertas",
     icp: "ICP / ICP Builder",
     faturamento: "Faturamento / Painel de faturamento",
+    churn: "ICP / Cancelamentos",
   };
 
   return (
@@ -147,10 +149,12 @@ function AppShell() {
           />
         )}
         {view === "solicitacoes" && <SolicitacoesScreen onAbrirTarefa={abrirTarefa} />}
+        {view === "calendario" && <CalendarioScreen />}
         {view === "farol" && <FarolScreen />}
         {view === "alertas" && <AlertasScreen />}
         {view === "icp" && <IcpScreen />}
         {view === "faturamento" && <FaturamentoScreen />}
+        {view === "churn" && <ChurnListaScreen />}
       </main>
       <FocoBar
         focoAtivo={focoAtivo}

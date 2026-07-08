@@ -1,5 +1,5 @@
 """F3 — Módulo 1: Motivo de Churn — cancelamento de cliente com motivo + snapshot congelado."""
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,9 +15,33 @@ from app.models.churn_snapshot import ChurnSnapshot
 from app.models.farol_calculo import FarolCalculo
 from app.models.perfil_cliente import PerfilCliente
 from app.models.pulso_satisfacao import PulsoSatisfacao
-from app.schemas.churn import ClienteCancelarRequest, MotivoChurnResponse, ChurnSnapshotResponse
+from app.schemas.churn import ClienteCancelarRequest, MotivoChurnResponse, ChurnSnapshotResponse, ChurnListaItemResponse
 
 router = APIRouter(tags=["churn"])
+
+# "Total no histórico" da tela de Cancelamentos considera os últimos 24 meses (ver
+# hint do KPI no wireframe: "últimos 24 meses").
+JANELA_CHURN_LISTA_MESES = 24
+
+
+@router.get("/churn", response_model=list[ChurnListaItemResponse])
+async def listar_churn(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    desde = date.today() - timedelta(days=JANELA_CHURN_LISTA_MESES * 30)
+    result = await db.execute(
+        select(ChurnSnapshot, MotivoChurnCatalogo.nome)
+        .join(MotivoChurnCatalogo, MotivoChurnCatalogo.codigo == ChurnSnapshot.motivo_codigo)
+        .where(ChurnSnapshot.data_cancelamento >= desde)
+        .order_by(ChurnSnapshot.data_cancelamento.desc())
+    )
+    respostas = []
+    for snapshot, motivo_nome in result.all():
+        resp = ChurnListaItemResponse.model_validate(snapshot)
+        resp.motivo_nome = motivo_nome
+        respostas.append(resp)
+    return respostas
 
 
 def _meses_de_casa_churn(inicio: Optional[date], fim: date) -> int:

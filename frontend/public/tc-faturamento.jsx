@@ -16,7 +16,7 @@ function FaturamentoMrrChart({ historico }) {
   return (
     <div className="mrr-chart">
       <div className="mrr-chart-title">
-        <span>MRR — últimos 12 meses + projeção 90d</span>
+        <span>MRR — últimos 12 meses + projeção 90d <EnvoxersShared.HelpIcon helpKey="fat_mrr_chart" /></span>
         <span>■ MRR fechado &nbsp; ■ Mês atual &nbsp; ⬚ Projeção</span>
       </div>
       <div className="mrr-bars">
@@ -42,7 +42,7 @@ function FaturamentoConcentracao({ concentracao }) {
   if (concentracao.length === 0) {
     return (
       <div className="mrr-chart">
-        <div className="mrr-chart-title"><span>Concentração de MRR — quem responde pela receita</span></div>
+        <div className="mrr-chart-title"><span>Concentração de MRR — quem responde pela receita <EnvoxersShared.HelpIcon helpKey="fat_concentr_chart" /></span></div>
         <div style={{ fontSize: 13, color: "var(--ink-4)" }}>Nenhum cliente recorrente ativo ainda.</div>
       </div>
     );
@@ -52,7 +52,7 @@ function FaturamentoConcentracao({ concentracao }) {
   return (
     <div className="mrr-chart">
       <div className="mrr-chart-title">
-        <span>Concentração de MRR — quem responde pela receita</span>
+        <span>Concentração de MRR — quem responde pela receita <EnvoxersShared.HelpIcon helpKey="fat_concentr_chart" /></span>
         <span>Top 3 = {top3.toFixed(0)}% · Top 5 = {top5.toFixed(0)}%</span>
       </div>
       <div className="concentr-strip">
@@ -75,7 +75,7 @@ function FaturamentoCohorts({ cohorts }) {
   if (cohorts.length === 0) {
     return (
       <div className="mrr-chart">
-        <div className="mrr-chart-title"><span>Curva de retenção — % de clientes que continuam ativos por cohort</span></div>
+        <div className="mrr-chart-title"><span>Curva de retenção — % de clientes que continuam ativos por cohort <EnvoxersShared.HelpIcon helpKey="fat_cohort" /></span></div>
         <div style={{ fontSize: 13, color: "var(--ink-4)" }}>Ainda não há cohorts (clientes recorrentes com início de contrato) nos últimos 12 meses.</div>
       </div>
     );
@@ -84,7 +84,7 @@ function FaturamentoCohorts({ cohorts }) {
   return (
     <div className="mrr-chart">
       <div className="mrr-chart-title">
-        <span>Curva de retenção — % de clientes que continuam ativos por cohort</span>
+        <span>Curva de retenção — % de clientes que continuam ativos por cohort <EnvoxersShared.HelpIcon helpKey="fat_cohort" /></span>
         <span>Cortar clientes em vermelho muda esse gráfico</span>
       </div>
       <div className="cohort-grid">
@@ -144,7 +144,7 @@ function FaturamentoScreen() {
         <>
           <div className="fat-hero">
             <div className="fat-mrr-card">
-              <div className="fat-mrr-label">MRR — Recorrente</div>
+              <div className="fat-mrr-label">MRR — Recorrente <EnvoxersShared.HelpIcon helpKey="fat_mrr" onDark /></div>
               <div className="fat-mrr-value">{EnvoxersShared.formatMoney(dados.mrr_atual)}</div>
               <div className={`fat-mrr-delta ${dados.mrr_delta < 0 ? "neg" : ""}`}>
                 <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor" style={dados.mrr_delta < 0 ? { transform: "rotate(180deg)" } : undefined}><path d="M6 2l4 4H2z" /></svg>
@@ -159,7 +159,7 @@ function FaturamentoScreen() {
 
             <div className="fat-side">
               <div className="fat-side-card">
-                <div className="fat-side-label">Concentração top 3</div>
+                <div className="fat-side-label">Concentração top 3 <EnvoxersShared.HelpIcon helpKey="fat_concentr" /></div>
                 <div className="fat-side-value warn">{dados.top3_pct}<span className="unit">% do MRR</span></div>
                 <div className="fat-side-sub">
                   {dados.top3_nomes.length > 0
@@ -168,7 +168,7 @@ function FaturamentoScreen() {
                 </div>
               </div>
               <div className="fat-side-card" style={{ borderLeft: "3px solid var(--farol-vermelho)" }}>
-                <div className="fat-side-label">Receita em risco</div>
+                <div className="fat-side-label">Receita em risco <EnvoxersShared.HelpIcon helpKey="fat_risco" /></div>
                 <div className="fat-side-value danger">{EnvoxersShared.formatMoney(dados.receita_em_risco)}</div>
                 <div className="fat-side-sub">{dados.qtd_em_risco} cliente{dados.qtd_em_risco !== 1 ? "s" : ""} em farol amarelo/vermelho — {dados.receita_em_risco_pct}% do MRR está em atenção.</div>
               </div>
@@ -177,12 +177,12 @@ function FaturamentoScreen() {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
             <div className="fat-side-card">
-              <div className="fat-side-label">Projeção 90 dias</div>
+              <div className="fat-side-label">Projeção 90 dias <EnvoxersShared.HelpIcon helpKey="fat_projecao" /></div>
               <div className="fat-side-value" style={{ color: "var(--envox)" }}>{EnvoxersShared.formatMoney(dados.projecao_90d)}</div>
               <div className="fat-side-sub">MRR menos os clientes em farol vermelho. Amarelos entram como incerteza, não são descontados.</div>
             </div>
             <div className="fat-side-card">
-              <div className="fat-side-label">Tempo médio de casa</div>
+              <div className="fat-side-label">Tempo médio de casa <EnvoxersShared.HelpIcon helpKey="fat_tempo_casa" /></div>
               <div className="fat-side-value pos">{dados.tempo_medio_casa_meses != null ? dados.tempo_medio_casa_meses : "—"}<span className="unit"> meses</span></div>
               <div className="fat-side-sub">Meta é passar de 12 meses de casa em média.</div>
             </div>

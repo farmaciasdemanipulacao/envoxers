@@ -104,15 +104,15 @@ function ClientesScreen({ permissao }) {
 
       <div className="kpis">
         <div className="kpi">
-          <div className="kpi-label">Ativos</div>
+          <div className="kpi-label">Ativos <EnvoxersShared.HelpIcon helpKey="cli_kpi_ativos" /></div>
           <div className="kpi-value">{kpis.ativos}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">MRR contratado</div>
+          <div className="kpi-label">MRR contratado <EnvoxersShared.HelpIcon helpKey="cli_kpi_mrr" /></div>
           <div className="kpi-value"><span className="unit">R$</span> {kpis.mrr.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Farol vermelho</div>
+          <div className="kpi-label">Farol vermelho <EnvoxersShared.HelpIcon helpKey="cli_kpi_verm" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-vermelho)" }}>{kpis.vermelhos}</div>
         </div>
       </div>
@@ -524,7 +524,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
         <div className="form-panel">
 
           <div className="form-section" id="secao-identidade" ref={(el) => (secaoRefs.current[0] = el)}>
-            <div className="form-section-title">01 · Identidade</div>
+            <div className="form-section-title">01 · Identidade <EnvoxersShared.HelpIcon helpKey="form_cli_ident" /></div>
             <div className="form-section-hint">Como o cliente aparece no sistema.</div>
             <div className="form-row">
               <div className="field span-2">
@@ -546,7 +546,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           </div>
 
           <div className="form-section" id="secao-contrato" ref={(el) => (secaoRefs.current[1] = el)}>
-            <div className="form-section-title">02 · Contrato</div>
+            <div className="form-section-title">02 · Contrato <EnvoxersShared.HelpIcon helpKey="form_cli_contrato" /></div>
             <div className="form-section-hint">O que decide MRR, projeção 90d e retenção.</div>
             <div className="form-row three">
               <div className="field">
@@ -612,7 +612,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           </div>
 
           <div className="form-section" id="secao-icp" ref={(el) => (secaoRefs.current[2] = el)}>
-            <div className="form-section-title">03 · ICP</div>
+            <div className="form-section-title">03 · ICP <EnvoxersShared.HelpIcon helpKey="form_cli_icp" /></div>
             <div className="form-section-hint">Estes campos são o que permite, em F3, dizer <em>quem</em> devemos aceitar e quem não.</div>
             <div className="form-row">
               <div className="field">
@@ -650,7 +650,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           </div>
 
           <div className="form-section" id="secao-servicos" ref={(el) => (secaoRefs.current[3] = el)}>
-            <div className="form-section-title">04 · Serviços contratados</div>
+            <div className="form-section-title">04 · Serviços contratados <EnvoxersShared.HelpIcon helpKey="form_cli_servicos" /></div>
             <div className="form-section-hint">Marque o que este cliente contratou e o valor por serviço.</div>
             <div className="service-grid">
               {servicosList.map((s) => {
@@ -686,7 +686,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           </div>
 
           <div className="form-section" id="secao-escopo" ref={(el) => (secaoRefs.current[4] = el)}>
-            <div className="form-section-title">05 · Escopo mensal</div>
+            <div className="form-section-title">05 · Escopo mensal <EnvoxersShared.HelpIcon helpKey="form_cli_escopo" /></div>
             <div className="form-section-hint">Volumes contratados. O <em>limite de alterações</em> vira sinal do Farol em F2.</div>
             <div className="form-row three">
               <div className="field">
@@ -714,7 +714,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           </div>
 
           <div className="form-section" id="secao-links" ref={(el) => (secaoRefs.current[5] = el)}>
-            <div className="form-section-title">06 · Links & observações</div>
+            <div className="form-section-title">06 · Links & observações <EnvoxersShared.HelpIcon helpKey="form_cli_links" /></div>
             <div className="form-row">
               <div className="field">
                 <label>Instagram</label>
@@ -736,7 +736,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           </div>
 
           <div className="form-section" id="secao-pulso" ref={(el) => (secaoRefs.current[6] = el)}>
-            <div className="form-section-title">07 · Pulso & Check-in</div>
+            <div className="form-section-title">07 · Pulso & Check-in <EnvoxersShared.HelpIcon helpKey="cli_cadencia" /></div>
             <div className="form-section-hint">Nota mensal de satisfação e registro de contatos com o cliente.</div>
 
             {!isEdit && (
@@ -747,7 +747,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
 
             {isEdit && (
               <>
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Pulso de satisfação</div>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Pulso de satisfação <EnvoxersShared.HelpIcon helpKey="cli_pulso_hist" /></div>
                 <div className="form-row three">
                   <div className="field">
                     <label>Mês</label>
@@ -805,7 +805,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
                   </table>
                 </div>
 
-                <div style={{ fontWeight: 600, fontSize: 13, margin: "24px 0 8px" }}>Check-in</div>
+                <div style={{ fontWeight: 600, fontSize: 13, margin: "24px 0 8px" }}>Check-in <EnvoxersShared.HelpIcon helpKey="cli_checkins" /></div>
 
                 {proximoSugerido && (
                   <div style={{ fontSize: 12, color: "var(--ink-3)", padding: "8px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)", marginBottom: 10 }}>
@@ -884,7 +884,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           </div>
 
           <div className="form-section" id="secao-perfil" ref={(el) => (secaoRefs.current[7] = el)}>
-            <div className="form-section-title">08 · Perfil Comportamental</div>
+            <div className="form-section-title">08 · Perfil Comportamental <EnvoxersShared.HelpIcon helpKey="cli_perfil" /></div>
             <div className="form-section-hint">Calculado automaticamente a partir do histórico de aprovações e alterações — base do ICP Builder (F3).</div>
 
             {!isEdit && (

@@ -1,10 +1,10 @@
 const { useState: useStateIcp, useEffect: useEffectIcp } = React;
 
 const ICP_DIMENSOES = [
-  { key: "segmento", label: "Segmento" },
-  { key: "canal_aquisicao", label: "Canal de aquisição" },
-  { key: "maturidade_digital", label: "Maturidade digital" },
-  { key: "perfil", label: "Perfil comportamental" },
+  { key: "segmento", label: "Segmento", helpKey: "icp_dim_segmento" },
+  { key: "canal_aquisicao", label: "Canal de aquisição", helpKey: "icp_dim_canal" },
+  { key: "maturidade_digital", label: "Maturidade digital", helpKey: "icp_dim_matur" },
+  { key: "perfil", label: "Perfil comportamental", helpKey: "icp_dim_perfil" },
 ];
 
 const ICP_PERFIL_LABELS = { facil: "Fácil", neutro: "Neutro", dificil: "Difícil" };
@@ -31,11 +31,11 @@ function IcpBarraDistribuicao({ distribuicao, corBase }) {
   );
 }
 
-function IcpGrupoCard({ titulo, corBase, grupo }) {
+function IcpGrupoCard({ titulo, corBase, grupo, helpKey }) {
   return (
     <div className="modal-side-block" style={{ background: "var(--bg-inset)", padding: 16, borderRadius: "var(--r-md)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 15, color: corBase }}>{titulo}</div>
+        <div style={{ fontWeight: 700, fontSize: 15, color: corBase }}>{titulo} <EnvoxersShared.HelpIcon helpKey={helpKey} /></div>
         <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{grupo.quantidade} cliente(s)</div>
       </div>
 
@@ -45,7 +45,7 @@ function IcpGrupoCard({ titulo, corBase, grupo }) {
         <>
           <div className="form-row three" style={{ marginBottom: 16 }}>
             <div>
-              <div className="modal-side-label">Ticket médio</div>
+              <div className="modal-side-label">Ticket médio <EnvoxersShared.HelpIcon helpKey="icp_dim_ticket" /></div>
               <div className="modal-side-value">{grupo.ticket_medio != null ? EnvoxersShared.formatMoney(grupo.ticket_medio) : "—"}</div>
             </div>
             <div>
@@ -60,7 +60,7 @@ function IcpGrupoCard({ titulo, corBase, grupo }) {
 
           {ICP_DIMENSOES.map((d) => (
             <div key={d.key} style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", marginBottom: 6 }}>{d.label}</div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", marginBottom: 6 }}>{d.label} <EnvoxersShared.HelpIcon helpKey={d.helpKey} /></div>
               <IcpBarraDistribuicao distribuicao={grupo.distribuicao[d.key]} corBase={corBase} />
             </div>
           ))}
@@ -102,7 +102,7 @@ function IcpScreen() {
         <>
           {dados.destaques.length > 0 && (
             <div style={{ marginBottom: 24 }}>
-              <div className="form-section-title">Diferenças mais relevantes</div>
+              <div className="form-section-title">Diferenças mais relevantes <EnvoxersShared.HelpIcon helpKey="icp_insights" /></div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {dados.destaques.map((d, i) => (
                   <div
@@ -126,8 +126,8 @@ function IcpScreen() {
           )}
 
           <div className="form-row" style={{ gridTemplateColumns: "1fr 1fr", gap: 20, display: "grid" }}>
-            <IcpGrupoCard titulo="Retidos" corBase="var(--farol-verde)" grupo={dados.retidos} />
-            <IcpGrupoCard titulo="Perdidos" corBase="var(--farol-vermelho)" grupo={dados.perdidos} />
+            <IcpGrupoCard titulo="Retidos" corBase="var(--farol-verde)" grupo={dados.retidos} helpKey="icp_retidos" />
+            <IcpGrupoCard titulo="Perdidos" corBase="var(--farol-vermelho)" grupo={dados.perdidos} helpKey="icp_perdidos" />
           </div>
         </>
       )}
