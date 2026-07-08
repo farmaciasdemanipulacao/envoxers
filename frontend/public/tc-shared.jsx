@@ -90,6 +90,7 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
       <div className="brand">
         <span className="brand-mark">envox<span className="brand-dot"></span></span>
         <span className="brand-sub">Cockpit</span>
+        <HelpIcon helpKey="cockpit" />
       </div>
 
       <div className="nav-section">
@@ -121,12 +122,12 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
           {item(
             "kanban",
             "Kanban",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="3.5" height="12" rx="0.5" /><rect x="6.3" y="2" width="3.5" height="8" rx="0.5" /><rect x="10.6" y="2" width="3.5" height="10" rx="0.5" /></svg>
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="3" width="3" height="10" rx="1" /><rect x="6.5" y="3" width="3" height="7" rx="1" /><rect x="11" y="3" width="3" height="4" rx="1" /></svg>
           )}
           {item(
             "dashboard",
             "Dashboard do dia",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5" /><path d="M2 7h12M7 2v12" /></svg>,
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="5" height="12" rx="1" /><rect x="9" y="2" width="5" height="6" rx="1" /></svg>,
             "nav_dashboard"
           )}
           {item(
@@ -150,18 +151,18 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
           {item(
             "solicitacoes",
             "Solicitações",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="2" width="11" height="12" rx="1" /><path d="M5 6h6M5 9h6M5 12h3" /></svg>
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12v8l-3-2H2z" /><path d="M5 7h6M5 9h4" /></svg>
           )}
           {item(
             "farol",
             "Farol",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><circle cx="8" cy="8" r="2.2" /></svg>,
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><circle cx="8" cy="8" r="2" fill="currentColor" /></svg>,
             "nav_farol"
           )}
           {item(
             "alertas",
             "Alertas",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l6.5 11H1.5z" /><path d="M8 6.5v3.2" /><circle cx="8" cy="11.8" r="0.4" fill="currentColor" /></svg>,
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l6 11H2z" /><path d="M8 6v3M8 11v.5" /></svg>,
             "nav_alertas"
           )}
         </nav>
@@ -173,7 +174,7 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
           {item(
             "icp",
             "ICP Builder",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="5" cy="5" r="2.2" /><circle cx="11" cy="5" r="2.2" /><path d="M2.8 13c0-2 1-3.5 2.2-3.5S7.2 11 7.2 13" /><path d="M8.8 13c0-2 1-3.5 2.2-3.5s2.2 1.5 2.2 3.5" /></svg>,
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 12l4-4 3 3 5-5" /></svg>,
             "nav_icp"
           )}
           {item(
@@ -233,6 +234,8 @@ function Topbar({ crumb, onLogout }) {
 // Faturamento, Clientes, Envoxers, Calendário, Cancelamentos, Relatório de custo).
 // Extensível: Dashboard, Kanban, Solicitações ficam de fora por ora.
 const HELP_TEXTS = {
+  cockpit: { t: "O que é o Cockpit", b: "<p>Sistema interno da Envox. Substitui o Ummense como fonte única da verdade.</p><p><strong>Objetivo nº 1:</strong> avisar antes que o cliente saia. Não é gestor de tarefas com farol — é gestor de risco de churn com kanban embutido.</p>" },
+
   // --- Navegação
   nav_calendario: { t: "Calendário geral", b: "<p>Publicações programadas + reuniões + captações + eventos externos, tudo numa agenda. Filtro por cliente.</p>" },
   nav_relatorio: { t: "Relatório de custo", b: "<p>Horas de Foco × custo do time × contrato. Mostra margem por cliente/serviço/tipo/envoxer. Sinaliza margem &lt;20% em amarelo, &lt;10% em vermelho.</p>" },
