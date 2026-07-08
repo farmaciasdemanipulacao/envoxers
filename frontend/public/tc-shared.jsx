@@ -313,6 +313,7 @@ const HELP_TEXTS = {
   cli_kpi_ativos: { t: "Clientes ativos", b: "<p>Contratos ativos (recorrente + pontual). Não inclui cancelados — esses ficam em <em>Retenção → Cancelamentos</em>.</p>" },
   cli_kpi_mrr: { t: "MRR contratado", b: "<p>Soma de <code>valor_contrato</code> dos clientes com <code>tipo_receita = recorrente</code>. É o número que o Painel de faturamento acompanha mês a mês.</p>" },
   cli_kpi_verm: { t: "Farol vermelho", b: "<p>Quantidade de clientes com farol calculado vermelho. Cada um tem uma ligação pendente essa semana.</p>" },
+  cli_kpi_novos: { t: "Novos no mês (30d)", b: "<p>Clientes com <code>data_inicio_contrato</code> nos últimos 30 dias. Variação alta aqui é sinal comercial, não operacional.</p>" },
 
   // --- Ficha do cliente (textos originalmente de uma view separada no wireframe —
   // encaixados nas seções mais próximas do ClienteForm, decisão confirmada com o Gus)

@@ -77,8 +77,24 @@ function ClientesScreen({ permissao }) {
     const ativos = clientes.filter((c) => c.ativo);
     const mrr = ativos.filter((c) => c.tipo_receita === "recorrente").reduce((s, c) => s + c.valor_contrato, 0);
     const vermelhos = clientes.filter((c) => c.status_farol === "vermelho").length;
-    return { ativos: ativos.length, mrr, vermelhos };
+    const ha30dias = new Date(); ha30dias.setDate(ha30dias.getDate() - 30);
+    const novos = ativos.filter((c) => c.data_inicio_contrato && new Date(c.data_inicio_contrato + "T00:00:00") >= ha30dias).length;
+    return { ativos: ativos.length, mrr, vermelhos, novos };
   }, [clientes]);
+
+  const exportarCsv = () => {
+    const linhas = [
+      ["Cliente", "Segmento", "Responsável", "Meses", "Contrato/mês", "Tipo", "Farol"],
+      ...filtrados.map((c) => [c.nome, c.segmento || "", c.responsavel_nome || "", c.meses_de_casa ?? "", c.valor_contrato, c.tipo_receita, c.status_farol]),
+    ];
+    const csv = linhas.map((l) => l.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "clientes.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   if (editando !== null) {
     return (
@@ -95,10 +111,17 @@ function ClientesScreen({ permissao }) {
       <EnvoxersShared.PageHeader
         title="Clientes"
         subtitle="Base viva de contas atendidas. Cada cliente carrega dados de contrato + ICP."
-        actions={podeEditar && (
-          <button className="btn btn-envox" onClick={() => setEditando({})}>
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg> Novo cliente
-          </button>
+        actions={(
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn" onClick={exportarCsv}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 8l3 3 7-7" /></svg> Exportar CSV
+            </button>
+            {podeEditar && (
+              <button className="btn btn-envox" onClick={() => setEditando({})}>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg> Novo cliente
+              </button>
+            )}
+          </div>
         )}
       />
 
@@ -114,6 +137,10 @@ function ClientesScreen({ permissao }) {
         <div className="kpi">
           <div className="kpi-label">Farol vermelho <EnvoxersShared.HelpIcon helpKey="cli_kpi_verm" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-vermelho)" }}>{kpis.vermelhos}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Novos (30d) <EnvoxersShared.HelpIcon helpKey="cli_kpi_novos" /></div>
+          <div className="kpi-value">{kpis.novos}</div>
         </div>
       </div>
 
