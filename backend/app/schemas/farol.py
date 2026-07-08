@@ -21,3 +21,9 @@ class FarolClienteResponse(BaseModel):
     calculado_em: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FarolKpisResponse(BaseModel):
+    """Agregado pra legenda do KPI 'Score médio' — não faz sentido por cliente, só no topo da tela.
+    None quando ainda não existe snapshot de ~7 dias atrás pra comparar (Farol é recente no projeto)."""
+    score_medio_delta_semana: Optional[int] = None

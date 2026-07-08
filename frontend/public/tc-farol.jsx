@@ -32,12 +32,17 @@ function FarolScreen() {
   const [loading, setLoading] = useStateFarol(true);
   const [filtro, setFiltro] = useStateFarol("todos");
   const [detalhe, setDetalhe] = useStateFarol(null);
+  const [scoreDelta, setScoreDelta] = useStateFarol(null);
 
   const carregar = async () => {
     setLoading(true);
     try {
-      const data = await EnvoxersAPI.api("/farol");
+      const [data, kpisData] = await Promise.all([
+        EnvoxersAPI.api("/farol"),
+        EnvoxersAPI.api("/farol/kpis"),
+      ]);
       setItens(data);
+      setScoreDelta(kpisData.score_medio_delta_semana);
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -58,6 +63,8 @@ function FarolScreen() {
     vermelhos: itens.filter((i) => i.farol === "vermelho").length,
     amarelos: itens.filter((i) => i.farol === "amarelo").length,
     verdes: itens.filter((i) => i.farol === "verde").length,
+    mrrVermelho: itens.filter((i) => i.farol === "vermelho").reduce((s, i) => s + i.valor_contrato, 0),
+    mrrAmarelo: itens.filter((i) => i.farol === "amarelo").reduce((s, i) => s + i.valor_contrato, 0),
   }), [itens]);
 
   return (
@@ -79,18 +86,24 @@ function FarolScreen() {
         <div className="kpi">
           <div className="kpi-label">Score médio <EnvoxersShared.HelpIcon helpKey="farol_kpi_score" /></div>
           <div className="kpi-value">{kpis.scoreMedio}<span className="unit">/100</span></div>
+          {scoreDelta !== null && scoreDelta !== undefined && (
+            <div className="kpi-hint">movendo-se {scoreDelta > 0 ? "+" : ""}{scoreDelta} desde semana passada</div>
+          )}
         </div>
         <div className="kpi">
           <div className="kpi-label">Vermelho <EnvoxersShared.HelpIcon helpKey="farol_kpi_verm" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-vermelho)" }}>{kpis.vermelhos}</div>
+          <div className="kpi-hint">{EnvoxersShared.formatMoney(kpis.mrrVermelho)} de MRR em risco imediato</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Amarelo <EnvoxersShared.HelpIcon helpKey="farol_kpi_amar" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-amarelo)" }}>{kpis.amarelos}</div>
+          <div className="kpi-hint">{EnvoxersShared.formatMoney(kpis.mrrAmarelo)} de MRR em atenção</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Verde <EnvoxersShared.HelpIcon helpKey="farol_kpi_verde" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-verde)" }}>{kpis.verdes}</div>
+          <div className="kpi-hint">saudáveis · foco: manter</div>
         </div>
       </div>
 

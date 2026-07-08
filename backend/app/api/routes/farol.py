@@ -4,11 +4,11 @@ GET /farol recalcula os 8 sinais de TODOS os clientes ativos a cada chamada
 (sem scheduler no projeto), upserta o snapshot em farol_calculo, grava o
 histórico e nasce um alerta_farol sempre que a cor do farol muda.
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, case
+from sqlalchemy import select, case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_envoxer
@@ -17,7 +17,7 @@ from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
 from app.models.farol_calculo import FarolCalculo, FarolCalculoHistorico
 from app.models.alerta_farol import AlertaFarol, STATUS_ALERTA_VALUES
-from app.schemas.farol import FarolClienteResponse
+from app.schemas.farol import FarolClienteResponse, FarolKpisResponse
 from app.schemas.alerta import AlertaUpdate, AlertaResponse
 from app.services.farol import calcular_farol_cliente
 
@@ -31,6 +31,45 @@ def _meses_de_casa(inicio: Optional[date]) -> Optional[int]:
         return None
     hoje = date.today()
     return (hoje.year - inicio.year) * 12 + (hoje.month - inicio.month)
+
+
+@router.get("/farol/kpis", response_model=FarolKpisResponse)
+async def farol_kpis(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    """Delta do score médio vs. ~7 dias atrás, usando farol_calculo_historico. None se
+    ainda não existe snapshot antigo o bastante pra comparar (Farol é recente no projeto)."""
+    referencia = datetime.now(timezone.utc) - timedelta(days=7)
+
+    ids_result = await db.execute(
+        select(Cliente.id).where(Cliente.deleted_at.is_(None), Cliente.ativo.is_(True))
+    )
+    ids_ativos = [row[0] for row in ids_result.all()]
+    if not ids_ativos:
+        return FarolKpisResponse(score_medio_delta_semana=None)
+
+    atuais_result = await db.execute(
+        select(FarolCalculo.cliente_id, FarolCalculo.health_score).where(FarolCalculo.cliente_id.in_(ids_ativos))
+    )
+    scores_atuais = dict(atuais_result.all())
+
+    deltas = []
+    for cliente_id, score_atual in scores_atuais.items():
+        historico_result = await db.execute(
+            select(FarolCalculoHistorico.health_score)
+            .where(FarolCalculoHistorico.cliente_id == cliente_id, FarolCalculoHistorico.calculado_em <= referencia)
+            .order_by(FarolCalculoHistorico.calculado_em.desc())
+            .limit(1)
+        )
+        score_antigo = historico_result.scalar_one_or_none()
+        if score_antigo is not None:
+            deltas.append(score_atual - score_antigo)
+
+    if not deltas:
+        return FarolKpisResponse(score_medio_delta_semana=None)
+
+    return FarolKpisResponse(score_medio_delta_semana=round(sum(deltas) / len(deltas)))
 
 
 @router.get("/farol", response_model=list[FarolClienteResponse])

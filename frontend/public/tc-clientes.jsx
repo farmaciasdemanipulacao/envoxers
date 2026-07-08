@@ -82,11 +82,24 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
 
   const kpis = useMemoCli(() => {
     const ativos = clientes.filter((c) => c.ativo);
+    const recorrentes = ativos.filter((c) => c.tipo_receita === "recorrente").length;
+    const pontuais = ativos.filter((c) => c.tipo_receita === "pontual").length;
     const mrr = ativos.filter((c) => c.tipo_receita === "recorrente").reduce((s, c) => s + c.valor_contrato, 0);
     const vermelhos = clientes.filter((c) => c.status_farol === "vermelho").length;
     const ha30dias = new Date(); ha30dias.setDate(ha30dias.getDate() - 30);
     const novos = ativos.filter((c) => c.data_inicio_contrato && new Date(c.data_inicio_contrato + "T00:00:00") >= ha30dias).length;
-    return { ativos: ativos.length, mrr, vermelhos, novos };
+
+    const comData = clientes.filter((c) => c.data_inicio_contrato);
+    let mediaHistoricaNovos = null;
+    if (comData.length > 0) {
+      const datas = comData.map((c) => new Date(c.data_inicio_contrato + "T00:00:00").getTime());
+      const maisAntiga = new Date(Math.min(...datas));
+      const hoje = new Date();
+      const mesesTotal = Math.max(1, (hoje.getFullYear() - maisAntiga.getFullYear()) * 12 + (hoje.getMonth() - maisAntiga.getMonth()) + 1);
+      mediaHistoricaNovos = comData.length / mesesTotal;
+    }
+
+    return { ativos: ativos.length, recorrentes, pontuais, mrr, vermelhos, novos, mediaHistoricaNovos };
   }, [clientes]);
 
   const exportarCsv = () => {
@@ -136,18 +149,24 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
         <div className="kpi">
           <div className="kpi-label">Ativos <EnvoxersShared.HelpIcon helpKey="cli_kpi_ativos" /></div>
           <div className="kpi-value">{kpis.ativos}</div>
+          <div className="kpi-hint">{kpis.recorrentes} recorrentes · {kpis.pontuais} pontuais</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">MRR contratado <EnvoxersShared.HelpIcon helpKey="cli_kpi_mrr" /></div>
           <div className="kpi-value"><span className="unit">R$</span> {kpis.mrr.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
+          <div className="kpi-hint">soma de contratos recorrentes</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Farol vermelho <EnvoxersShared.HelpIcon helpKey="cli_kpi_verm" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-vermelho)" }}>{kpis.vermelhos}</div>
+          <div className="kpi-hint">cálculo real em F2</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Novos (30d) <EnvoxersShared.HelpIcon helpKey="cli_kpi_novos" /></div>
           <div className="kpi-value">{kpis.novos}</div>
+          {kpis.mediaHistoricaNovos !== null && (
+            <div className="kpi-hint">média histórica: {kpis.mediaHistoricaNovos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/mês</div>
+          )}
         </div>
       </div>
 
