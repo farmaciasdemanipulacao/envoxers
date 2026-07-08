@@ -134,6 +134,12 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="12" height="10" rx="1" /><path d="M2 7h12M6 2v3M10 2v3" /></svg>,
             "nav_calendario"
           )}
+          {item(
+            "relatorio",
+            "Relatório de custo",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V3M2 13h12" /><path d="M5 10V7M8 10V5M11 10V8" /></svg>,
+            "nav_relatorio"
+          )}
         </nav>
       </div>
 
@@ -223,11 +229,12 @@ function Topbar({ crumb, onLogout }) {
 // ==================== TOOLTIPS DE AJUDA (HelpIcon) ====================
 // Textos copiados literalmente do wireframe (envox-f0-f3-wireframe.html, objeto
 // HELP_TEXTS) — só o subconjunto usado nas telas em escopo (Farol, Alertas, ICP,
-// Faturamento, Clientes, Envoxers, Calendário, Cancelamentos). Extensível: outras
-// telas (Dashboard, Kanban, Foco/Relatório, Solicitações) ficam de fora por ora.
+// Faturamento, Clientes, Envoxers, Calendário, Cancelamentos, Relatório de custo).
+// Extensível: Dashboard, Kanban, Solicitações ficam de fora por ora.
 const HELP_TEXTS = {
   // --- Navegação
   nav_calendario: { t: "Calendário geral", b: "<p>Publicações programadas + reuniões + captações + eventos externos, tudo numa agenda. Filtro por cliente.</p>" },
+  nav_relatorio: { t: "Relatório de custo", b: "<p>Horas de Foco × custo do time × contrato. Mostra margem por cliente/serviço/tipo/envoxer. Sinaliza margem &lt;20% em amarelo, &lt;10% em vermelho.</p>" },
   nav_farol: { t: "Farol de clientes", b: "<p>Todos os clientes ordenados por risco (health score 0-100). Vermelho = ligação essa semana. Amarelo = próximos 15 dias. Verde = mensal.</p>" },
   nav_alertas: { t: "Central de alertas", b: "<p>Toda vez que um cliente muda de farol, um alerta é criado com motivo específico e sugestão de ação. Reconheça, resolva, ou ignore com justificativa.</p>" },
   nav_icp: { t: "ICP Builder", b: "<p>Compara clientes que ficaram &gt;12 meses com os que saíram em &lt;6 meses. A diferença entre os dois grupos é o seu ICP (quem buscar) e anti-ICP (quem evitar).</p>" },
@@ -303,6 +310,16 @@ const HELP_TEXTS = {
 
   // --- Calendário
   cal_legend: { t: "Cores do calendário", b: "<p>Azul = publicação (tarefa com prazo). Roxo = reunião. Âmbar = captação. Vermelho = live. Verde = evento externo. Marcador vermelho pequeno = cliente com farol vermelho.</p>" },
+
+  // --- Relatório de custo
+  rep_horas: { t: "Horas registradas", b: "<p>Soma de todas as sessões de Foco fechadas no período. Ajuda a estimar capacidade real do time.</p>" },
+  rep_custo: { t: "Custo do time", b: "<p>Custo real das horas trabalhadas: <code>horas × custo/hora</code> por Envoxer. Já usa custo+encargos.</p>" },
+  rep_receita: { t: "Receita do período", b: "<p>Soma de <code>valor_contrato</code> dos clientes com horas registradas no período. É o topo de linha do período.</p>" },
+  rep_margem: { t: "Margem bruta", b: "<p>(Receita − Custo do time) ÷ Receita. Ainda não desconta overhead (aluguel, ferramentas, marketing). É o teto da margem, não o piso.</p>" },
+  rep_tab_cliente: { t: "Margem por cliente", b: "<p>Ordena do menos rentável ao mais rentável. Vermelho = margem &lt;10%. Amarelo = 10-20%. Verde = &gt;20%.</p><p>Cliente vermelho + farol vermelho = renegociar ou encerrar.</p>" },
+  rep_tab_servico: { t: "Por serviço", b: "<p>Onde o time está gastando horas por tipo de serviço. Mostra o \"peso\" de cada oferta na operação.</p>" },
+  rep_tab_tipo: { t: "Por tipo de tarefa", b: "<p>Custo médio por Reels, Carrossel, Story, etc. Serve para saber se o preço do escopo cobre o custo real de cada peça.</p>" },
+  rep_tab_env: { t: "Por Envoxer", b: "<p>Horas + custo gerado + <em>utilização</em> (horas registradas ÷ meta). Utilização &gt;90% = sobrealocado; &lt;60% = subutilizado.</p>" },
 
   // --- Cancelamentos
   churn_total: { t: "Total no histórico", b: "<p>Últimos 24 meses de cancelamentos registrados. Base de dados para o ICP builder.</p>" },

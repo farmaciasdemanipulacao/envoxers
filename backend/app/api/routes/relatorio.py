@@ -40,9 +40,12 @@ async def relatorio_tempo_custo(
     periodo: str = "mes",
     inicio: Optional[date] = None,
     fim: Optional[date] = None,
+    tipo_receita: Optional[str] = None,
 ):
-    if agrupar not in ("cliente", "servico", "tipo"):
-        raise HTTPException(status_code=400, detail="agrupar deve ser cliente, servico ou tipo")
+    if agrupar not in ("cliente", "servico", "tipo", "envoxer"):
+        raise HTTPException(status_code=400, detail="agrupar deve ser cliente, servico, tipo ou envoxer")
+    if tipo_receita is not None and tipo_receita not in ("recorrente", "pontual"):
+        raise HTTPException(status_code=400, detail="tipo_receita deve ser recorrente ou pontual")
 
     inicio_dt, fim_dt = _periodo_para_datas(periodo, inicio, fim)
 
@@ -59,6 +62,7 @@ async def relatorio_tempo_custo(
             .where(
                 RegistroFoco.fim.is_not(None), RegistroFoco.descartado.is_(False),
                 RegistroFoco.inicio >= inicio_dt, RegistroFoco.inicio < fim_dt,
+                *([Cliente.tipo_receita == tipo_receita] if tipo_receita else []),
             )
             .group_by(Cliente.id, Cliente.nome, Cliente.segmento, Cliente.valor_contrato)
         )
@@ -111,7 +115,7 @@ async def relatorio_tempo_custo(
             })
         itens.sort(key=lambda i: i["custo_horas"], reverse=True)
 
-    else:  # tipo
+    elif agrupar == "tipo":
         stmt = (
             select(
                 func.coalesce(Tarefa.tipo_tarefa, "Sem tipo"),
@@ -139,6 +143,41 @@ async def relatorio_tempo_custo(
                 "custo_medio_tarefa": round(custo_total / qtd_tarefas, 2) if qtd_tarefas else 0,
             })
         itens.sort(key=lambda i: i["custo_horas"], reverse=True)
+
+    else:  # envoxer
+        dias_periodo = max(1, (fim_dt - inicio_dt).days)
+        stmt = (
+            select(
+                Envoxer.id, Envoxer.nome, Envoxer.cargo, Envoxer.custo_hora, Envoxer.horas_mes,
+                func.coalesce(func.sum(RegistroFoco.duracao_min), 0),
+                func.coalesce(func.sum(RegistroFoco.custo), 0),
+            )
+            .select_from(RegistroFoco)
+            .join(Envoxer, Envoxer.id == RegistroFoco.envoxer_id)
+            .where(
+                RegistroFoco.fim.is_not(None), RegistroFoco.descartado.is_(False),
+                RegistroFoco.inicio >= inicio_dt, RegistroFoco.inicio < fim_dt,
+            )
+            .group_by(Envoxer.id, Envoxer.nome, Envoxer.cargo, Envoxer.custo_hora, Envoxer.horas_mes)
+        )
+        rows = (await db.execute(stmt)).all()
+        itens = []
+        for envoxer_id, nome, cargo, custo_hora, horas_mes, min_total, custo_total in rows:
+            horas = round(min_total / 60, 2)
+            # Meta proporcional ao tamanho do período (horas_mes distribuído em ~30 dias/mês).
+            meta_horas = round(float(horas_mes) * dias_periodo / 30, 1)
+            utilizacao_pct = round(horas / meta_horas * 100, 1) if meta_horas > 0 else None
+            itens.append({
+                "envoxer_id": envoxer_id,
+                "envoxer_nome": nome,
+                "cargo": cargo,
+                "custo_hora": float(custo_hora),
+                "horas": horas,
+                "custo_gerado": round(float(custo_total), 2),
+                "meta_horas": meta_horas,
+                "utilizacao_pct": utilizacao_pct,
+            })
+        itens.sort(key=lambda i: i["horas"], reverse=True)
 
     return {
         "agrupar": agrupar,

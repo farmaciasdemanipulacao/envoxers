@@ -115,6 +115,7 @@ function AppShell() {
     kanban: "Operação / Kanban",
     dashboard: "Operação / Dashboard do dia",
     calendario: "Operação / Calendário",
+    relatorio: "Operação / Relatório de custo",
     solicitacoes: "Farol / Solicitações do cliente",
     farol: "Farol / Farol Inteligente",
     alertas: "Farol / Alertas",
@@ -150,6 +151,7 @@ function AppShell() {
         )}
         {view === "solicitacoes" && <SolicitacoesScreen onAbrirTarefa={abrirTarefa} />}
         {view === "calendario" && <CalendarioScreen />}
+        {view === "relatorio" && <RelatorioScreen />}
         {view === "farol" && <FarolScreen />}
         {view === "alertas" && <AlertasScreen />}
         {view === "icp" && <IcpScreen />}
