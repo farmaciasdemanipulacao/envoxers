@@ -110,4 +110,41 @@ Alertas bate estruturalmente com o wireframe (real ainda adiciona o filtro "igno
 
 ## Status de execução (Fase 2)
 
-_Preenchido conforme as correções avançam esta noite — ver commits no git log a partir daqui._
+**Concluído nesta sessão — 9 commits, todos com push feito, cada um testado (sintaxe Babel real + harness Playwright com API mockada e/ou chamada direta contra o banco real) antes do commit:**
+
+| # | Commit | O que fechou |
+|---|---|---|
+| 1 | `8aa4bf9` | **Crítico** — Filtro "Só atrasadas" no Kanban |
+| 2 | `418fa5d` | **Crítico** — Tela Relatório de custo inteira (4 abas, KPIs, CSV, insights automáticos) + `agrupar=envoxer` e filtro `tipo_receita` novos no backend (aditivo) |
+| 3 | `839a0ed` | **Crítico** — 3 widgets do Dashboard: Farol da semana, Captações & eventos de hoje, Relatório rápido |
+| 4 | `5f3a049` | **Visual** — 6 ícones SVG divergentes (Kanban, Dashboard, Farol, Alertas, ICP, Solicitações) + tooltip `cockpit` |
+| 5 | `33754db` | **Visual** — Farol: KPI "Score médio", botão Recalcular, legenda de ordenação |
+| 6 | `c29cdcc` | **Visual** — Clientes: KPI "Novos (30d)", botão "Exportar CSV" |
+| 7 | `d2ffb85` | **Menor** — Filtro por tipo de tarefa no Kanban (adicionado, sem remover o de status) |
+| 8 | `07d00bf` | **Menor** — Tooltips das 8 colunas do Kanban + 6 seções do modal de tarefa |
+| 9 | `3268ce6` | **Menor** — Tooltips restantes: Meu Foco, Solicitações, nav Serviços |
+
+**Todos os 3 itens Crítico: fechados.** 4 de 5 grupos de itens Visual: fechados (só falta o item 1 da lista de dúvidas abaixo). Praticamente todos os itens Menor endereçáveis sem invenção de conteúdo: fechados.
+
+**Backend:** migration `0013_evento` (já existia desde a Fase 1, D-063) + alteração aditiva em `relatorio.py` (novo agrupamento `envoxer`, novo filtro `tipo_receita` — nenhuma migration nova precisou, nenhuma coluna/tabela alterada ou removida). `alembic current` = `0013_evento (head)`, container `envoxers-backend` saudável.
+
+**Não corrigido de propósito (ver "Aguardando decisão do Gus" abaixo):**
+- ICP Builder — estrutura visual diferente do wireframe (item 6 da tabela de categorias)
+
+**Não corrigido por não ter elemento correspondente real (nem no wireframe fonte, nem no app):**
+- `card_farol`/`card_etiqueta`/`card_prazo` — chaves órfãs até no `HELP_TEXTS` original do wireframe (nunca têm um `data-hlp` apontando pra elas lá)
+- `modal_desc`/`modal_timeline`/`modal_status_bar` — o modal de tarefa real não tem um campo de briefing separado, uma timeline dedicada, nem uma barra de 8 etapas como elementos distintos pra pendurar o tooltip sem inventar UI nova
+- `icp_como_ler` — mesma causa raiz do item 6 (estrutura do ICP Builder diferente)
+- `cli_checkpoint`/`cli_sugestao` — decisão já tomada no D-063 (aproximados pro `ClienteForm`, não construir a `view-cliente-ficha`)
+
+## Aguardando decisão do Gus (atualizado)
+
+1. **ICP Builder — reconstruir a estrutura visual pra bater com o wireframe?** As classes CSS existem prontas (`.icp-header-cards`, `.icp-pop-card`, `.note-bar`, `.icp-dims`, `.icp-bar-fill`, `.icp-insights`), mas a tela atual (construída em D-046) usa uma estrutura própria funcional e já testada. Reconstruir do zero é essencialmente refazer a tela inteira — risco de regressão numa tela que funciona, só por fidelidade visual. **Não mexi nisso.** Se quiser, é só pedir numa próxima demanda — o levantamento de quais classes usar já está pronto neste relatório (seção 6).
+2. **View `cliente-ficha`** — já decidido no D-063 (tooltips aproximados pro `ClienteForm` em vez de construir a ficha read-only separada). Só re-registrando formalmente aqui pra constar na auditoria; meu entendimento é que essa decisão continua valendo, não revisitei sozinho.
+
+## O que NÃO foi tocado (limites de segurança respeitados)
+
+- Nenhuma migration destrutiva — a única migration nova (`0013_evento`, já da Fase 1/D-063) é 100% aditiva (`CREATE TABLE`), sem `DROP`/`ALTER TYPE` em nada existente
+- Nenhum arquivo fora de `/docker/envoxers/`
+- Nenhum dado `SEED_DATA_2026` nem dado real de cliente/envoxer foi lido, alterado ou apagado — todos os testes desta sessão usaram harness Playwright com API mockada, ou leitura (`GET`/chamadas de função só-leitura) direto contra o banco real, nunca escrita
+- 9 commits distintos, push feito a cada um — nenhum trabalho acumulado sem salvar
