@@ -54,6 +54,7 @@ function FarolScreen() {
 
   const kpis = useMemoFarol(() => ({
     total: itens.length,
+    scoreMedio: itens.length > 0 ? Math.round(itens.reduce((s, i) => s + i.health_score, 0) / itens.length) : 0,
     vermelhos: itens.filter((i) => i.farol === "vermelho").length,
     amarelos: itens.filter((i) => i.farol === "amarelo").length,
     verdes: itens.filter((i) => i.farol === "verde").length,
@@ -64,12 +65,20 @@ function FarolScreen() {
       <EnvoxersShared.PageHeader
         title="Farol Inteligente"
         subtitle="Saúde de cada cliente calculada a partir de 8 sinais — recalculado a cada visita a esta tela."
+        actions={(
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 500 }}>Última atualização: agora</span>
+            <button className="btn" onClick={carregar}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 3v4h-4M2 13v-4h4" /><path d="M13 7a5 5 0 00-9-1M3 9a5 5 0 009 1" /></svg> Recalcular
+            </button>
+          </div>
+        )}
       />
 
       <div className="kpis">
         <div className="kpi">
-          <div className="kpi-label">Clientes ativos</div>
-          <div className="kpi-value">{kpis.total}</div>
+          <div className="kpi-label">Score médio <EnvoxersShared.HelpIcon helpKey="farol_kpi_score" /></div>
+          <div className="kpi-value">{kpis.scoreMedio}<span className="unit">/100</span></div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Vermelho <EnvoxersShared.HelpIcon helpKey="farol_kpi_verm" /></div>
@@ -94,6 +103,9 @@ function FarolScreen() {
               )}
             </button>
           ))}
+        </div>
+        <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--ink-3)" }}>
+          Ordenado por health score (menor = mais risco) <EnvoxersShared.HelpIcon helpKey="farol_ordenacao" />
         </div>
       </div>
 

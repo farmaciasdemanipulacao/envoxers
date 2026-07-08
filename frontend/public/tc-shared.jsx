@@ -259,6 +259,8 @@ const HELP_TEXTS = {
   nav_envoxers: { t: "Cadastro de Envoxers", b: "<p>Time interno. O <code>custo/hora</code> aqui alimenta a margem em todos os relatórios — use salário + encargos (~1,5-1,8×), não salário puro.</p>" },
 
   // --- Farol
+  farol_kpi_score: { t: "Score médio", b: "<p>Média do health score de todos os clientes ativos. Passar de 80 significa base saudável.</p>" },
+  farol_ordenacao: { t: "Ordenação", b: "<p>Menor health score primeiro. Entre clientes da mesma cor, o pior score sobe. Isso resolve \"qual dos 2 vermelhos ligo hoje?\".</p>" },
   farol_kpi_verm: { t: "Clientes vermelhos", b: "<p>Farol geral vermelho. Cada um representa MRR em risco imediato. Ligação em até 7 dias.</p>" },
   farol_kpi_amar: { t: "Clientes amarelos", b: "<p>Alguma coisa não está bem, mas ainda dá para reverter sem drama. Cadência de contato: 15 dias.</p>" },
   farol_kpi_verde: { t: "Clientes verdes", b: "<p>Saudáveis. Foco: manter a cadência mensal, não relaxar. Cliente verde por 12+ meses vira base do ICP.</p>" },
