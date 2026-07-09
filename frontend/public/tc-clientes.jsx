@@ -155,7 +155,7 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
         </div>
         <div className="kpi">
           <div className="kpi-label">MRR contratado <EnvoxersShared.HelpIcon helpKey="cli_kpi_mrr" /></div>
-          <div className="kpi-value"><span className="unit">R$</span> {kpis.mrr.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
+          <div className="kpi-value mono"><span className="unit">R$</span> {kpis.mrr.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
           <div className="kpi-hint">soma de contratos recorrentes</div>
         </div>
         <div className="kpi">
@@ -234,7 +234,7 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
                 </td>
                 <td className="table-mobile-hide">{formatDataCurta(c.data_inicio_contrato)}</td>
                 <td className="table-mobile-hide">{c.meses_de_casa ?? "—"}</td>
-                <td style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(c.valor_contrato)}</td>
+                <td className="mono" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(c.valor_contrato)}</td>
                 <td className="table-mobile-hide">{c.tipo_receita === "recorrente" ? "Recorrente" : "Pontual"}</td>
               </tr>
             ))}
@@ -756,7 +756,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             </div>
             <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink-3)", padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
               <span>Soma dos serviços marcados</span>
-              <strong style={{ color: "var(--ink)" }}>{EnvoxersShared.formatMoney(somaServicos)}</strong>
+              <strong className="mono" style={{ color: "var(--ink)" }}>{EnvoxersShared.formatMoney(somaServicos)}</strong>
             </div>
           </div>
 

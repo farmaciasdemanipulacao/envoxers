@@ -357,6 +357,9 @@ tbody tr:hover { background: var(--bg-inset); }
 .td-num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 12px; }
 .td-mono { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
 
+/* Utilitário: qualquer valor monetário (R$), em qualquer tela, usa mono */
+.mono { font-family: var(--font-mono); }
+
 /* Farol dot */
 .farol {
   display: inline-flex; align-items: center; gap: 8px;

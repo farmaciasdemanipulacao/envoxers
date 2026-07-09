@@ -111,7 +111,7 @@ function IcpScreen() {
           <div className="form-row three" style={{ marginBottom: 10 }}>
             <div>
               <div className="modal-side-label">Ticket médio (retidos) <EnvoxersShared.HelpIcon helpKey="icp_dim_ticket" /></div>
-              <div className="modal-side-value">{dados.retidos.ticket_medio != null ? EnvoxersShared.formatMoney(dados.retidos.ticket_medio) : "—"}</div>
+              <div className="modal-side-value mono">{dados.retidos.ticket_medio != null ? EnvoxersShared.formatMoney(dados.retidos.ticket_medio) : "—"}</div>
             </div>
             <div>
               <div className="modal-side-label">Margem média (retidos)</div>
@@ -125,7 +125,7 @@ function IcpScreen() {
           <div className="form-row three" style={{ marginBottom: 20 }}>
             <div>
               <div className="modal-side-label">Ticket médio (perdidos)</div>
-              <div className="modal-side-value">{dados.perdidos.ticket_medio != null ? EnvoxersShared.formatMoney(dados.perdidos.ticket_medio) : "—"}</div>
+              <div className="modal-side-value mono">{dados.perdidos.ticket_medio != null ? EnvoxersShared.formatMoney(dados.perdidos.ticket_medio) : "—"}</div>
             </div>
             <div>
               <div className="modal-side-label">Margem média (perdidos)</div>

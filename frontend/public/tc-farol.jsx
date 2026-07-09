@@ -93,12 +93,12 @@ function FarolScreen() {
         <div className="kpi">
           <div className="kpi-label">Vermelho <EnvoxersShared.HelpIcon helpKey="farol_kpi_verm" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-vermelho)" }}>{kpis.vermelhos}</div>
-          <div className="kpi-hint">{EnvoxersShared.formatMoney(kpis.mrrVermelho)} de MRR em risco imediato</div>
+          <div className="kpi-hint"><span className="mono">{EnvoxersShared.formatMoney(kpis.mrrVermelho)}</span> de MRR em risco imediato</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Amarelo <EnvoxersShared.HelpIcon helpKey="farol_kpi_amar" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-amarelo)" }}>{kpis.amarelos}</div>
-          <div className="kpi-hint">{EnvoxersShared.formatMoney(kpis.mrrAmarelo)} de MRR em atenção</div>
+          <div className="kpi-hint"><span className="mono">{EnvoxersShared.formatMoney(kpis.mrrAmarelo)}</span> de MRR em atenção</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Verde <EnvoxersShared.HelpIcon helpKey="farol_kpi_verde" /></div>

@@ -151,18 +151,18 @@ function RelatorioScreen() {
         </div>
         <div className="kpi">
           <div className="kpi-label">Custo do time <EnvoxersShared.HelpIcon helpKey="rep_custo" /></div>
-          <div className="kpi-value">{EnvoxersShared.formatMoney(kpis.custo)}</div>
+          <div className="kpi-value mono">{EnvoxersShared.formatMoney(kpis.custo)}</div>
           <div className="kpi-hint">soma custo/hora × horas</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Receita do período <EnvoxersShared.HelpIcon helpKey="rep_receita" /></div>
-          <div className="kpi-value">{EnvoxersShared.formatMoney(kpis.receita)}</div>
+          <div className="kpi-value mono">{EnvoxersShared.formatMoney(kpis.receita)}</div>
           <div className="kpi-hint">{kpis.qtdClientes} cliente(s) com horas registradas</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Margem bruta <EnvoxersShared.HelpIcon helpKey="rep_margem" /></div>
           <div className="kpi-value" style={{ color: kpis.margemPct !== "—" && Number(kpis.margemPct) < 20 ? "var(--farol-amarelo)" : "var(--farol-verde)" }}>{kpis.margemPct}<span className="unit">%</span></div>
-          <div className="kpi-hint">{EnvoxersShared.formatMoney(kpis.margemReais)} · antes de overhead</div>
+          <div className="kpi-hint"><span className="mono">{EnvoxersShared.formatMoney(kpis.margemReais)}</span> · antes de overhead</div>
         </div>
       </div>
 

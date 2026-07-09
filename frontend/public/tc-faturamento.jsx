@@ -145,15 +145,15 @@ function FaturamentoScreen() {
           <div className="fat-hero">
             <div className="fat-mrr-card">
               <div className="fat-mrr-label">MRR — Recorrente <EnvoxersShared.HelpIcon helpKey="fat_mrr" onDark /></div>
-              <div className="fat-mrr-value">{EnvoxersShared.formatMoney(dados.mrr_atual)}</div>
+              <div className="fat-mrr-value mono">{EnvoxersShared.formatMoney(dados.mrr_atual)}</div>
               <div className={`fat-mrr-delta ${dados.mrr_delta < 0 ? "neg" : ""}`}>
                 <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor" style={dados.mrr_delta < 0 ? { transform: "rotate(180deg)" } : undefined}><path d="M6 2l4 4H2z" /></svg>
-                {dados.mrr_delta >= 0 ? "+" : "-"}{EnvoxersShared.formatMoney(Math.abs(dados.mrr_delta))} vs. mês anterior{dados.mrr_delta_pct != null ? ` · ${dados.mrr_delta_pct >= 0 ? "+" : ""}${dados.mrr_delta_pct}%` : ""}
+                <span className="mono">{dados.mrr_delta >= 0 ? "+" : "-"}{EnvoxersShared.formatMoney(Math.abs(dados.mrr_delta))}</span> vs. mês anterior{dados.mrr_delta_pct != null ? ` · ${dados.mrr_delta_pct >= 0 ? "+" : ""}${dados.mrr_delta_pct}%` : ""}
               </div>
               <div className="fat-mrr-sub">
                 {dados.qtd_recorrentes_ativos} contrato{dados.qtd_recorrentes_ativos !== 1 ? "s" : ""} recorrente{dados.qtd_recorrentes_ativos !== 1 ? "s" : ""} ativo{dados.qtd_recorrentes_ativos !== 1 ? "s" : ""}
-                {dados.ticket_medio_recorrente != null && <> · média {EnvoxersShared.formatMoney(dados.ticket_medio_recorrente)}/cliente</>}
-                <br />Receita pontual: {EnvoxersShared.formatMoney(dados.receita_pontual)} ({dados.qtd_pontuais_ativos} projeto{dados.qtd_pontuais_ativos !== 1 ? "s" : ""})
+                {dados.ticket_medio_recorrente != null && <> · média <span className="mono">{EnvoxersShared.formatMoney(dados.ticket_medio_recorrente)}</span>/cliente</>}
+                <br />Receita pontual: <span className="mono">{EnvoxersShared.formatMoney(dados.receita_pontual)}</span> ({dados.qtd_pontuais_ativos} projeto{dados.qtd_pontuais_ativos !== 1 ? "s" : ""})
               </div>
             </div>
 
@@ -163,13 +163,13 @@ function FaturamentoScreen() {
                 <div className="fat-side-value warn">{dados.top3_pct}<span className="unit">% do MRR</span></div>
                 <div className="fat-side-sub">
                   {dados.top3_nomes.length > 0
-                    ? <>Perder {dados.top3_nomes.join(", ")} tira ~{EnvoxersShared.formatMoney(dados.top3_valor)} do MRR.</>
+                    ? <>Perder {dados.top3_nomes.join(", ")} tira ~<span className="mono">{EnvoxersShared.formatMoney(dados.top3_valor)}</span> do MRR.</>
                     : "Sem clientes recorrentes suficientes ainda."}
                 </div>
               </div>
               <div className="fat-side-card" style={{ borderLeft: "3px solid var(--farol-vermelho)" }}>
                 <div className="fat-side-label">Receita em risco <EnvoxersShared.HelpIcon helpKey="fat_risco" /></div>
-                <div className="fat-side-value danger">{EnvoxersShared.formatMoney(dados.receita_em_risco)}</div>
+                <div className="fat-side-value danger mono">{EnvoxersShared.formatMoney(dados.receita_em_risco)}</div>
                 <div className="fat-side-sub">{dados.qtd_em_risco} cliente{dados.qtd_em_risco !== 1 ? "s" : ""} em farol amarelo/vermelho — {dados.receita_em_risco_pct}% do MRR está em atenção.</div>
               </div>
             </div>
@@ -178,7 +178,7 @@ function FaturamentoScreen() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
             <div className="fat-side-card">
               <div className="fat-side-label">Projeção 90 dias <EnvoxersShared.HelpIcon helpKey="fat_projecao" /></div>
-              <div className="fat-side-value" style={{ color: "var(--envox)" }}>{EnvoxersShared.formatMoney(dados.projecao_90d)}</div>
+              <div className="fat-side-value mono" style={{ color: "var(--envox)" }}>{EnvoxersShared.formatMoney(dados.projecao_90d)}</div>
               <div className="fat-side-sub">MRR menos os clientes em farol vermelho. Amarelos entram como incerteza, não são descontados.</div>
             </div>
             <div className="fat-side-card">

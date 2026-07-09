@@ -89,7 +89,7 @@ function EnvoxersScreen({ permissao }) {
                 </td>
                 <td className="table-mobile-hide">{e.cargo}</td>
                 <td className="table-mobile-hide">{e.email}</td>
-                <td className="table-mobile-hide" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(e.custo_hora)}</td>
+                <td className="table-mobile-hide mono" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(e.custo_hora)}</td>
                 <td>{e.permissao}</td>
               </tr>
             ))}

@@ -166,7 +166,7 @@ function DashboardScreen({ dataVersion, onAbrirTarefa, onNavigate }) {
             <div className="foco-widget-cell">
               <div className="label">Hoje <EnvoxersShared.HelpIcon helpKey="foco_hoje" /></div>
               <div className="value">{fmtHorasMinDash(resumoFoco.hoje_min)}</div>
-              <div className="hint">{resumoFoco.hoje_sessoes} sessão(ões) · {EnvoxersShared.formatMoney(resumoFoco.hoje_custo)} gerados</div>
+              <div className="hint">{resumoFoco.hoje_sessoes} sessão(ões) · <span className="mono">{EnvoxersShared.formatMoney(resumoFoco.hoje_custo)}</span> gerados</div>
             </div>
             <div className="foco-widget-cell">
               <div className="label">Esta semana <EnvoxersShared.HelpIcon helpKey="foco_semana" /></div>

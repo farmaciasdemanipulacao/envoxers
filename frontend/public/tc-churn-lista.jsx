@@ -140,7 +140,7 @@ function ChurnListaScreen() {
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 600, marginBottom: 3 }}>{c.cliente_nome_snap}</div>
                 <div style={{ fontSize: 12, color: "var(--ink-3)", lineHeight: 1.5 }}>
-                  {c.segmento_snap || "—"} · canal <strong>{c.canal_aquisicao_snap || "—"}</strong> · ticket {c.ticket_snap != null ? EnvoxersShared.formatMoney(c.ticket_snap) : "sem dado"}
+                  {c.segmento_snap || "—"} · canal <strong>{c.canal_aquisicao_snap || "—"}</strong> · ticket {c.ticket_snap != null ? <span className="mono">{EnvoxersShared.formatMoney(c.ticket_snap)}</span> : "sem dado"}
                   {c.perfil_snap && <> · perfil <span className={"perfil-chip " + c.perfil_snap} style={{ padding: "1px 6px", fontSize: 9 }}>{PERFIL_LABELS_CHURN[c.perfil_snap] || c.perfil_snap}</span></>}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--ink-2)", marginTop: 4 }}>
@@ -192,7 +192,7 @@ function ChurnListaScreen() {
                 <div className="form-row three">
                   <div>
                     <div className="modal-side-label">Valor de contrato</div>
-                    <div className="modal-side-value">{EnvoxersShared.formatMoney(detalhe.valor_contrato_snap)}</div>
+                    <div className="modal-side-value mono">{EnvoxersShared.formatMoney(detalhe.valor_contrato_snap)}</div>
                   </div>
                   <div>
                     <div className="modal-side-label">Margem média</div>
