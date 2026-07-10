@@ -96,8 +96,7 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
     <aside className={"sidebar" + (collapsed ? " collapsed" : "")}>
       <div className="brand">
         <div className="brand-title">
-          <span className="brand-mark">envox<span className="brand-dot"></span></span>
-          <span className="brand-sub">Envoxer</span>
+          <span className="brand-mark">envoxers<span className="brand-dot"></span></span>
         </div>
         <button
           type="button"
