@@ -16,6 +16,11 @@ function meuEnvoxerIdChat() {
   }
 }
 
+// O canal "geral" some da UI como "Geral" (redundante com o título da seção) — vira "Todos".
+function nomeCanalExibicao(canal) {
+  return canal.tipo === "geral" ? "Todos" : canal.nome;
+}
+
 function agruparCanaisChat(canais) {
   return {
     geral: canais.filter((c) => c.tipo === "geral"),
@@ -24,11 +29,33 @@ function agruparCanaisChat(canais) {
   };
 }
 
+function lerAcordeaoSalvo(chave, padrao) {
+  const v = localStorage.getItem(chave);
+  return v === null ? padrao : v === "1";
+}
+
 function ChatCanalItem({ canal, ativo, onClick }) {
   return (
     <div className={"chat-canal-item" + (ativo ? " active" : "")} onClick={onClick}>
-      <span className="chat-canal-nome">{canal.nome}</span>
+      <span className="chat-canal-nome">{nomeCanalExibicao(canal)}</span>
       {canal.nao_lidas > 0 && <span className="chat-canal-badge">{canal.nao_lidas}</span>}
+    </div>
+  );
+}
+
+// Acordeão simples — abre/fecha com transição via CSS grid-template-rows (sem medir altura em JS).
+function ChatAccordionSection({ titulo, aberto, onToggle, children }) {
+  return (
+    <div className="chat-accordion">
+      <button type="button" className="chat-accordion-header" onClick={onToggle}>
+        <svg className={"chat-accordion-chevron" + (aberto ? "" : " closed")} width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 6l4 4 4-4" />
+        </svg>
+        <span>{titulo}</span>
+      </button>
+      <div className={"chat-accordion-body" + (aberto ? "" : " closed")}>
+        <div>{children}</div>
+      </div>
     </div>
   );
 }
@@ -43,9 +70,24 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
   const [texto, setTexto] = useStateChat("");
   const [enviando, setEnviando] = useStateChat(false);
   const [novoDmAberto, setNovoDmAberto] = useStateChat(false);
+  const [diretasAberto, setDiretasAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_diretas", true));
+  const [clientesAberto, setClientesAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_clientes", false));
   const mensagensRef = useRefChat(null);
   const canalAtivoRef = useRefChat(null);
   canalAtivoRef.current = canalAtivoId;
+  const canaisRef = useRefChat([]);
+  canaisRef.current = canais;
+
+  const toggleDiretas = () => setDiretasAberto((prev) => {
+    const next = !prev;
+    localStorage.setItem("envoxers_chat_acc_diretas", next ? "1" : "0");
+    return next;
+  });
+  const toggleClientes = () => setClientesAberto((prev) => {
+    const next = !prev;
+    localStorage.setItem("envoxers_chat_acc_clientes", next ? "1" : "0");
+    return next;
+  });
 
   const carregarCanais = async () => {
     try {
@@ -82,8 +124,13 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
       EnvoxersAPI.api(`/chat/canais/${canal_id}/ler`, { method: "POST" })
         .then(() => { if (onLeituraAtualizada) onLeituraAtualizada(); })
         .catch(() => {});
-    } else {
+    } else if (canaisRef.current.some((c) => c.id === canal_id)) {
       setCanais((prev) => prev.map((c) => (c.id === canal_id ? { ...c, nao_lidas: (c.nao_lidas || 0) + 1 } : c)));
+    } else {
+      // Conversa nova pra mim (ex.: alguém abriu uma DM comigo pela 1ª vez) — ainda não
+      // existe na minha lista local, então recarrega do servidor pra ela aparecer sozinha,
+      // sem precisar eu clicar em "+ Nova conversa" e procurar a pessoa manualmente.
+      carregarCanais();
     }
   }, [wsEvent]);
 
@@ -136,40 +183,51 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
   return (
     <div className="chat-shell">
       <aside className="chat-sidebar">
-        <div className="chat-sidebar-section-title">Geral</div>
         {grupos.geral.map((c) => (
-          <ChatCanalItem key={c.id} canal={c} ativo={c.id === canalAtivoId} onClick={() => setCanalAtivoId(c.id)} />
+          <div
+            key={c.id}
+            className={"chat-canal-todos" + (c.id === canalAtivoId ? " active" : "")}
+            onClick={() => setCanalAtivoId(c.id)}
+          >
+            <span className="chat-canal-nome">Todos</span>
+            {c.nao_lidas > 0 && <span className="chat-canal-badge">{c.nao_lidas}</span>}
+          </div>
         ))}
 
-        <div className="chat-sidebar-section-title">Clientes</div>
-        {grupos.clientes.map((c) => (
-          <ChatCanalItem key={c.id} canal={c} ativo={c.id === canalAtivoId} onClick={() => setCanalAtivoId(c.id)} />
-        ))}
+        <ChatAccordionSection titulo="Diretas" aberto={diretasAberto} onToggle={toggleDiretas}>
+          {grupos.dms.map((c) => (
+            <ChatCanalItem key={c.id} canal={c} ativo={c.id === canalAtivoId} onClick={() => setCanalAtivoId(c.id)} />
+          ))}
+          <div className="chat-canal-item chat-canal-nova" onClick={() => setNovoDmAberto(true)}>
+            <span className="chat-canal-nome">+ Nova conversa</span>
+          </div>
+        </ChatAccordionSection>
 
-        <div className="chat-sidebar-section-title">Diretas</div>
-        {grupos.dms.map((c) => (
-          <ChatCanalItem key={c.id} canal={c} ativo={c.id === canalAtivoId} onClick={() => setCanalAtivoId(c.id)} />
-        ))}
-        <div className="chat-canal-item" onClick={() => setNovoDmAberto(true)} style={{ color: "var(--ink-3)" }}>
-          <span className="chat-canal-nome">+ Nova conversa</span>
-        </div>
+        <ChatAccordionSection titulo="Clientes" aberto={clientesAberto} onToggle={toggleClientes}>
+          {grupos.clientes.map((c) => (
+            <ChatCanalItem key={c.id} canal={c} ativo={c.id === canalAtivoId} onClick={() => setCanalAtivoId(c.id)} />
+          ))}
+        </ChatAccordionSection>
       </aside>
 
       <section className="chat-main">
-        <div className="chat-header">{canalAtivo ? canalAtivo.nome : "Selecione um canal"}</div>
+        <div className="chat-header">{canalAtivo ? nomeCanalExibicao(canalAtivo) : "Selecione um canal"}</div>
         <div className="chat-messages" ref={mensagensRef}>
-          {mensagens.map((m) => (
-            <div className="chat-msg" key={m.id}>
-              <div className="avatar sm">{EnvoxersShared.initials(m.autor_nome)}</div>
-              <div className="chat-msg-body">
-                <div className="chat-msg-meta">
-                  <span className="chat-msg-autor">{m.autor_nome}</span>
-                  <span className="chat-msg-hora">{fmtHoraChat(m.created_at)}</span>
+          {mensagens.map((m) => {
+            const propria = m.autor_envoxer_id === meuId;
+            return (
+              <div className={"chat-msg" + (propria ? " own" : "")} key={m.id}>
+                {!propria && <div className="avatar sm">{EnvoxersShared.initials(m.autor_nome)}</div>}
+                <div className="chat-msg-body">
+                  <div className="chat-msg-meta">
+                    {!propria && <span className="chat-msg-autor">{m.autor_nome}</span>}
+                    <span className="chat-msg-hora">{fmtHoraChat(m.created_at)}</span>
+                  </div>
+                  {m.texto && <div className="chat-msg-texto">{m.texto}</div>}
                 </div>
-                {m.texto && <div className="chat-msg-texto">{m.texto}</div>}
               </div>
-            </div>
-          ))}
+            );
+          })}
           {mensagens.length === 0 && <div className="empty">Nenhuma mensagem ainda. Diga oi!</div>}
         </div>
         {canalAtivoId && (
