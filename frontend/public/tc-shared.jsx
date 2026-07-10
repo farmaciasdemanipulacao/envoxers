@@ -100,6 +100,21 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
         <HelpIcon helpKey="cockpit" />
       </div>
 
+      <div className="sidebar-collapse-row">
+        <button
+          type="button"
+          className="sidebar-collapse-btn"
+          onClick={onToggleCollapse}
+          title={collapsed ? "Expandir" : "Recolher"}
+          aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+        >
+          <svg className="sidebar-collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M9 3L4 8l5 5" />
+            <path d="M13 3L8 8l5 5" />
+          </svg>
+        </button>
+      </div>
+
       <div className="nav-section">
         <nav className="nav">
           {item(
@@ -213,18 +228,6 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
           )}
         </nav>
       </div>
-
-      <button
-        type="button"
-        className="sidebar-collapse-btn"
-        style={{ marginTop: "auto" }}
-        onClick={onToggleCollapse}
-        title={collapsed ? "Expandir menu" : "Recolher menu"}
-        aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
-      >
-        <svg className="sidebar-collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 3L5 8l5 5" /></svg>
-        <span className="nav-label">Recolher menu</span>
-      </button>
 
       <div className="sidebar-user">
         <div className="avatar">{iniciais}</div>
