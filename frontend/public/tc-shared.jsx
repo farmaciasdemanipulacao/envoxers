@@ -97,8 +97,7 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
       <div className="brand">
         <div className="brand-title">
           <span className="brand-mark">envox<span className="brand-dot"></span></span>
-          <span className="brand-sub">Cockpit</span>
-          <HelpIcon helpKey="cockpit" />
+          <span className="brand-sub">Envoxer</span>
         </div>
         <button
           type="button"
