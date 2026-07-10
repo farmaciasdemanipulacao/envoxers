@@ -262,6 +262,17 @@ a:hover { text-decoration: underline; }
   min-width: 0;
   padding: 0;
 }
+/* Só a tela de Chat usa isso — trava .main na altura do viewport e desliga o
+   scroll da página inteira, sobrando só o que tem overflow-y próprio lá dentro
+   (.chat-sidebar e .chat-messages). Sem número mágico: o flex calcula sozinho
+   o espaço restante abaixo do topbar, então não depende da altura exata dele. */
+.main.main-chat {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.main.main-chat .topbar { flex-shrink: 0; }
 
 /* Top bar */
 .topbar {
@@ -2687,12 +2698,14 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
 .chat-shell {
   display: grid;
   grid-template-columns: 260px 1fr;
-  height: calc(100vh - 57px);
+  flex: 1;
+  min-height: 0;
 }
 .chat-sidebar {
   border-right: 1px solid var(--line);
   background: var(--bg-elev);
   overflow-y: auto;
+  min-height: 0;
   padding: 16px 12px;
 }
 .chat-canal-item {
@@ -2783,6 +2796,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 .chat-header {
   padding: 14px 24px;
@@ -2918,7 +2932,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   .cal-day-num { font-size: 11px; }
   .cal-event { font-size: 9.5px; }
   .approval-actions .btn { min-width: 100%; }
-  .chat-shell { grid-template-columns: 1fr; height: calc(100vh - 110px); }
+  .chat-shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .chat-sidebar { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--line); }
   .chat-msg { max-width: 88%; }
 }

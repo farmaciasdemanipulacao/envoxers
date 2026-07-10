@@ -194,7 +194,10 @@ function AppShell() {
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapsed}
       />
-      <main className="main" style={focoAtivo ? { paddingBottom: 60 } : undefined}>
+      <main
+        className={"main" + (view === "chat" ? " main-chat" : "")}
+        style={focoAtivo ? { paddingBottom: 60 } : undefined}
+      >
         <EnvoxersShared.Topbar crumb={crumbs[view]} onLogout={handleLogout} />
         {view === "clientes" && (
           <ClientesScreen
