@@ -15,7 +15,8 @@ from app.db.session import AsyncSessionLocal
 from app.models.envoxer import Envoxer
 from app.models.servico import Servico
 from app.models.motivo_churn import MotivoChurnCatalogo
-from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario
+from app.models.chat_canal import ChatCanal
+from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat
 
 logger = structlog.get_logger()
 
@@ -92,6 +93,12 @@ async def seed_dados_iniciais():
             await db.commit()
             logger.info("admin_padrao_criado", email="admin@envox.com.br")
 
+        result = await db.execute(select(ChatCanal).where(ChatCanal.tipo == "geral"))
+        if result.scalar_one_or_none() is None:
+            db.add(ChatCanal(tipo="geral"))
+            await db.commit()
+            logger.info("chat_canal_geral_criado")
+
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 
@@ -120,6 +127,7 @@ app.include_router(churn.router, prefix=API_PREFIX)
 app.include_router(icp.router, prefix=API_PREFIX)
 app.include_router(faturamento.router, prefix=API_PREFIX)
 app.include_router(calendario.router, prefix=API_PREFIX)
+app.include_router(chat.router, prefix=API_PREFIX)
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount(f"{API_PREFIX}/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")

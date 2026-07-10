@@ -78,23 +78,38 @@ function initials(nome) {
 }
 
 // ==================== SIDEBAR ====================
-function Sidebar({ view, onNavigate, nome, permissao }) {
+function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapsed = false, onToggleCollapse }) {
   const iniciais = initials(nome);
 
-  const item = (key, label, icon, helpKey) => (
-    <a className={view === key ? "active" : ""} onClick={() => onNavigate(key)} style={{ cursor: "pointer" }}>
+  // title=label dá o tooltip nativo do navegador — é o que mostra o nome da seção
+  // quando o menu está recolhido e o texto (.nav-label) some.
+  const item = (key, label, icon, helpKey, badge) => (
+    <a className={view === key ? "active" : ""} onClick={() => onNavigate(key)} style={{ cursor: "pointer" }} title={label}>
       {icon}
-      {label}
+      <span className="nav-label">{label}</span>
+      {!!badge && <span className="nav-badge">{badge}</span>}
       {helpKey && <HelpIcon helpKey={helpKey} />}
     </a>
   );
 
   return (
-    <aside className="sidebar">
+    <aside className={"sidebar" + (collapsed ? " collapsed" : "")}>
       <div className="brand">
         <span className="brand-mark">envox<span className="brand-dot"></span></span>
         <span className="brand-sub">Cockpit</span>
         <HelpIcon helpKey="cockpit" />
+      </div>
+
+      <div className="nav-section">
+        <nav className="nav">
+          {item(
+            "chat",
+            "Chat",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v7H5l-3 3z" /></svg>,
+            null,
+            chatNaoLidas > 0 ? chatNaoLidas : null
+          )}
+        </nav>
       </div>
 
       <div className="nav-section">
@@ -198,6 +213,18 @@ function Sidebar({ view, onNavigate, nome, permissao }) {
           )}
         </nav>
       </div>
+
+      <button
+        type="button"
+        className="sidebar-collapse-btn"
+        style={{ marginTop: "auto" }}
+        onClick={onToggleCollapse}
+        title={collapsed ? "Expandir menu" : "Recolher menu"}
+        aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+      >
+        <svg className="sidebar-collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 3L5 8l5 5" /></svg>
+        <span className="nav-label">Recolher menu</span>
+      </button>
 
       <div className="sidebar-user">
         <div className="avatar">{iniciais}</div>

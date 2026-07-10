@@ -1,10 +1,23 @@
-const { useState: useStateApp, useEffect: useEffectApp } = React;
+const { useState: useStateApp, useEffect: useEffectApp, useRef: useRefApp } = React;
 
 function AppShell() {
   const [view, setView] = useStateApp("clientes");
   const nome = localStorage.getItem("envoxers_nome") || "";
   const permissao = localStorage.getItem("envoxers_permissao") || "envoxer";
   const toast = EnvoxersShared.useToast();
+
+  // Estado do menu (expandido/recolhido) persiste em localStorage — não em memória —
+  // pra sobreviver a um reload de página, não só a troca de tela dentro da sessão.
+  const [sidebarCollapsed, setSidebarCollapsed] = useStateApp(
+    () => localStorage.getItem("envoxers_sidebar_collapsed") === "1"
+  );
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("envoxers_sidebar_collapsed", next ? "1" : "0");
+      return next;
+    });
+  };
 
   // Estado do Foco vive na raiz — Kanban e Dashboard abrem o mesmo TaskModal
   // e precisam do mesmo Foco ativo/contador, sobrevivendo à troca de tela.
@@ -23,6 +36,46 @@ function AppShell() {
   // (não existe view-cliente-ficha separada — decisão já tomada no D-063).
   const [clienteParaAbrir, setClienteParaAbrir] = useStateApp(null);
   const abrirCliente = (id) => { setClienteParaAbrir(id); setView("clientes"); };
+
+  // Chat interno — WS vive na raiz pra badge de não lidas funcionar em qualquer tela,
+  // não só dentro da tela de Chat. Envio de mensagem continua sendo POST REST (ver tc-chat.jsx);
+  // o WS aqui só recebe o evento "mensagem_nova" e repassa pra ChatScreen via wsEvent.
+  const [chatWsEvent, setChatWsEvent] = useStateApp(null);
+  const [chatBadgeTotal, setChatBadgeTotal] = useStateApp(0);
+  const chatBadgeTimeoutRef = useRefApp(null);
+
+  const carregarChatBadge = async () => {
+    try {
+      const canaisChat = await EnvoxersAPI.api("/chat/canais");
+      setChatBadgeTotal(canaisChat.reduce((acc, c) => acc + (c.nao_lidas || 0), 0));
+    } catch (err) { /* silencioso — badge não é crítico */ }
+  };
+
+  // Pequeno debounce: várias mensagens chegando juntas não devem disparar uma rajada de GETs.
+  // Também dá tempo da ChatScreen marcar como lido (se o canal estiver aberto) antes do recálculo.
+  const agendarRecalculoBadge = () => {
+    clearTimeout(chatBadgeTimeoutRef.current);
+    chatBadgeTimeoutRef.current = setTimeout(carregarChatBadge, 400);
+  };
+
+  useEffectApp(() => { carregarChatBadge(); }, []);
+
+  useEffectApp(() => {
+    const token = EnvoxersAPI.getToken();
+    if (!token) return;
+    const protocolo = window.location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${protocolo}://${window.location.host}/api/v1/chat/ws?token=${encodeURIComponent(token)}`);
+    ws.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        if (data.tipo === "mensagem_nova") {
+          setChatWsEvent(data);
+          agendarRecalculoBadge();
+        }
+      } catch (err) { /* ignora frame que não é JSON */ }
+    };
+    return () => ws.close();
+  }, []);
 
   const carregarListasBase = async () => {
     try {
@@ -127,11 +180,20 @@ function AppShell() {
     icp: "ICP / ICP Builder",
     faturamento: "Faturamento / Painel de faturamento",
     churn: "ICP / Cancelamentos",
+    chat: "Chat interno",
   };
 
   return (
-    <div className="app">
-      <EnvoxersShared.Sidebar view={view} onNavigate={setView} nome={nome} permissao={permissao} />
+    <div className={"app" + (sidebarCollapsed ? " sidebar-collapsed" : "")}>
+      <EnvoxersShared.Sidebar
+        view={view}
+        onNavigate={setView}
+        nome={nome}
+        permissao={permissao}
+        chatNaoLidas={chatBadgeTotal}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebarCollapsed}
+      />
       <main className="main" style={focoAtivo ? { paddingBottom: 60 } : undefined}>
         <EnvoxersShared.Topbar crumb={crumbs[view]} onLogout={handleLogout} />
         {view === "clientes" && (
@@ -170,6 +232,9 @@ function AppShell() {
         {view === "icp" && <IcpScreen />}
         {view === "faturamento" && <FaturamentoScreen />}
         {view === "churn" && <ChurnListaScreen />}
+        {view === "chat" && (
+          <ChatScreen envoxersList={envoxersList} wsEvent={chatWsEvent} onLeituraAtualizada={agendarRecalculoBadge} />
+        )}
       </main>
       <FocoBar
         focoAtivo={focoAtivo}
@@ -178,7 +243,6 @@ function AppShell() {
         onFinalizarFoco={() => setConfirmandoFinalizar(true)}
         onAbrirTarefa={() => focoAtivo && abrirTarefa(focoAtivo.tarefa_id)}
       />
-      <FocoQuickStart focoAtivo={focoAtivo} onIniciarFoco={iniciarFoco} />
       <FocoFinalizarModal
         aberto={confirmandoFinalizar}
         focoAtivo={focoAtivo}
