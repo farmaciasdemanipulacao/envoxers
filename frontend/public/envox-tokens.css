@@ -985,7 +985,7 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 .modal {
   background: var(--bg-elev);
   border-radius: var(--r-lg);
-  width: 100%; max-width: 780px;
+  width: 100%; max-width: 960px;
   box-shadow: 0 20px 60px rgba(14,14,12,0.15);
   overflow: hidden;
 }
@@ -1002,6 +1002,7 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
   font-weight: 500;
   margin-bottom: 6px;
   display: flex; align-items: center; gap: 8px;
+  padding-right: 36px; /* espaço pro modal-close (absolute, top:18px right:20px) não colidir com o status-pill empurrado por margin-left:auto */
 }
 .modal-title {
   font-family: var(--font-serif);
@@ -1011,6 +1012,31 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
   color: var(--ink);
   line-height: 1.15;
   padding-right: 40px;
+}
+/* Título clicável — vira input inline ao editar (ver TaskModal em tc-kanban.jsx). */
+.modal-title-row { display: flex; align-items: center; gap: 8px; }
+.modal-title.editable {
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  margin: -2px -6px; padding: 2px 6px;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.modal-title.editable:hover { background: var(--bg-inset); }
+.modal-title-edit-icon { color: var(--ink-4); flex-shrink: 0; opacity: 0; transition: opacity 0.12s; }
+.modal-title.editable:hover .modal-title-edit-icon { opacity: 1; }
+.modal-title-input {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.15;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--envox);
+  background: transparent;
+  outline: none;
+  padding: 2px 0;
 }
 .modal-close {
   position: absolute; top: 18px; right: 20px;
@@ -1047,16 +1073,18 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 
 .modal-body {
   display: grid;
-  grid-template-columns: 1fr 240px;
+  grid-template-columns: 1fr 270px;
   gap: 0;
+  max-height: calc(90vh - 90px);
+  overflow-y: auto;
 }
 .modal-main { padding: 24px 28px; }
 .modal-side {
-  padding: 24px 24px;
+  padding: 22px 22px;
   background: var(--bg);
   border-left: 1px solid var(--line);
 }
-.modal-side-block { margin-bottom: 20px; }
+.modal-side-block { margin-bottom: 18px; }
 .modal-side-block:last-child { margin-bottom: 0; }
 .modal-side-label {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
@@ -1065,6 +1093,46 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 }
 .modal-side-value { font-size: 13px; color: var(--ink); font-weight: 500; }
 .modal-side-value.mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* Campos editáveis da sidebar (Status/Cliente/Serviço/Tipo/Responsável/Prazo/Etiqueta)
+   — chrome minimalista pra não competir visualmente com o conteúdo principal. */
+.modal-side-select, .modal-side-input {
+  width: 100%;
+  font-size: 13px; font-weight: 500;
+  color: var(--ink);
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  outline: none;
+  transition: border-color 0.12s, background 0.12s;
+  margin: -6px -8px;
+}
+.modal-side-select { cursor: pointer; }
+.modal-side-select:hover, .modal-side-input:hover { background: var(--bg-inset); }
+.modal-side-select:focus, .modal-side-input:focus {
+  border-color: var(--envox); background: var(--bg-elev);
+}
+.modal-side-select:disabled, .modal-side-input:disabled { opacity: .55; cursor: not-allowed; }
+.modal-side-etiqueta { display: flex; gap: 6px; align-items: center; }
+.modal-side-etiqueta .modal-side-input { flex: 1; }
+.modal-side-etiqueta .modal-side-select { width: auto; flex-shrink: 0; }
+
+.status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--bg-inset);
+  white-space: nowrap;
+}
+.status-pill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.status-pill-entrada   .status-pill-dot { background: var(--ink-4); }
+.status-pill-producao  .status-pill-dot { background: var(--envox); }
+.status-pill-aprovacao .status-pill-dot { background: var(--farol-amarelo); }
+.status-pill-saida     .status-pill-dot { background: var(--farol-verde); }
 
 .modal-section-title {
   font-size: 11px;

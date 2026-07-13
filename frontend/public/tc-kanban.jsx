@@ -285,6 +285,8 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   const [etiquetaCor, setEtiquetaCor] = useStateKb("cinza");
   const [legenda, setLegenda] = useStateKb("");
   const [novoComentario, setNovoComentario] = useStateKb("");
+  const [editandoTitulo, setEditandoTitulo] = useStateKb(false);
+  const [tituloSalvando, setTituloSalvando] = useStateKb(false);
 
   const [aprovacoes, setAprovacoes] = useStateKb([]);
   const [alteracoesLista, setAlteracoesLista] = useStateKb([]);
@@ -395,6 +397,33 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
       toast(err.message, "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Título clicável no cabeçalho — salva sozinho ao sair do campo, sem fechar o card
+  // (diferente do "Salvar alterações" da sidebar, que salva tudo e fecha o modal).
+  const handleSalvarTitulo = async () => {
+    const novoTitulo = titulo.trim();
+    if (!novoTitulo) {
+      setTitulo(tarefa?.titulo || "");
+      setEditandoTitulo(false);
+      return;
+    }
+    if (tarefa && novoTitulo === tarefa.titulo) {
+      setEditandoTitulo(false);
+      return;
+    }
+    setTituloSalvando(true);
+    try {
+      const t = await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "PATCH", body: JSON.stringify({ ...buildPayload(), titulo: novoTitulo }) });
+      setTarefa(t);
+      setTitulo(t.titulo);
+    } catch (err) {
+      toast(err.message, "error");
+      setTitulo(tarefa?.titulo || "");
+    } finally {
+      setTituloSalvando(false);
+      setEditandoTitulo(false);
     }
   };
 
@@ -652,8 +681,49 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
               </>
             )}
             {tipoTarefa && <><span style={{ color: "var(--ink-4)" }}>·</span><span className="pill">{tipoTarefa}</span></>}
+            {isEdit && (
+              <span className={`status-pill status-pill-${(STATUS_COLS.find((c) => c.key === status) || {}).phase || "entrada"}`} style={{ marginLeft: "auto" }}>
+                <span className="status-pill-dot"></span>{statusLabel}
+              </span>
+            )}
           </div>
-          <h2 className="modal-title">{isEdit ? titulo || "—" : "Nova demanda"}</h2>
+          {isEdit && !bloqueado && editandoTitulo ? (
+            <input
+              type="text"
+              className="modal-title-input"
+              value={titulo}
+              autoFocus
+              disabled={tituloSalvando}
+              onChange={(e) => setTitulo(e.target.value)}
+              onBlur={handleSalvarTitulo}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") { setTitulo(tarefa?.titulo || ""); setEditandoTitulo(false); }
+              }}
+            />
+          ) : isEdit ? (
+            <h2
+              className={"modal-title" + (bloqueado ? "" : " editable")}
+              onClick={() => !bloqueado && setEditandoTitulo(true)}
+              title={bloqueado ? "" : "Clique para editar o título"}
+            >
+              {titulo || "—"}
+              {!bloqueado && (
+                <svg className="modal-title-edit-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M11 2l3 3-8 8-3.5 1 1-3.5z" />
+                </svg>
+              )}
+            </h2>
+          ) : (
+            <input
+              type="text"
+              className="modal-title-input"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              placeholder="Título da demanda…"
+              autoFocus
+            />
+          )}
           <button className="modal-close" onClick={onClose} aria-label="Fechar">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8" /></svg>
           </button>
@@ -719,64 +789,6 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                 </>
               ) : (
                 <>
-
-              <div className="modal-section-title">Campos</div>
-              <div className="form-row">
-                <div className="field span-2">
-                  <label>Título <span className="req">*</span></label>
-                  <input type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Carrossel — lançamento linha verão" />
-                </div>
-                <div className="field">
-                  <label>Cliente <span className="req">*</span></label>
-                  <select value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-                    <option value="">Selecionar…</option>
-                    {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Serviço</label>
-                  <select value={servicoId} onChange={(e) => setServicoId(e.target.value)}>
-                    <option value="">—</option>
-                    {servicosList.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Tipo de tarefa</label>
-                  <select value={tipoTarefa} onChange={(e) => setTipoTarefa(e.target.value)}>
-                    <option value="">—</option>
-                    {TIPOS_TAREFA.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Status</label>
-                  <select value={status} onChange={(e) => setStatus(e.target.value)}>
-                    {STATUS_COLS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Prazo</label>
-                  <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>Responsável</label>
-                  <select value={responsavelId} onChange={(e) => setResponsavelId(e.target.value)}>
-                    <option value="">—</option>
-                    {envoxersList.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Etiqueta</label>
-                  <input type="text" value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)} placeholder="Ex.: Urgente" />
-                </div>
-                {etiqueta && (
-                  <div className="field">
-                    <label>Cor da etiqueta</label>
-                    <select value={etiquetaCor} onChange={(e) => setEtiquetaCor(e.target.value)}>
-                      {ETIQUETA_CORES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
 
               {isEdit && (
                 <>
@@ -1052,16 +1064,62 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
 
             <div className="modal-side">
               <div className="modal-side-block">
+                <div className="modal-side-label">Status</div>
+                <select className="modal-side-select" value={status} disabled={bloqueado} onChange={(e) => setStatus(e.target.value)}>
+                  {STATUS_COLS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                </select>
+              </div>
+
+              <div className="modal-side-block">
+                <div className="modal-side-label">Cliente <span className="req">*</span></div>
+                <select className="modal-side-select" value={clienteId} disabled={bloqueado} onChange={(e) => setClienteId(e.target.value)}>
+                  <option value="">Selecionar…</option>
+                  {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+
+              <div className="modal-side-block">
+                <div className="modal-side-label">Serviço</div>
+                <select className="modal-side-select" value={servicoId} disabled={bloqueado} onChange={(e) => setServicoId(e.target.value)}>
+                  <option value="">—</option>
+                  {servicosList.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                </select>
+              </div>
+
+              <div className="modal-side-block">
+                <div className="modal-side-label">Tipo de tarefa</div>
+                <select className="modal-side-select" value={tipoTarefa} disabled={bloqueado} onChange={(e) => setTipoTarefa(e.target.value)}>
+                  <option value="">—</option>
+                  {TIPOS_TAREFA.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div className="modal-side-block">
                 <div className="modal-side-label">Responsável</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div className="avatar sm gray">{initialsKb(responsavel?.nome)}</div>
-                  <span className="modal-side-value">{responsavel?.nome || "—"}</span>
+                  <select className="modal-side-select" value={responsavelId} disabled={bloqueado} onChange={(e) => setResponsavelId(e.target.value)}>
+                    <option value="">—</option>
+                    {envoxersList.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                  </select>
                 </div>
               </div>
 
               <div className="modal-side-block">
                 <div className="modal-side-label">Prazo</div>
-                <div className="modal-side-value mono">{prazo || "—"}</div>
+                <input type="date" className="modal-side-input mono" value={prazo} disabled={bloqueado} onChange={(e) => setPrazo(e.target.value)} />
+              </div>
+
+              <div className="modal-side-block">
+                <div className="modal-side-label">Etiqueta</div>
+                <div className="modal-side-etiqueta">
+                  <input type="text" className="modal-side-input" value={etiqueta} disabled={bloqueado} onChange={(e) => setEtiqueta(e.target.value)} placeholder="Ex.: Urgente" />
+                  {etiqueta && (
+                    <select className="modal-side-select" value={etiquetaCor} disabled={bloqueado} onChange={(e) => setEtiquetaCor(e.target.value)}>
+                      {ETIQUETA_CORES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+                </div>
               </div>
 
               {isEdit && (
