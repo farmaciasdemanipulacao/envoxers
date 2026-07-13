@@ -5,16 +5,23 @@ function getToken() {
   return localStorage.getItem("envoxers_token");
 }
 
-function setSession(token, nome, permissao) {
+function setSession(token, nome, permissao, id) {
   localStorage.setItem("envoxers_token", token);
   localStorage.setItem("envoxers_nome", nome);
   localStorage.setItem("envoxers_permissao", permissao);
+  if (id != null) localStorage.setItem("envoxers_id", String(id));
 }
 
 function clearSession() {
   localStorage.removeItem("envoxers_token");
   localStorage.removeItem("envoxers_nome");
   localStorage.removeItem("envoxers_permissao");
+  localStorage.removeItem("envoxers_id");
+}
+
+function getEnvoxerId() {
+  const id = localStorage.getItem("envoxers_id");
+  return id ? Number(id) : null;
 }
 
 async function api(path, options = {}) {
@@ -71,4 +78,4 @@ async function upload(path, file) {
   return res.json();
 }
 
-window.EnvoxersAPI = { api, upload, getToken, setSession, clearSession };
+window.EnvoxersAPI = { api, upload, getToken, setSession, clearSession, getEnvoxerId };

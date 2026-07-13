@@ -17,13 +17,26 @@ from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
 from app.models.farol_calculo import FarolCalculo, FarolCalculoHistorico
 from app.models.alerta_farol import AlertaFarol, STATUS_ALERTA_VALUES
+from app.models.alerta_config import AlertaConfig
 from app.schemas.farol import FarolClienteResponse, FarolKpisResponse
 from app.schemas.alerta import AlertaUpdate, AlertaResponse
-from app.services.farol import calcular_farol_cliente
+from app.services.farol import calcular_farol_cliente, LABELS, _texto_sinal
 
 router = APIRouter(tags=["farol"])
 
 _RISCO_ORDEM = {"vermelho": 0, "amarelo": 1, "verde": 2}
+
+# Sinais que têm alerta configurável individualmente (whatsapp fica de fora —
+# sem integração no Envoxers ainda, o sinal é sempre "sem_dado", nunca piora).
+_ALERTA_SINAL_CHAVE = {
+    "entrega": "farol_sinal_entrega",
+    "atrasadas": "farol_sinal_atrasadas",
+    "alteracoes": "farol_sinal_alteracoes",
+    "aprovacoes": "farol_sinal_aprovacoes",
+    "pulso": "farol_sinal_pulso",
+    "margem": "farol_sinal_margem",
+    "silencio": "farol_sinal_silencio",
+}
 
 
 def _meses_de_casa(inicio: Optional[date]) -> Optional[int]:
@@ -80,6 +93,9 @@ async def listar_farol(
     hoje = date.today()
     agora = datetime.now(timezone.utc)
 
+    configs_result = await db.execute(select(AlertaConfig))
+    configs_por_chave = {c.chave: c for c in configs_result.scalars().all()}
+
     result = await db.execute(
         select(Cliente, Envoxer.nome)
         .outerjoin(Envoxer, Envoxer.id == Cliente.responsavel_envoxer_id)
@@ -88,12 +104,21 @@ async def listar_farol(
     clientes = result.all()
 
     respostas = []
+    # (papeis, título, corpo, tag) — resolvido pra destinatários reais só no final,
+    # depois do loop, pra não repetir query de Envoxer por papel a cada cliente.
+    notificacoes: list[tuple[list[str], str, str, str]] = []
     for cliente, responsavel_nome in clientes:
         calculo = await calcular_farol_cliente(db, cliente, hoje)
 
         existente_result = await db.execute(select(FarolCalculo).where(FarolCalculo.cliente_id == cliente.id))
         snapshot = existente_result.scalar_one_or_none()
         farol_anterior = snapshot.farol if snapshot else cliente.status_farol
+        sinais_anteriores = {
+            "entrega": snapshot.sinal_entrega, "atrasadas": snapshot.sinal_atrasadas,
+            "alteracoes": snapshot.sinal_alteracoes, "aprovacoes": snapshot.sinal_aprovacoes,
+            "pulso": snapshot.sinal_pulso, "margem": snapshot.sinal_margem,
+            "silencio": snapshot.sinal_silencio,
+        } if snapshot else {}
 
         sinais = calculo["sinais"]
         if snapshot is None:
@@ -128,6 +153,41 @@ async def listar_farol(
                 motivo_texto=calculo["motivo_texto"],
                 sugestao_acao=calculo["sugestao_acao"],
             ))
+            # Push só quando o farol PIORA (risco sobe) — recuperação não é urgente o
+            # bastante pra interromper o usuário. farol_anterior pode ser None no
+            # primeiro cálculo do cliente; nesse caso não é uma "transição" real.
+            piorou = (
+                farol_anterior in _RISCO_ORDEM
+                and _RISCO_ORDEM[calculo["farol"]] < _RISCO_ORDEM[farol_anterior]
+            )
+            if piorou:
+                config_geral = configs_por_chave.get("farol_geral")
+                if config_geral and config_geral.ativo and config_geral.papeis:
+                    cor = calculo["farol"]
+                    titulo = "🔴 Farol vermelho" if cor == "vermelho" else "🟡 Farol amarelo"
+                    notificacoes.append((
+                        config_geral.papeis, f"{titulo}: {cliente.nome}",
+                        calculo["motivo_texto"][:180], "envoxers-farol",
+                    ))
+
+        # Granularidade por sinal individual — só depois do 1º cálculo do cliente
+        # (senão todo sinal "nasceria" como piora no primeiro GET /farol dele).
+        if snapshot is not None:
+            for nome_sinal, chave_config in _ALERTA_SINAL_CHAVE.items():
+                cor_anterior = sinais_anteriores.get(nome_sinal)
+                cor_atual = sinais[nome_sinal][0]
+                if cor_anterior not in _RISCO_ORDEM or cor_atual not in _RISCO_ORDEM:
+                    continue
+                if _RISCO_ORDEM[cor_atual] >= _RISCO_ORDEM[cor_anterior]:
+                    continue
+                config_sinal = configs_por_chave.get(chave_config)
+                if config_sinal and config_sinal.ativo and config_sinal.papeis:
+                    notificacoes.append((
+                        config_sinal.papeis,
+                        f"⚠️ {LABELS[nome_sinal]} piorou: {cliente.nome}",
+                        _texto_sinal(nome_sinal, sinais[nome_sinal][1])[:180],
+                        "envoxers-farol-sinal",
+                    ))
 
         cliente.status_farol = calculo["farol"]
 
@@ -148,6 +208,21 @@ async def listar_farol(
         ))
 
     await db.flush()
+
+    if notificacoes:
+        from app.services.push import broadcast_push_para_muitos
+
+        cache_destinatarios: dict[tuple, list[int]] = {}
+        for papeis, titulo, corpo, tag in notificacoes:
+            chave_cache = tuple(sorted(papeis))
+            if chave_cache not in cache_destinatarios:
+                destinatarios_result = await db.execute(
+                    select(Envoxer.id).where(Envoxer.permissao.in_(papeis), Envoxer.ativo.is_(True))
+                )
+                cache_destinatarios[chave_cache] = [row[0] for row in destinatarios_result.all()]
+            destinatario_ids = cache_destinatarios[chave_cache]
+            if destinatario_ids:
+                await broadcast_push_para_muitos(db, destinatario_ids, title=titulo, body=corpo, tag=tag)
 
     respostas.sort(key=lambda r: (_RISCO_ORDEM[r.farol], r.health_score))
     return respostas

@@ -78,7 +78,7 @@ function initials(nome) {
 }
 
 // ==================== SIDEBAR ====================
-function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapsed = false, onToggleCollapse }) {
+function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapsed = false, onToggleCollapse, mobileOpen = false, isMobile = false, onCloseMobile }) {
   const iniciais = initials(nome);
 
   // title=label dá o tooltip nativo do navegador — é o que mostra o nome da seção
@@ -93,22 +93,30 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
   );
 
   return (
-    <aside className={"sidebar" + (collapsed ? " collapsed" : "")}>
+    <aside className={"sidebar" + (collapsed && !isMobile ? " collapsed" : "") + (mobileOpen ? " open" : "")}>
       <div className="brand">
         <div className="brand-title">
           <span className="brand-mark">envoxers<span className="brand-dot"></span></span>
         </div>
+        {/* No mobile o botão fecha a gaveta (X) — recolher-pra-ícones é um
+            conceito só de desktop e não faz sentido dentro da gaveta deslizante. */}
         <button
           type="button"
           className="sidebar-collapse-btn"
-          onClick={onToggleCollapse}
-          title={collapsed ? "Expandir" : "Recolher"}
-          aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+          onClick={isMobile ? onCloseMobile : onToggleCollapse}
+          title={isMobile ? "Fechar menu" : (collapsed ? "Expandir" : "Recolher")}
+          aria-label={isMobile ? "Fechar menu" : (collapsed ? "Expandir menu" : "Recolher menu")}
         >
-          <svg className="sidebar-collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M9 3L4 8l5 5" />
-            <path d="M13 3L8 8l5 5" />
-          </svg>
+          {isMobile ? (
+            <svg className="sidebar-collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          ) : (
+            <svg className="sidebar-collapse-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M9 3L4 8l5 5" />
+              <path d="M13 3L8 8l5 5" />
+            </svg>
+          )}
         </button>
       </div>
 
@@ -226,6 +234,19 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
         </nav>
       </div>
 
+      {permissao === "admin" && (
+        <div className="nav-section">
+          <div className="nav-section-title">Admin</div>
+          <nav className="nav">
+            {item(
+              "config-alertas",
+              "Configuração de Alertas",
+              <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l6 11H2z" /><circle cx="8" cy="9" r="1.3" fill="currentColor" /></svg>
+            )}
+          </nav>
+        </div>
+      )}
+
       <div className="sidebar-user">
         <div className="avatar">{iniciais}</div>
         <div className="sidebar-user-info">
@@ -250,12 +271,148 @@ function PageHeader({ title, subtitle, actions }) {
   );
 }
 
+// ==================== NOTIFICAÇÕES (push) ====================
+// Ponto de acesso persistente pro sistema de push (window.pushHelpers, definido
+// em index.html) — sem isso, a única forma de ativar era o banner que aparece
+// uma vez 3s após login e nunca mais volta se for dispensado.
+function NotificacoesButton() {
+  const [aberto, setAberto] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+  const [checando, setChecando] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const toast = useToast();
+  const ph = window.pushHelpers;
+
+  const atualizarStatus = () => {
+    if (!ph || !ph.isSupported()) { setChecando(false); return; }
+    setChecando(true);
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => setSubscribed(!!sub))
+      .catch(() => setSubscribed(false))
+      .finally(() => setChecando(false));
+  };
+
+  useEffect(() => { atualizarStatus(); }, []);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = () => setAberto(false);
+    const onKey = (e) => { if (e.key === "Escape") fechar(); };
+    document.addEventListener("click", fechar);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", fechar);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [aberto]);
+
+  if (!ph || !ph.isSupported()) return null;
+
+  const permissao = ph.getPermission();
+  const bloqueado = permissao === "denied";
+
+  const handleAtivar = async () => {
+    setLoading(true);
+    try {
+      const result = await ph.subscribe();
+      if (result) {
+        toast("Notificações ativadas!", "success");
+        setSubscribed(true);
+      } else {
+        toast("Permissão negada ou não suportada.", "warning");
+      }
+    } catch (err) {
+      toast("Erro ao ativar notificações.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDesativar = async () => {
+    setLoading(true);
+    try {
+      await ph.unsubscribe();
+      setSubscribed(false);
+      toast("Notificações desativadas.", "info");
+    } catch (err) {
+      toast("Erro ao desativar notificações.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTestar = async () => {
+    setLoading(true);
+    try {
+      await EnvoxersAPI.api("/push/test", { method: "POST" });
+      toast("Notificação de teste enviada!", "success");
+    } catch (err) {
+      toast(err.message || "Erro ao enviar teste.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        className={"btn btn-ghost btn-sm" + (subscribed ? " notif-btn-active" : "")}
+        title="Notificações"
+        aria-label="Notificações"
+        onClick={(e) => { e.stopPropagation(); setAberto((v) => !v); }}
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2a3 3 0 0 0-3 3v1.5c0 1.6-.5 2.6-1.5 3.5h9c-1-.9-1.5-1.9-1.5-3.5V5a3 3 0 0 0-3-3z" /><path d="M6.3 12.3a1.8 1.8 0 0 0 3.4 0" /></svg>
+      </button>
+
+      {aberto && (
+        <div className="notif-popover" onClick={(e) => e.stopPropagation()}>
+          {checando ? (
+            <div className="notif-popover-text">Verificando...</div>
+          ) : bloqueado ? (
+            <>
+              <div className="notif-popover-title">Bloqueado pelo navegador</div>
+              <div className="notif-popover-text">
+                Você negou a permissão antes. Pra reativar, abra as configurações do site no navegador (ícone "aA"/cadeado na barra de endereço, ou Ajustes do iOS &gt; Safari &gt; este site) e libere Notificações.
+              </div>
+            </>
+          ) : subscribed ? (
+            <>
+              <div className="notif-popover-title">Notificações ativas</div>
+              <div className="notif-popover-text">Você vai receber alertas de farol em risco e mensagens do chat mesmo com o app fechado.</div>
+              <div className="notif-popover-actions">
+                <button type="button" className="btn btn-ghost btn-sm" onClick={handleTestar} disabled={loading}>Enviar teste</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={handleDesativar} disabled={loading}>Desativar</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="notif-popover-title">Ativar notificações</div>
+              <div className="notif-popover-text">Receba alertas de farol em risco e mensagens do chat mesmo com o app fechado.</div>
+              <div className="notif-popover-actions">
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleAtivar} disabled={loading}>
+                  {loading ? "..." : "Ativar"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ==================== TOPBAR ====================
-function Topbar({ crumb, onLogout }) {
+function Topbar({ crumb, onLogout, onMenuClick }) {
   return (
     <div className="topbar">
+      <button className="mobile-menu-btn" aria-label="Abrir menu" onClick={onMenuClick}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M2 8h12M2 12h12" /></svg>
+      </button>
       <div className="topbar-crumb">{crumb}</div>
       <div className="topbar-actions">
+        <NotificacoesButton />
         <button className="btn btn-ghost btn-sm" onClick={onLogout}>Sair</button>
       </div>
     </div>
@@ -283,6 +440,7 @@ const HELP_TEXTS = {
   dash_progress: { t: "Em andamento", b: "<p>Tarefas nas colunas <em>Produção</em>, <em>Revisão interna</em> e <em>Ajustes</em>. É o que o time está tocando agora mesmo.</p>" },
   dash_late: { t: "Atrasadas", b: "<p>Tarefas com prazo interno vencido e ainda não finalizadas. Este é <strong>o número que precisa ir a zero</strong> — atraso alimenta o sinal 2 do farol.</p>" },
   dash_approvals: { t: "Aprovações pendentes", b: "<p>Tarefas em <em>Aprovação cliente</em>. Se ficarem paradas, viram sinal no farol.</p>" },
+  dash_pendencias: { t: "Pendências", b: "<p>Avisos gerados pela automação \"Criar alerta para o responsável\" das Etapas do processo. Clicar abre a tarefa e marca o aviso como lido.</p>" },
   dash_next3: { t: "Próximos 3 dias", b: "<p>Tarefas com prazo nos próximos 3 dias. Ajuda a decidir o que priorizar hoje para não atrasar a entrega.</p>" },
   dash_hoje_eventos: { t: "Captações e eventos de hoje", b: "<p>Reuniões, captações e eventos externos agendados para hoje. Cabe checar antes das 10h.</p>" },
   dash_rel_rapido: { t: "Relatório rápido", b: "<p>Prévia do Relatório de custo (menu Operação → Relatório). Mostra os clientes com pior situação de margem para você ver antes de abrir a tela cheia.</p>" },
@@ -406,6 +564,7 @@ const HELP_TEXTS = {
   modal_alteracoes: { t: "Alterações", b: "<p>Pedidos de ajuste do cliente, numerados. Comparado ao <em>limite de alterações</em> do escopo. Passar do limite gera alerta e alimenta o sinal 3 do farol.</p>" },
   modal_comentarios: { t: "Comentários internos", b: "<p>Mural da tarefa. Não é visto pelo cliente. Use para alinhar com o time.</p>" },
   modal_anexos: { t: "Anexos", b: "<p>Referências, briefings, arquivos-fonte. Diferente do criativo (que é a peça pronta), anexos são apoio.</p>" },
+  modal_etapas: { t: "Etapas do processo", b: "<p>Checklist do processo de execução do serviço. Só o responsável da etapa (ou gestor/admin) marca como concluída.</p><p>Uma etapa pode ter uma automação: liberar a próxima, mover a tarefa de coluna, marcar a tarefa como Finalizado, ou avisar o próximo responsável.</p>" },
 
   // --- Cancelamentos
   churn_total: { t: "Total no histórico", b: "<p>Últimos 24 meses de cancelamentos registrados. Base de dados para o ICP builder.</p>" },

@@ -72,7 +72,9 @@ a:hover { text-decoration: underline; }
 .sidebar {
   background: var(--bg-elev);
   border-right: 1px solid var(--line);
-  padding: 20px 12px;
+  /* padding-top soma a safe-area do iOS — mesma razão do .topbar: no mobile a
+     sidebar é uma gaveta fixed com o brand/botão de fechar colado no topo. */
+  padding: calc(20px + env(safe-area-inset-top)) 12px 20px;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -82,7 +84,7 @@ a:hover { text-decoration: underline; }
   flex-direction: column;
   transition: padding 0.22s ease;
 }
-.sidebar.collapsed { padding: 20px 8px; }
+.sidebar.collapsed { padding: calc(20px + env(safe-area-inset-top)) 8px 20px; }
 
 .brand {
   display: flex;
@@ -278,7 +280,10 @@ a:hover { text-decoration: underline; }
 .topbar {
   background: var(--bg);
   border-bottom: 1px solid var(--line);
-  padding: 16px 32px;
+  /* padding-top soma a safe-area do iOS: instalado como PWA (viewport-fit=cover +
+     status bar black-translucent, ver index.html), o conteúdo vai por baixo do
+     notch/relógio se não reservar esse espaço — env() é 0 fora desse contexto. */
+  padding: calc(16px + env(safe-area-inset-top)) 32px 16px;
   display: flex; align-items: center; gap: 16px;
   position: sticky; top: 0; z-index: 10;
 }
@@ -297,6 +302,25 @@ a:hover { text-decoration: underline; }
   padding: 6px 10px; border-radius: var(--r-md);
   cursor: pointer;
 }
+
+/* Sino de notificações (push) no Topbar — ponto de acesso persistente, ver
+   NotificacoesButton em tc-shared.jsx */
+.notif-btn-active { color: var(--envox); }
+.notif-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 280px;
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+}
+.notif-popover-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.notif-popover-text { font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+.notif-popover-actions { display: flex; gap: 8px; margin-top: 10px; }
 
 /* Page */
 .page {
@@ -1126,6 +1150,40 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 }
 
 /* ============================================================
+   ETAPAS DO PROCESSO — checklist estruturado dentro da Tarefa
+   ============================================================ */
+.etapa-list { display: flex; flex-direction: column; }
+.etapa-item {
+  display: flex; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.etapa-item:last-child { border-bottom: none; }
+.etapa-checkbox { margin-top: 3px; width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+.etapa-checkbox:disabled { cursor: not-allowed; opacity: .5; }
+.etapa-body { flex: 1; min-width: 0; }
+.etapa-head { display: flex; align-items: center; gap: 6px; }
+.etapa-titulo { font-size: 13px; font-weight: 600; }
+.etapa-titulo.concluida { text-decoration: line-through; color: var(--ink-4); font-weight: 400; }
+.etapa-icon { color: var(--ink-3); flex-shrink: 0; }
+.etapa-desc { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.etapa-meta {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  margin-top: 6px; font-size: 11px; color: var(--ink-3);
+}
+.etapa-meta-item { display: flex; align-items: center; gap: 5px; }
+.etapa-automacao-toggle {
+  border: none; background: none; cursor: pointer;
+  color: var(--envox); font-size: 11px; font-weight: 600; padding: 0;
+}
+.etapa-automacao-form {
+  margin-top: 8px; padding: 10px;
+  background: var(--bg-inset); border-radius: var(--r-md);
+  display: flex; flex-direction: column;
+}
+.etapa-automacao-form select { width: 100%; }
+
+/* ============================================================
    DASHBOARD DO DIA — F1
    ============================================================ */
 .dash-grid {
@@ -1184,7 +1242,9 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
   z-index: 50;
   background: var(--ink);
   color: var(--bg-elev);
-  padding: 12px 24px;
+  /* padding-bottom soma a safe-area — mesma razão do .topbar, mas embaixo (home
+     indicator do iPhone em vez do notch). */
+  padding: 12px 24px calc(12px + env(safe-area-inset-bottom));
   display: none;
   align-items: center;
   gap: 16px;
@@ -2870,6 +2930,68 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
 /* ============================================================
    FOCO — barra global persistente (mantida)
    ============================================================ */
+
+/* ============================================================
+   INSTALL BANNER — PWA (instalar como app no iOS/Android)
+   ============================================================ */
+.install-banner {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 420px;
+  width: calc(100% - 32px);
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--envox);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+}
+/* Barra de Foco ativa ocupa a faixa inferior — empurra o banner pra cima dela */
+.foco-bar.active ~ .install-banner { bottom: calc(76px + env(safe-area-inset-bottom)); }
+.foco-bar.active ~ .install-banner-ios-wrap { bottom: calc(60px + env(safe-area-inset-bottom)); }
+.install-banner-icon {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--envox-soft);
+  color: var(--envox);
+  display: flex; align-items: center; justify-content: center;
+}
+.install-banner-text { flex: 1; min-width: 0; }
+.install-banner-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+.install-banner-desc { font-size: 12px; color: var(--ink-3); margin-top: 3px; line-height: 1.45; }
+.install-banner-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.install-banner-close {
+  background: none; border: none; padding: 4px; cursor: pointer;
+  color: var(--ink-4); display: flex; align-items: center; justify-content: center;
+}
+.install-banner-close:hover { color: var(--ink); }
+
+/* Variante iOS: sem botão de ação (o navegador não permite instalar via JS),
+   ancorada embaixo apontando pro ícone de Compartilhar do Safari. */
+.install-banner-ios-wrap {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  z-index: 60;
+  display: flex; flex-direction: column; align-items: center;
+  padding-bottom: env(safe-area-inset-bottom);
+  pointer-events: none;
+}
+.install-banner-ios-wrap .install-banner { position: static; transform: none; margin-bottom: 8px; pointer-events: auto; }
+.install-banner-chevron {
+  color: var(--envox);
+  margin-bottom: 6px;
+  animation: installChevronBounce 1s ease-in-out infinite;
+}
+@keyframes installChevronBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
+}
+
 /* ============================================================
    RESPONSIVE
    ============================================================ */
@@ -2886,7 +3008,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   .sidebar.open { left: 0; }
   .mobile-overlay.open { display: block; }
   .mobile-menu-btn { display: inline-flex; }
-  .topbar { padding: 12px 16px; }
+  .topbar { padding: calc(12px + env(safe-area-inset-top)) 16px 12px; }
   .page { padding: 20px 16px 60px; }
   .page-header { flex-direction: column; align-items: flex-start; }
   .page-title-block h1 { font-size: 32px; }
@@ -2925,7 +3047,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   .alert-item-actions { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; padding-top: 6px; border-top: 1px solid var(--line); }
   .cadence-strip { flex-wrap: wrap; }
   .cadence-cell { flex: 1 1 50%; border-right: none; border-bottom: 1px solid var(--line); }
-  .foco-bar { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+  .foco-bar { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); max-width: none; }
   .foco-title { max-width: none; flex: 1; min-width: 0; }
   .solic-grid { grid-template-columns: 1fr; }
   .cal-day { min-height: 90px; }

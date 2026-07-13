@@ -2,12 +2,26 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#2547E8" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Envoxers" />
 <title>Envoxers — Sistema de Gestão Interna</title>
+<meta name="description" content="Envoxers — Sistema de gestão interna da Envox" />
+
+<!-- Favicon -->
+<link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
+<!-- PWA manifest + icons -->
+<link rel="manifest" href="/manifest.json" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="envox-tokens.css" />
+<link rel="stylesheet" href="envox-tokens.css?v=3" />
 <style>
   /* Ajustes específicos do F0 — não fazem parte do design system do wireframe */
   .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
@@ -38,11 +52,116 @@
 <script type="text/babel" src="tc-relatorio.jsx"></script>
 <script type="text/babel" src="tc-farol.jsx"></script>
 <script type="text/babel" src="tc-alertas.jsx"></script>
+<script type="text/babel" src="tc-config-alertas.jsx"></script>
 <script type="text/babel" src="tc-icp.jsx"></script>
 <script type="text/babel" src="tc-faturamento.jsx"></script>
 <script type="text/babel" src="tc-churn-lista.jsx"></script>
 <script type="text/babel" src="tc-chat.jsx"></script>
 <script type="text/babel" src="tc-app.jsx"></script>
+
+<!-- ─── Service Worker + PWA install ─── -->
+<script>
+  // Captura o evento de instalação PWA antes do React montar
+  window._installPrompt = null;
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    window._installPrompt = e;
+    // Notifica o React caso já esteja montado
+    if (window._onInstallPromptReady) window._onInstallPromptReady();
+  });
+
+  // iOS (Safari/Chrome/Firefox — todos WebKit) NUNCA dispara beforeinstallprompt.
+  // Precisamos detectar e mostrar instruções manuais (Compartilhar > Adicionar à Tela de Início).
+  window._isIOS = function() {
+    var ua = navigator.userAgent;
+    var isIOSDevice = /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS 13+ se identifica como Mac
+    return isIOSDevice;
+  };
+
+  window._isStandalone = function() {
+    return window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  };
+
+  // Registra o Service Worker (necessário para o PWA ser instalável e para push)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+      console.log('[SW] Registrado:', reg.scope);
+    }).catch(function(err) {
+      console.warn('[SW] Falha no registro:', err);
+    });
+  }
+
+  // Escuta mensagens do SW (clique em notificação) para navegar a uma tela.
+  // tc-app.jsx define window.envoxersNavigate ao montar.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'NAVIGATE' && window.envoxersNavigate) {
+        window.envoxersNavigate(event.data.view);
+      }
+    });
+  }
+
+  // Helpers de push expostos globalmente para o React usar (ver PushPermissionBanner em tc-app.jsx)
+  window.pushHelpers = {
+    isSupported: function() {
+      return 'PushManager' in window && 'serviceWorker' in navigator;
+    },
+
+    getPermission: function() {
+      return Notification.permission; // 'default' | 'granted' | 'denied'
+    },
+
+    // Converte base64url para Uint8Array (necessário para applicationServerKey)
+    _urlBase64ToUint8Array: function(base64String) {
+      var padding = '='.repeat((4 - base64String.length % 4) % 4);
+      var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      var raw = window.atob(base64);
+      var arr = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+      return arr;
+    },
+
+    // Pede permissão e cria subscription; retorna {endpoint, p256dh, auth} ou null.
+    // Reusa window.EnvoxersAPI (tc-api.jsx) pra Authorization + tratamento de 401 —
+    // já carregado nesse ponto (script roda depois de todos os tc-*.jsx no index.html).
+    subscribe: async function() {
+      if (!this.isSupported()) return null;
+
+      var permission = await Notification.requestPermission();
+      if (permission !== 'granted') return null;
+
+      var reg = await navigator.serviceWorker.ready;
+      var vapidData = await window.EnvoxersAPI.api('/push/vapid-public-key');
+
+      var sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: this._urlBase64ToUint8Array(vapidData.public_key),
+      });
+
+      var json = sub.toJSON();
+      var body = {
+        endpoint: json.endpoint,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth,
+        user_agent: navigator.userAgent,
+      };
+
+      await window.EnvoxersAPI.api('/push/subscribe', { method: 'POST', body: JSON.stringify(body) });
+      return body;
+    },
+
+    unsubscribe: async function() {
+      var reg = await navigator.serviceWorker.ready;
+      var sub = await reg.pushManager.getSubscription();
+      if (!sub) return;
+      var endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      await window.EnvoxersAPI.api('/push/unsubscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: endpoint }) });
+    },
+  };
+</script>
 
 </body>
 </html>

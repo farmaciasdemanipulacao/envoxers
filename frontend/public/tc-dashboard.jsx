@@ -37,18 +37,20 @@ function DashboardScreen({ dataVersion, onAbrirTarefa, onNavigate }) {
   const [farolWidget, setFarolWidget] = useStateDash([]);
   const [eventosHoje, setEventosHoje] = useStateDash([]);
   const [relatorioRapido, setRelatorioRapido] = useStateDash([]);
+  const [pendencias, setPendencias] = useStateDash([]);
   const toast = EnvoxersShared.useToast();
 
   const carregar = async () => {
     setLoading(true);
     try {
       const hoje = new Date();
-      const [dash, resumo, farol, calendario, relatorio] = await Promise.all([
+      const [dash, resumo, farol, calendario, relatorio, pend] = await Promise.all([
         EnvoxersAPI.api("/tarefas/dashboard-dia"),
         EnvoxersAPI.api("/foco/resumo"),
         EnvoxersAPI.api("/farol"),
         EnvoxersAPI.api(`/calendario?ano=${hoje.getFullYear()}&mes=${hoje.getMonth() + 1}`),
         EnvoxersAPI.api("/relatorio/tempo-custo?agrupar=cliente&periodo=mes"),
+        EnvoxersAPI.api("/pendencias"),
       ]);
       setDados(dash);
       setResumoFoco(resumo);
@@ -56,11 +58,22 @@ function DashboardScreen({ dataVersion, onAbrirTarefa, onNavigate }) {
       const hojeStr = hoje.toISOString().slice(0, 10);
       setEventosHoje(calendario.filter((ev) => ev.data === hojeStr && ev.tipo !== "tarefa"));
       setRelatorioRapido(relatorio.itens.filter((i) => i.margem_pct != null).slice(0, 4));
+      setPendencias(pend);
     } catch (err) {
       toast(err.message, "error");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAbrirPendencia = async (pendencia) => {
+    try {
+      await EnvoxersAPI.api(`/pendencias/${pendencia.id}/lida`, { method: "PATCH" });
+      setPendencias((prev) => prev.filter((p) => p.id !== pendencia.id));
+    } catch (err) {
+      // não bloqueia a navegação por causa disso
+    }
+    onAbrirTarefa(pendencia.tarefa_id);
   };
 
   useEffectDash(() => { carregar(); }, [dataVersion]);
@@ -123,6 +136,23 @@ function DashboardScreen({ dataVersion, onAbrirTarefa, onNavigate }) {
             <div className="dash-card-count" style={{ color: "var(--farol-amarelo)" }}>{dados.aprovacoes_pendentes.length}</div>
           </div>
           <div className="dash-list">{renderLista(dados.aprovacoes_pendentes)}</div>
+        </div>
+
+        <div className="dash-card">
+          <div className="dash-card-head">
+            <div className="dash-card-title">Pendências <EnvoxersShared.HelpIcon helpKey="dash_pendencias" /></div>
+            <div className="dash-card-count">{pendencias.length}</div>
+          </div>
+          <div className="dash-list">
+            {pendencias.length === 0 ? (
+              <div className="dash-item" style={{ cursor: "default", color: "var(--ink-4)" }}>— nada por aqui —</div>
+            ) : pendencias.map((p) => (
+              <div key={p.id} className="dash-item" onClick={() => handleAbrirPendencia(p)}>
+                <div className="dash-item-title">{p.tarefa_titulo}</div>
+                <span className="dash-item-meta">{p.mensagem}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="dash-card full" style={{ gridColumn: "span 12", borderLeft: "3px solid var(--farol-vermelho)" }}>

@@ -266,7 +266,7 @@ function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
   );
 }
 
-function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList, focoAtivo, focoElapsed, onIniciarFoco, onPausarFoco, onFinalizarFoco, onClose, onSaved }) {
+function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, envoxersList, focoAtivo, focoElapsed, onIniciarFoco, onPausarFoco, onFinalizarFoco, onClose, onSaved }) {
   const isEdit = !!tarefaId;
   const toast = EnvoxersShared.useToast();
   const [loading, setLoading] = useStateKb(isEdit);
@@ -293,6 +293,17 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
   const [alteracaoSolicitante, setAlteracaoSolicitante] = useStateKb("");
   const [acaoLoading, setAcaoLoading] = useStateKb(false);
 
+  const [etapas, setEtapas] = useStateKb([]);
+  const [novaEtapaAberta, setNovaEtapaAberta] = useStateKb(false);
+  const [novaEtapaTitulo, setNovaEtapaTitulo] = useStateKb("");
+  const [novaEtapaDescricao, setNovaEtapaDescricao] = useStateKb("");
+  const [novaEtapaResponsavel, setNovaEtapaResponsavel] = useStateKb("");
+  const [novaEtapaPrazo, setNovaEtapaPrazo] = useStateKb("");
+  const [etapaLoading, setEtapaLoading] = useStateKb(false);
+  const [automacaoAbertaId, setAutomacaoAbertaId] = useStateKb(null);
+  const [automacaoAcao, setAutomacaoAcao] = useStateKb("LIBERAR_PROXIMA_ETAPA");
+  const [automacaoColuna, setAutomacaoColuna] = useStateKb("");
+
   // Resumo básico do cliente — usado só na visão bloqueada (sem Foco ativo nesta tarefa).
   const [tarefasConcluidas, setTarefasConcluidas] = useStateKb([]);
   const [tarefasProximas, setTarefasProximas] = useStateKb([]);
@@ -317,13 +328,15 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
           setEtiquetaCor(t.etiqueta_cor || "cinza");
           setLegenda(t.legenda || "");
 
-          const [aprovs, alts, tarefasCliente] = await Promise.all([
+          const [aprovs, alts, tarefasCliente, etapasCarregadas] = await Promise.all([
             EnvoxersAPI.api(`/tarefas/${tarefaId}/aprovacoes`),
             EnvoxersAPI.api(`/tarefas/${tarefaId}/alteracoes`),
             EnvoxersAPI.api(`/tarefas?cliente_id=${t.cliente_id}`),
+            EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas`),
           ]);
           setAprovacoes(aprovs);
           setAlteracoesLista(alts);
+          setEtapas(etapasCarregadas);
 
           const outras = tarefasCliente.filter((x) => x.id !== tarefaId);
           setTarefasConcluidas(
@@ -525,6 +538,97 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
     }
   };
 
+  const carregarEtapas = async () => {
+    const lista = await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas`);
+    setEtapas(lista);
+    return lista;
+  };
+
+  const handleCriarEtapa = async () => {
+    if (!novaEtapaTitulo.trim()) {
+      toast("Título da etapa é obrigatório", "error");
+      return;
+    }
+    setEtapaLoading(true);
+    try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas`, {
+        method: "POST",
+        body: JSON.stringify({
+          titulo: novaEtapaTitulo,
+          descricao: novaEtapaDescricao || null,
+          responsavel_id: novaEtapaResponsavel ? Number(novaEtapaResponsavel) : null,
+          prazo: novaEtapaPrazo || null,
+        }),
+      });
+      await carregarEtapas();
+      setNovaEtapaTitulo("");
+      setNovaEtapaDescricao("");
+      setNovaEtapaResponsavel("");
+      setNovaEtapaPrazo("");
+      setNovaEtapaAberta(false);
+      toast("Etapa criada", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEtapaLoading(false);
+    }
+  };
+
+  const handleToggleEtapa = async (etapa) => {
+    setEtapaLoading(true);
+    try {
+      const acao = etapa.status === "concluida" ? "reabrir" : "concluir";
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas/${etapa.id}/${acao}`, { method: "POST" });
+      await carregarEtapas();
+      if (acao === "concluir") {
+        // A automação pode ter movido a coluna ou finalizado a tarefa — recarrega o card.
+        const t = await EnvoxersAPI.api(`/tarefas/${tarefaId}`);
+        setTarefa(t);
+        setStatus(t.status);
+      }
+      toast(acao === "concluir" ? "Etapa concluída" : "Etapa reaberta", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEtapaLoading(false);
+    }
+  };
+
+  const handleAbrirAutomacao = (etapa) => {
+    if (automacaoAbertaId === etapa.id) {
+      setAutomacaoAbertaId(null);
+      return;
+    }
+    setAutomacaoAbertaId(etapa.id);
+    setAutomacaoAcao(etapa.automacao?.acao || "LIBERAR_PROXIMA_ETAPA");
+    setAutomacaoColuna(etapa.automacao?.coluna_destino || "");
+  };
+
+  const handleSalvarAutomacao = async (etapaId) => {
+    if (automacaoAcao === "MOVER_TAREFA_COLUNA" && !automacaoColuna) {
+      toast("Selecione a coluna de destino", "error");
+      return;
+    }
+    setEtapaLoading(true);
+    try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas/${etapaId}/automacao`, {
+        method: "PUT",
+        body: JSON.stringify({
+          acao: automacaoAcao,
+          coluna_destino: automacaoAcao === "MOVER_TAREFA_COLUNA" ? automacaoColuna : null,
+          ativo: true,
+        }),
+      });
+      await carregarEtapas();
+      setAutomacaoAbertaId(null);
+      toast("Automação configurada", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEtapaLoading(false);
+    }
+  };
+
   const cliente = clientes.find((c) => String(c.id) === clienteId);
   const responsavel = envoxersList.find((e) => String(e.id) === responsavelId);
   const focoNestaTarefa = focoAtivo && isEdit && focoAtivo.tarefa_id === tarefaId;
@@ -693,6 +797,110 @@ function TaskModal({ tarefaId, statusInicial, permissao, clientes, envoxersList,
 
               <div className="modal-section-title">Legenda <EnvoxersShared.HelpIcon helpKey="modal_legenda" /></div>
               <textarea value={legenda} onChange={(e) => setLegenda(e.target.value)} placeholder="Texto que acompanha o criativo" style={{ width: "100%", minHeight: 70 }}></textarea>
+
+              {isEdit && (
+                <>
+                  <div className="modal-section-title">Etapas do processo <EnvoxersShared.HelpIcon helpKey="modal_etapas" /></div>
+                  <div className="etapa-list">
+                    {etapas.length === 0 && (
+                      <div style={{ color: "var(--ink-4)", fontSize: 13, marginBottom: 8 }}>nenhuma etapa cadastrada</div>
+                    )}
+                    {etapas.map((etapa) => {
+                      const concluida = etapa.status === "concluida";
+                      const podeConcluir =
+                        permissao === "admin" ||
+                        permissao === "gestor" ||
+                        (etapa.responsavel_id != null && envoxerId != null && etapa.responsavel_id === envoxerId);
+                      const desabilitado = etapa.bloqueada || !podeConcluir;
+                      let tituloCheckbox = "";
+                      if (etapa.bloqueada) tituloCheckbox = "Bloqueada até a etapa anterior ser concluída";
+                      else if (!podeConcluir) tituloCheckbox = "Só o responsável da etapa (ou gestor/admin) pode concluir";
+
+                      return (
+                        <div className="etapa-item" key={etapa.id}>
+                          <input
+                            type="checkbox"
+                            className="etapa-checkbox"
+                            checked={concluida}
+                            disabled={desabilitado || etapaLoading}
+                            title={tituloCheckbox}
+                            onChange={() => handleToggleEtapa(etapa)}
+                          />
+                          <div className="etapa-body">
+                            <div className="etapa-head">
+                              <span className={"etapa-titulo" + (concluida ? " concluida" : "")}>{etapa.titulo}</span>
+                              {etapa.bloqueada && (
+                                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="etapa-icon" title="Bloqueada">
+                                  <rect x="3" y="7" width="10" height="7" rx="1" /><path d="M5 7V5a3 3 0 0 1 6 0v2" />
+                                </svg>
+                              )}
+                              {etapa.automacao && etapa.automacao.ativo && (
+                                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" className="etapa-icon" title="Tem automação configurada">
+                                  <path d="M9 1L3 9h4l-1 6 6-8H8z" />
+                                </svg>
+                              )}
+                            </div>
+                            {etapa.descricao && <div className="etapa-desc">{etapa.descricao}</div>}
+                            <div className="etapa-meta">
+                              {etapa.responsavel_nome && (
+                                <span className="etapa-meta-item">
+                                  <span className="avatar sm gray">{initialsKb(etapa.responsavel_nome)}</span> {etapa.responsavel_nome}
+                                </span>
+                              )}
+                              {etapa.prazo && <span className="etapa-meta-item">{fmtPrazoKb(etapa.prazo).txt}</span>}
+                              <button className="etapa-automacao-toggle" onClick={() => handleAbrirAutomacao(etapa)}>
+                                {etapa.automacao ? "Editar automação" : "+ Configurar automação"}
+                              </button>
+                            </div>
+                            {automacaoAbertaId === etapa.id && (
+                              <div className="etapa-automacao-form">
+                                <select value={automacaoAcao} onChange={(e) => setAutomacaoAcao(e.target.value)}>
+                                  <option value="LIBERAR_PROXIMA_ETAPA">Liberar próxima etapa</option>
+                                  <option value="MOVER_TAREFA_COLUNA">Mover tarefa de coluna</option>
+                                  <option value="MARCAR_TAREFA_CONCLUIDA">Marcar tarefa como Finalizado</option>
+                                  <option value="CRIAR_ALERTA_RESPONSAVEL">Criar alerta para o responsável</option>
+                                </select>
+                                {automacaoAcao === "MOVER_TAREFA_COLUNA" && (
+                                  <select value={automacaoColuna} onChange={(e) => setAutomacaoColuna(e.target.value)} style={{ marginTop: 6 }}>
+                                    <option value="">Coluna de destino…</option>
+                                    {STATUS_COLS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                                  </select>
+                                )}
+                                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                                  <button className="btn btn-envox btn-sm" onClick={() => handleSalvarAutomacao(etapa.id)} disabled={etapaLoading}>Salvar</button>
+                                  <button className="btn btn-sm" onClick={() => setAutomacaoAbertaId(null)}>Cancelar</button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {novaEtapaAberta ? (
+                    <div className="comment-box" style={{ marginTop: 8 }}>
+                      <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+                        <input type="text" value={novaEtapaTitulo} onChange={(e) => setNovaEtapaTitulo(e.target.value)} placeholder="Título da etapa" />
+                        <textarea value={novaEtapaDescricao} onChange={(e) => setNovaEtapaDescricao(e.target.value)} placeholder="Descrição (opcional)" style={{ minHeight: 50 }}></textarea>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <select value={novaEtapaResponsavel} onChange={(e) => setNovaEtapaResponsavel(e.target.value)} style={{ flex: 1 }}>
+                            <option value="">Responsável…</option>
+                            {envoxersList.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                          </select>
+                          <input type="date" value={novaEtapaPrazo} onChange={(e) => setNovaEtapaPrazo(e.target.value)} style={{ flex: 1 }} />
+                        </div>
+                      </div>
+                      <div className="comment-box-actions" style={{ gap: 8 }}>
+                        <button className="btn btn-sm" onClick={() => setNovaEtapaAberta(false)}>Cancelar</button>
+                        <button className="btn btn-envox btn-sm" onClick={handleCriarEtapa} disabled={etapaLoading}>Adicionar etapa</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setNovaEtapaAberta(true)}>+ Nova etapa</button>
+                  )}
+                </>
+              )}
 
               {isEdit && status === "revisao_interna" && (permissao === "admin" || permissao === "gestor") && (
                 <>

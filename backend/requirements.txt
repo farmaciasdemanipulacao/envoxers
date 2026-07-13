@@ -26,3 +26,6 @@ structlog==24.4.0
 # === UTILITÁRIOS ===
 python-dateutil==2.9.0.post0
 pytz==2024.2
+
+# === WEB PUSH NOTIFICATIONS ===
+pywebpush>=2.0.0

@@ -2,7 +2,7 @@
 Configurações centrais do Envoxers.
 Todas as configurações vêm de variáveis de ambiente (.env).
 """
-from typing import Union
+from typing import Optional, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "CHANGE_THIS_IN_PRODUCTION_USE_64_RANDOM_CHARS"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 8  # 8 horas
+
+    # === PUSH NOTIFICATIONS (VAPID) ===
+    VAPID_PUBLIC_KEY: Optional[str] = None
+    VAPID_PRIVATE_KEY: Optional[str] = None
+    VAPID_CLAIM_EMAIL: str = "admin@envox.com.br"
 
     # === CORS ===
     ALLOWED_ORIGINS: Union[list[str], str] = ["http://localhost:8081"]

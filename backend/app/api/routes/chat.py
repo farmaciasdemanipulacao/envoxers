@@ -1,8 +1,10 @@
 """Chat interno — canal geral, canal por cliente (auto-provisionado) e DMs 1:1.
 
 Envio de mensagem é sempre via POST REST (persiste e depois notifica via WS);
-o WebSocket só empurra eventos para quem está conectado, não recebe conteúdo.
+o WebSocket empurra eventos pra quem está conectado e recebe só sinais de
+visibilidade da aba do cliente (usado pra decidir push de mensagem nova).
 """
+import json
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
@@ -19,6 +21,7 @@ from app.models.chat_leitura import ChatLeitura
 from app.models.chat_mensagem import ChatMensagem
 from app.models.cliente import Cliente
 from app.models.envoxer import Envoxer
+from app.models.alerta_config import AlertaConfig
 from app.schemas.chat import ChatCanalResponse, ChatMensagemCreate, ChatMensagemResponse
 from app.services.chat_ws_manager import chat_ws_manager
 
@@ -231,6 +234,22 @@ async def enviar_mensagem(
     payload_ws = {"tipo": "mensagem_nova", "canal_id": canal_id, "mensagem": resposta.model_dump(mode="json")}
     if canal.tipo == "dm":
         await chat_ws_manager.broadcast_dm(canal.dm_envoxer_a_id, canal.dm_envoxer_b_id, payload_ws)
+
+        # Push só em DM (e só pra quem não está com a aba visível) — em canal
+        # geral/cliente notificar toda mensagem viraria spam, já que não existe
+        # silenciar canal ainda. Também respeita o toggle "chat_dm" do admin.
+        destinatario_id = canal.dm_envoxer_b_id if canal.dm_envoxer_a_id == envoxer.id else canal.dm_envoxer_a_id
+        if not chat_ws_manager.esta_visivel(destinatario_id):
+            config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_dm"))
+            config_chat = config_result.scalar_one_or_none()
+            if config_chat is None or config_chat.ativo:
+                from app.services.push import broadcast_push
+                await broadcast_push(
+                    db, destinatario_id,
+                    title=envoxer.nome,
+                    body=(texto or "Enviou um anexo")[:180],
+                    tag="envoxers-chat",
+                )
     else:
         result = await db.execute(select(Envoxer.id).where(Envoxer.ativo == True))  # noqa: E712
         ids_ativos = [row[0] for row in result.all()]
@@ -272,7 +291,13 @@ async def chat_ws(websocket: WebSocket, token: str = Query(...)):
     await chat_ws_manager.conectar(envoxer_id, websocket)
     try:
         while True:
-            await websocket.receive_text()  # mantém a conexão viva; conteúdo recebido é ignorado
+            texto = await websocket.receive_text()
+            try:
+                msg = json.loads(texto)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if msg.get("tipo") == "visibilidade":
+                chat_ws_manager.marcar_visibilidade(envoxer_id, websocket, bool(msg.get("visivel")))
     except WebSocketDisconnect:
         pass
     finally:
