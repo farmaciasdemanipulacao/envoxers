@@ -99,6 +99,10 @@ async def obter_cliente(
         ClienteServicoItem(servico_id=cs.servico_id, valor_mensal=float(cs.valor_mensal), observacao=cs.observacao)
         for cs in servicos_result.scalars().all()
     ]
+
+    escopo_result = await db.execute(select(Escopo).where(Escopo.cliente_id == cliente_id))
+    escopo = escopo_result.scalar_one_or_none()
+    resp.limite_alteracoes = escopo.limite_alteracoes if escopo else 2
     return resp
 
 

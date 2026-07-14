@@ -23,6 +23,7 @@ class AnexoItem(BaseModel):
 class TarefaBase(BaseModel):
     cliente_id: int
     servico_id: Optional[int] = None
+    item_escopo_id: Optional[int] = None
     titulo: str
     tipo_tarefa: Optional[str] = None
     responsavel_envoxer_id: Optional[int] = None
@@ -42,6 +43,7 @@ class TarefaUpdate(BaseModel):
 
     cliente_id: Optional[int] = None
     servico_id: Optional[int] = None
+    item_escopo_id: Optional[int] = None
     titulo: Optional[str] = None
     tipo_tarefa: Optional[str] = None
     responsavel_envoxer_id: Optional[int] = None

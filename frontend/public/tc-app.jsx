@@ -366,6 +366,7 @@ function AppShell() {
     solicitacoes: "Farol / Solicitações do cliente",
     farol: "Farol / Farol Inteligente",
     alertas: "Farol / Alertas",
+    entregaveis: "Entregáveis / Controle de Entregáveis",
     icp: "ICP / ICP Builder",
     faturamento: "Faturamento / Painel de faturamento",
     churn: "ICP / Cancelamentos",
@@ -429,6 +430,7 @@ function AppShell() {
         {view === "relatorio" && <RelatorioScreen />}
         {view === "farol" && <FarolScreen />}
         {view === "alertas" && <AlertasScreen onAbrirCliente={abrirCliente} />}
+        {view === "entregaveis" && <EntregaveisScreen onAbrirCliente={abrirCliente} />}
         {view === "icp" && <IcpScreen />}
         {view === "faturamento" && <FaturamentoScreen />}
         {view === "churn" && <ChurnListaScreen />}

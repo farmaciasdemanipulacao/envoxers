@@ -14,11 +14,9 @@ class ClienteServicoItem(BaseModel):
 
 
 class EscopoItem(BaseModel):
-    posts_mes: int = 0
-    videos_mes: int = 0
-    campanhas_mes: int = 0
+    """Só o limite de alterações por peça — as quantidades contratadas (posts,
+    vídeos, etc.) viraram `ItemEscopo` (ver item_escopo.py), com tela própria."""
     limite_alteracoes: int = 2
-    outros_itens: Optional[str] = None
 
 
 class ClienteBase(BaseModel):
@@ -69,6 +67,7 @@ class ClienteResponse(ClienteBase):
     perfil: Optional[PerfilClienteResponse] = None
     churn: Optional[ChurnSnapshotResponse] = None
     servicos: list[ClienteServicoItem] = []
+    limite_alteracoes: int = 2
 
     class Config:
         from_attributes = True

@@ -186,6 +186,18 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
         </nav>
       </div>
 
+      <div className="nav-section">
+        <div className="nav-section-title">Entregáveis</div>
+        <nav className="nav">
+          {item(
+            "entregaveis",
+            "Controle de Entregáveis",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 8l3 3 7-7" /><rect x="2" y="2" width="12" height="12" rx="2" /></svg>,
+            "nav_entregaveis"
+          )}
+        </nav>
+      </div>
+
       <div className="nav-section" style={{ marginTop: "auto" }}>
         <div className="nav-section-title">F2 · Farol</div>
         <nav className="nav">
@@ -455,6 +467,7 @@ const HELP_TEXTS = {
   solic_acao: { t: "Ações da solicitação", b: "<p><strong>Virar demanda</strong> cria um card no Kanban com os dados. <strong>Em análise</strong> só marca como vista. <strong>Recusar</strong> exige motivo — cliente é notificado.</p>" },
   nav_farol: { t: "Farol de clientes", b: "<p>Todos os clientes ordenados por risco (health score 0-100). Vermelho = ligação essa semana. Amarelo = próximos 15 dias. Verde = mensal.</p>" },
   nav_alertas: { t: "Central de alertas", b: "<p>Toda vez que um cliente muda de farol, um alerta é criado com motivo específico e sugestão de ação. Reconheça, resolva, ou ignore com justificativa.</p>" },
+  nav_entregaveis: { t: "Controle de Entregáveis", b: "<p>Contratado × entregue por cliente, calculado a partir dos itens de escopo e das tarefas finalizadas no Kanban. Gaps em meses fechados viram alerta automaticamente.</p>" },
   nav_icp: { t: "ICP Builder", b: "<p>Compara clientes que ficaram &gt;12 meses com os que saíram em &lt;6 meses. A diferença entre os dois grupos é o seu ICP (quem buscar) e anti-ICP (quem evitar).</p>" },
   nav_churn: { t: "Cancelamentos", b: "<p>Histórico de churn. Cada cancelamento congela snapshot dos dados do cliente (segmento, ticket, canal, perfil) — sem isso o ICP builder mente.</p>" },
   nav_faturamento: { t: "Painel de faturamento", b: "<p>MRR real, concentração top 3, receita em risco, projeção 90 dias, curva de retenção por cohort. A previsibilidade que substitui a montanha-russa.</p>" },
@@ -511,7 +524,7 @@ const HELP_TEXTS = {
   form_cli_contrato: { t: "Contrato", b: "<p>Os campos aqui alimentam o Painel de faturamento e a projeção 90 dias. <code>Tipo de receita</code> separa recorrente (MRR) de pontual (não conta no MRR).</p>" },
   form_cli_icp: { t: "Dados de ICP", b: "<p>Estes campos parecem opcionais, mas são o que faz o ICP Builder funcionar em F3.</p><p>Cadastro pobre aqui = ICP cego lá. Preencha mesmo estimando.</p>" },
   form_cli_servicos: { t: "Serviços contratados", b: "<p>Marque os serviços do cliente e o valor mensal de cada um. A soma é <em>checagem</em> contra o <code>valor_contrato</code> — divergência maior que 10% acende alerta.</p>" },
-  form_cli_escopo: { t: "Escopo mensal", b: "<p>Volumes contratados. O <code>limite de alterações</code> vira o sinal 3 do farol — passar do limite acende amarelo.</p>" },
+  form_cli_escopo: { t: "Escopo & Entregáveis", b: "<p>Itens contratados (posts, vídeos, fotos, GMN…) com quantidade e cadência mensal/pontual. O <code>limite de alterações</code> vira o sinal 3 do farol — passar do limite acende amarelo. A reconciliação compara contratado × entregue automaticamente a partir das tarefas finalizadas no Kanban.</p>" },
   form_cli_links: { t: "Links e observações", b: "<p>Perfis do cliente e notas internas. As observações não são vistas pelo cliente.</p>" },
 
   // --- KPIs de Clientes

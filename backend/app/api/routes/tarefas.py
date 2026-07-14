@@ -32,6 +32,7 @@ def _to_response(tarefa: Tarefa, cliente_nome: str, cliente_farol: str, servico_
         id=tarefa.id,
         cliente_id=tarefa.cliente_id,
         servico_id=tarefa.servico_id,
+        item_escopo_id=tarefa.item_escopo_id,
         titulo=tarefa.titulo,
         tipo_tarefa=tarefa.tipo_tarefa,
         responsavel_envoxer_id=tarefa.responsavel_envoxer_id,

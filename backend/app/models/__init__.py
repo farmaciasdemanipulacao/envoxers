@@ -5,6 +5,10 @@ from app.models.cliente import Cliente  # noqa: F401
 from app.models.cliente_servico import ClienteServico  # noqa: F401
 from app.models.cliente_contato import ClienteContato  # noqa: F401
 from app.models.escopo import Escopo  # noqa: F401
+from app.models.item_escopo import ItemEscopo  # noqa: F401
+from app.models.item_escopo_historico import ItemEscopoHistorico  # noqa: F401
+from app.models.entrega_manual import EntregaManual  # noqa: F401
+from app.models.alerta_entrega import AlertaEntrega  # noqa: F401
 from app.models.tarefa import Tarefa  # noqa: F401
 from app.models.registro_foco import RegistroFoco  # noqa: F401
 from app.models.aprovacao import Aprovacao  # noqa: F401
