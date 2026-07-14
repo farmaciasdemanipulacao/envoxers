@@ -16,7 +16,7 @@ from app.models.envoxer import Envoxer
 from app.models.servico import Servico
 from app.models.motivo_churn import MotivoChurnCatalogo
 from app.models.chat_canal import ChatCanal
-from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template
+from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth
 
 logger = structlog.get_logger()
 
@@ -133,6 +133,8 @@ app.include_router(alertas_config.router, prefix=API_PREFIX)
 app.include_router(etapas.router, prefix=API_PREFIX)
 app.include_router(pendencias.router, prefix=API_PREFIX)
 app.include_router(etapas_template.router, prefix=API_PREFIX)
+app.include_router(cliente_contatos.router, prefix=API_PREFIX)
+app.include_router(portal_auth.router, prefix=API_PREFIX)
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount(f"{API_PREFIX}/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")

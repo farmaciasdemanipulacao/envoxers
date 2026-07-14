@@ -3,6 +3,7 @@ from app.models.envoxer import Envoxer  # noqa: F401
 from app.models.servico import Servico  # noqa: F401
 from app.models.cliente import Cliente  # noqa: F401
 from app.models.cliente_servico import ClienteServico  # noqa: F401
+from app.models.cliente_contato import ClienteContato  # noqa: F401
 from app.models.escopo import Escopo  # noqa: F401
 from app.models.tarefa import Tarefa  # noqa: F401
 from app.models.registro_foco import RegistroFoco  # noqa: F401
