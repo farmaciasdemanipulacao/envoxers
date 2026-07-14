@@ -9,6 +9,8 @@ from app.models.item_escopo import ItemEscopo  # noqa: F401
 from app.models.item_escopo_historico import ItemEscopoHistorico  # noqa: F401
 from app.models.entrega_manual import EntregaManual  # noqa: F401
 from app.models.alerta_entrega import AlertaEntrega  # noqa: F401
+from app.models.documento_acordo import DocumentoAcordo  # noqa: F401
+from app.models.documento_confirmacao import DocumentoConfirmacao  # noqa: F401
 from app.models.tarefa import Tarefa  # noqa: F401
 from app.models.registro_foco import RegistroFoco  # noqa: F401
 from app.models.aprovacao import Aprovacao  # noqa: F401

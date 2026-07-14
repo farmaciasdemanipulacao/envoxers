@@ -21,6 +21,16 @@ const HUMOR_CHECKIN_COLOR = { positivo: "var(--farol-verde)", neutro: "var(--far
 const PERFIL_CLIENTE_LABELS = { facil: "Fácil", neutro: "Neutro", dificil: "Difícil" };
 const PERFIL_CLIENTE_COLOR = { facil: "var(--farol-verde)", neutro: "var(--farol-amarelo)", dificil: "var(--farol-vermelho)" };
 
+const STATUS_DOCUMENTO_LABELS = { aguardando_confirmacoes: "Aguardando confirmações", vigente: "Vigente", cancelado: "Cancelado" };
+const STATUS_DOCUMENTO_CORES = { aguardando_confirmacoes: "var(--farol-amarelo)", vigente: "var(--farol-verde)", cancelado: "var(--ink-4)" };
+
+const TIPO_ITEM_ESCOPO_SUGESTOES = ["post_social", "post_blog", "post_gmn", "foto", "video", "campanha", "reuniao", "outro"];
+const STATUS_RECONCILIACAO_LABELS = { completo: "Completo", parcial: "Parcial", nao_entregue: "Não entregue", excedente: "Excedente", em_andamento: "Em andamento" };
+const STATUS_RECONCILIACAO_CORES = {
+  completo: "var(--farol-verde)", excedente: "var(--farol-verde)", parcial: "var(--farol-amarelo)",
+  nao_entregue: "var(--farol-vermelho)", em_andamento: "var(--ink-3)",
+};
+
 function anoMesAtual() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -122,6 +132,7 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
     return (
       <ClienteForm
         clienteId={editando.id || null}
+        permissao={permissao}
         onCancel={() => setEditando(null)}
         onSaved={() => { setEditando(null); carregar(); }}
       />
@@ -250,7 +261,7 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
   );
 }
 
-function ClienteForm({ clienteId, onCancel, onSaved }) {
+function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
   const isEdit = !!clienteId;
   const toast = EnvoxersShared.useToast();
   const [loading, setLoading] = useStateCli(isEdit);
@@ -275,11 +286,44 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
   const [ticket, setTicket] = useStateCli("");
   const [maturidade, setMaturidade] = useStateCli("media");
   const [servicosSelecionados, setServicosSelecionados] = useStateCli({}); // { servico_id: valor_mensal }
-  const [postsMes, setPostsMes] = useStateCli(0);
-  const [videosMes, setVideosMes] = useStateCli(0);
-  const [campanhasMes, setCampanhasMes] = useStateCli(0);
   const [limiteAlteracoes, setLimiteAlteracoes] = useStateCli(2);
-  const [outrosItens, setOutrosItens] = useStateCli("");
+
+  const [itensEscopoList, setItensEscopoList] = useStateCli([]);
+  const [savingItemEscopo, setSavingItemEscopo] = useStateCli(false);
+  const [itemTipo, setItemTipo] = useStateCli("");
+  const [itemDescricao, setItemDescricao] = useStateCli("");
+  const [itemCadencia, setItemCadencia] = useStateCli("mensal");
+  const [itemQuantidade, setItemQuantidade] = useStateCli(0);
+  const [reconciliacao, setReconciliacao] = useStateCli([]);
+  const [loadingReconciliacao, setLoadingReconciliacao] = useStateCli(false);
+  const [entregaItemId, setEntregaItemId] = useStateCli("");
+  const [entregaAnoMes, setEntregaAnoMes] = useStateCli(anoMesAtual());
+  const [entregaQuantidade, setEntregaQuantidade] = useStateCli(1);
+  const [entregaObs, setEntregaObs] = useStateCli("");
+  const [savingEntrega, setSavingEntrega] = useStateCli(false);
+
+  const carregarItensEscopo = async () => {
+    if (!isEdit) return;
+    try {
+      const itens = await EnvoxersAPI.api(`/clientes/${clienteId}/itens-escopo`);
+      setItensEscopoList(itens);
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const carregarReconciliacao = async () => {
+    if (!isEdit) return;
+    setLoadingReconciliacao(true);
+    try {
+      const meses = await EnvoxersAPI.api(`/clientes/${clienteId}/reconciliacao?meses=6`);
+      setReconciliacao(meses);
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setLoadingReconciliacao(false);
+    }
+  };
   const [instagram, setInstagram] = useStateCli("");
   const [facebook, setFacebook] = useStateCli("");
   const [site, setSite] = useStateCli("");
@@ -307,6 +351,40 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
   const [checkinHumor, setCheckinHumor] = useStateCli("");
   const [checkinObs, setCheckinObs] = useStateCli("");
   const [checkinProximo, setCheckinProximo] = useStateCli("");
+
+  const [contatosList, setContatosList] = useStateCli([]);
+  const [savingContato, setSavingContato] = useStateCli(false);
+  const [contatoNome, setContatoNome] = useStateCli("");
+  const [contatoCargo, setContatoCargo] = useStateCli("");
+  const [contatoEmail, setContatoEmail] = useStateCli("");
+  const [linkGerado, setLinkGerado] = useStateCli(null); // { contatoId, url }
+
+  const [documentosList, setDocumentosList] = useStateCli([]);
+  const [savingDocumento, setSavingDocumento] = useStateCli(false);
+  const [docMotivo, setDocMotivo] = useStateCli("");
+  const [docItensSelecionados, setDocItensSelecionados] = useStateCli({}); // { item_id: nova_quantidade }
+  const [docEnvoxerIds, setDocEnvoxerIds] = useStateCli({}); // { envoxer_id: true }
+  const [docContatoIds, setDocContatoIds] = useStateCli({}); // { contato_id: true }
+
+  const carregarDocumentos = async () => {
+    if (!isEdit) return;
+    try {
+      const docs = await EnvoxersAPI.api(`/clientes/${clienteId}/documentos-acordo`);
+      setDocumentosList(docs);
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const carregarContatos = async () => {
+    if (!isEdit) return;
+    try {
+      const contatos = await EnvoxersAPI.api(`/clientes/${clienteId}/contatos`);
+      setContatosList(contatos);
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
 
   const carregarPulsoCheckin = async () => {
     if (!isEdit) return;
@@ -349,6 +427,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           setObservacoes(c.observacoes || "");
           setPerfil(c.perfil || null);
           setChurn(c.churn || null);
+          setLimiteAlteracoes(c.limite_alteracoes ?? 2);
           if (Array.isArray(c.servicos)) {
             const sel = {};
             c.servicos.forEach((cs) => { sel[cs.servico_id] = { valor_mensal: cs.valor_mensal }; });
@@ -360,6 +439,10 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             setSite(c.links_redes.site || "");
           }
           await carregarPulsoCheckin();
+          await carregarContatos();
+          await carregarItensEscopo();
+          await carregarReconciliacao();
+          await carregarDocumentos();
         }
       } catch (err) {
         toast(err.message, "error");
@@ -415,11 +498,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           valor_mensal: Number(v.valor_mensal) || 0,
         })),
         escopo: {
-          posts_mes: Number(postsMes) || 0,
-          videos_mes: Number(videosMes) || 0,
-          campanhas_mes: Number(campanhasMes) || 0,
           limite_alteracoes: Number(limiteAlteracoes) || 0,
-          outros_itens: outrosItens || null,
         },
       };
 
@@ -522,6 +601,230 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
     }
   };
 
+  const handleCriarContato = async () => {
+    if (!contatoNome || !contatoEmail) {
+      toast("Nome e e-mail são obrigatórios", "error");
+      return;
+    }
+    setSavingContato(true);
+    try {
+      const resp = await EnvoxersAPI.api(`/clientes/${clienteId}/contatos`, {
+        method: "POST",
+        body: JSON.stringify({ nome: contatoNome, cargo: contatoCargo || null, email: contatoEmail }),
+      });
+      toast("Contato criado! Copie o link de definição de senha abaixo.", "success");
+      setContatoNome("");
+      setContatoCargo("");
+      setContatoEmail("");
+      setLinkGerado({ contatoId: resp.id, url: `${window.location.origin}${resp.link_definicao_senha}` });
+      await carregarContatos();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSavingContato(false);
+    }
+  };
+
+  const handleReenviarLink = async (contatoId) => {
+    try {
+      const resp = await EnvoxersAPI.api(`/clientes/${clienteId}/contatos/${contatoId}/reenviar-link`, { method: "POST" });
+      setLinkGerado({ contatoId: resp.id, url: `${window.location.origin}${resp.link_definicao_senha}` });
+      toast("Novo link gerado — copie e envie ao contato.", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const handleToggleAtivoContato = async (contato) => {
+    try {
+      await EnvoxersAPI.api(`/clientes/${clienteId}/contatos/${contato.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ativo: !contato.ativo }),
+      });
+      await carregarContatos();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const handleCopiarLink = async (url) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("Link copiado!", "success");
+    } catch (err) {
+      toast("Não foi possível copiar — selecione o link manualmente", "error");
+    }
+  };
+
+  const handleCriarItemEscopo = async () => {
+    if (!itemTipo) {
+      toast("Informe o tipo do item", "error");
+      return;
+    }
+    setSavingItemEscopo(true);
+    try {
+      await EnvoxersAPI.api(`/clientes/${clienteId}/itens-escopo`, {
+        method: "POST",
+        body: JSON.stringify({
+          tipo: itemTipo, descricao: itemDescricao || null, cadencia: itemCadencia,
+          quantidade: Number(itemQuantidade) || 0,
+        }),
+      });
+      toast("Item de escopo criado!", "success");
+      setItemTipo("");
+      setItemDescricao("");
+      setItemQuantidade(0);
+      await carregarItensEscopo();
+      await carregarReconciliacao();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSavingItemEscopo(false);
+    }
+  };
+
+  const handleAtualizarQuantidadeItem = async (item) => {
+    const novaStr = window.prompt(`Nova quantidade contratada para "${item.tipo}" (atual: ${item.quantidade}):`, item.quantidade);
+    if (novaStr === null) return;
+    const nova = Number(novaStr);
+    if (Number.isNaN(nova) || nova < 0) {
+      toast("Quantidade inválida", "error");
+      return;
+    }
+    if (nova === item.quantidade) return;
+    const motivo = window.prompt("Motivo da mudança (obrigatório):", "");
+    if (!motivo) {
+      toast("Motivo é obrigatório para mudar a quantidade", "error");
+      return;
+    }
+    try {
+      await EnvoxersAPI.api(`/clientes/${clienteId}/itens-escopo/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ quantidade: nova, motivo }),
+      });
+      toast("Quantidade atualizada!", "success");
+      await carregarItensEscopo();
+      await carregarReconciliacao();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const handleToggleAtivoItem = async (item) => {
+    try {
+      await EnvoxersAPI.api(`/clientes/${clienteId}/itens-escopo/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ativo: !item.ativo }),
+      });
+      await carregarItensEscopo();
+      await carregarReconciliacao();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const handleLancarEntregaManual = async () => {
+    if (!entregaItemId) {
+      toast("Selecione o item", "error");
+      return;
+    }
+    setSavingEntrega(true);
+    try {
+      await EnvoxersAPI.api(`/clientes/${clienteId}/itens-escopo/${entregaItemId}/lancar-entrega`, {
+        method: "POST",
+        body: JSON.stringify({ ano_mes: entregaAnoMes, quantidade: Number(entregaQuantidade) || 0, observacao: entregaObs || null }),
+      });
+      toast("Entrega lançada!", "success");
+      setEntregaObs("");
+      await carregarReconciliacao();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSavingEntrega(false);
+    }
+  };
+
+  const toggleItemDocumento = (item) => {
+    setDocItensSelecionados((prev) => {
+      const next = { ...prev };
+      if (item.id in next) {
+        delete next[item.id];
+      } else {
+        next[item.id] = item.quantidade;
+      }
+      return next;
+    });
+  };
+
+  const toggleEnvoxerDocumento = (envoxerId) => {
+    setDocEnvoxerIds((prev) => ({ ...prev, [envoxerId]: !prev[envoxerId] }));
+  };
+
+  const toggleContatoDocumento = (contatoId) => {
+    setDocContatoIds((prev) => ({ ...prev, [contatoId]: !prev[contatoId] }));
+  };
+
+  const handleCriarDocumentoAcordo = async () => {
+    const itens = Object.entries(docItensSelecionados).map(([item_escopo_id, quantidade_nova]) => ({
+      item_escopo_id: Number(item_escopo_id), quantidade_nova: Number(quantidade_nova),
+    }));
+    const envoxerIds = Object.entries(docEnvoxerIds).filter(([, v]) => v).map(([id]) => Number(id));
+    const contatoIds = Object.entries(docContatoIds).filter(([, v]) => v).map(([id]) => Number(id));
+
+    if (!docMotivo) {
+      toast("Descreva o motivo da alteração", "error");
+      return;
+    }
+    if (itens.length === 0) {
+      toast("Selecione ao menos 1 item de escopo pra alterar", "error");
+      return;
+    }
+    if (envoxerIds.length === 0 && contatoIds.length === 0) {
+      toast("Selecione ao menos 1 pessoa pra confirmar (interno ou contato do cliente)", "error");
+      return;
+    }
+    setSavingDocumento(true);
+    try {
+      await EnvoxersAPI.api(`/clientes/${clienteId}/documentos-acordo`, {
+        method: "POST",
+        body: JSON.stringify({ motivo: docMotivo, itens, envoxer_ids: envoxerIds, cliente_contato_ids: contatoIds }),
+      });
+      toast("Documento de acordo criado! Aguardando confirmações.", "success");
+      setDocMotivo("");
+      setDocItensSelecionados({});
+      setDocEnvoxerIds({});
+      setDocContatoIds({});
+      await carregarDocumentos();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSavingDocumento(false);
+    }
+  };
+
+  const handleConfirmarDocumento = async (doc) => {
+    try {
+      await EnvoxersAPI.api(`/documentos-acordo/${doc.id}/confirmar`, { method: "POST" });
+      toast("Confirmado!", "success");
+      await carregarDocumentos();
+      await carregarItensEscopo();
+      await carregarReconciliacao();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const handleCancelarDocumento = async (doc) => {
+    if (!confirm("Cancelar este documento de acordo?")) return;
+    try {
+      await EnvoxersAPI.api(`/documentos-acordo/${doc.id}/cancelar`, { method: "POST" });
+      toast("Documento cancelado", "success");
+      await carregarDocumentos();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
   const irParaSecao = (i) => {
     setSecaoAtiva(i);
     suprimirObserverRef.current = true;
@@ -568,7 +871,7 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
     return <div className="page"><div className="app-loading">Carregando cliente…</div></div>;
   }
 
-  const secoes = ["Identidade", "Contrato", "ICP", "Serviços", "Escopo mensal", "Links & obs.", "Pulso & Check-in", "Perfil Comportamental"];
+  const secoes = ["Identidade", "Contrato", "ICP", "Serviços", "Escopo mensal", "Links & obs.", "Pulso & Check-in", "Perfil Comportamental", "Contatos do Portal", "Documentos de Acordo"];
 
   const proximoSugerido = checkinList.find((c) => c.proximo_sugerido && !c.proximo_realizado)?.proximo_sugerido;
 
@@ -761,31 +1064,148 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
           </div>
 
           <div className="form-section" id="secao-escopo" ref={(el) => (secaoRefs.current[4] = el)}>
-            <div className="form-section-title">05 · Escopo mensal <EnvoxersShared.HelpIcon helpKey="form_cli_escopo" /></div>
-            <div className="form-section-hint">Volumes contratados. O <em>limite de alterações</em> vira sinal do Farol em F2.</div>
-            <div className="form-row three">
-              <div className="field">
-                <label>Posts/mês</label>
-                <input type="number" min="0" value={postsMes} onChange={(e) => setPostsMes(e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Vídeos/mês</label>
-                <input type="number" min="0" value={videosMes} onChange={(e) => setVideosMes(e.target.value)} />
-              </div>
-              <div className="field">
-                <label>Campanhas/mês</label>
-                <input type="number" min="0" value={campanhasMes} onChange={(e) => setCampanhasMes(e.target.value)} />
-              </div>
-              <div className="field span-2">
-                <label>Limite de alterações por peça</label>
-                <input type="number" min="0" value={limiteAlteracoes} onChange={(e) => setLimiteAlteracoes(e.target.value)} />
-                <div className="field-help">Padrão 2. Passar disso gera alerta em F2.</div>
-              </div>
+            <div className="form-section-title">05 · Escopo & Entregáveis <EnvoxersShared.HelpIcon helpKey="form_cli_escopo" /></div>
+            <div className="form-section-hint">Itens contratados (posts, vídeos, fotos, GMN…) com quantidade e cadência — controle de entregáveis. O <em>limite de alterações</em> vira sinal do Farol em F2.</div>
+
+            <div className="field span-2" style={{ maxWidth: 320 }}>
+              <label>Limite de alterações por peça</label>
+              <input type="number" min="0" value={limiteAlteracoes} onChange={(e) => setLimiteAlteracoes(e.target.value)} />
+              <div className="field-help">Padrão 2. Passar disso gera alerta em F2.</div>
             </div>
-            <div className="field" style={{ marginTop: 12 }}>
-              <label>Outros itens do escopo</label>
-              <textarea value={outrosItens} onChange={(e) => setOutrosItens(e.target.value)} placeholder="Texto livre — ex.: 1 sessão de fotos/mês, 2 reuniões estratégicas."></textarea>
-            </div>
+
+            {!isEdit && (
+              <div style={{ marginTop: 16, fontSize: 13, color: "var(--ink-3)", padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
+                Salve o cadastro do cliente primeiro para cadastrar itens de escopo.
+              </div>
+            )}
+
+            {isEdit && (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 13, margin: "20px 0 8px" }}>Itens contratados</div>
+                <div className="form-row three">
+                  <div className="field">
+                    <label>Tipo <span className="req">*</span></label>
+                    <input type="text" value={itemTipo} onChange={(e) => setItemTipo(e.target.value)} placeholder="Ex.: post_social" list="tipos-item-escopo" />
+                    <datalist id="tipos-item-escopo">
+                      {TIPO_ITEM_ESCOPO_SUGESTOES.map((t) => <option key={t}>{t}</option>)}
+                    </datalist>
+                  </div>
+                  <div className="field">
+                    <label>Descrição <span className="hint">opcional</span></label>
+                    <input type="text" value={itemDescricao} onChange={(e) => setItemDescricao(e.target.value)} placeholder="Ex.: sessão de fotos mensal" />
+                  </div>
+                  <div className="field">
+                    <label>Cadência</label>
+                    <div className="seg">
+                      <input type="radio" name="cadencia" id="cad-mensal" checked={itemCadencia === "mensal"} onChange={() => setItemCadencia("mensal")} /><label htmlFor="cad-mensal">Mensal</label>
+                      <input type="radio" name="cadencia" id="cad-pontual" checked={itemCadencia === "pontual"} onChange={() => setItemCadencia("pontual")} /><label htmlFor="cad-pontual">Pontual</label>
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Quantidade</label>
+                    <input type="number" min="0" value={itemQuantidade} onChange={(e) => setItemQuantidade(e.target.value)} />
+                  </div>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn btn-envox" onClick={handleCriarItemEscopo} disabled={savingItemEscopo}>
+                    {savingItemEscopo ? "Adicionando…" : "Adicionar item"}
+                  </button>
+                </div>
+
+                <div className="table-wrap" style={{ marginTop: 12 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Tipo</th>
+                        <th className="table-mobile-hide">Descrição</th>
+                        <th>Cadência</th>
+                        <th>Quantidade</th>
+                        <th>Ativo</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {itensEscopoList.length === 0 && <tr><td colSpan="6">Nenhum item de escopo cadastrado ainda.</td></tr>}
+                      {itensEscopoList.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.tipo}</td>
+                          <td className="table-mobile-hide">{item.descricao || "—"}</td>
+                          <td>{item.cadencia === "mensal" ? "Mensal" : "Pontual"}</td>
+                          <td>
+                            <a onClick={() => handleAtualizarQuantidadeItem(item)} style={{ cursor: "pointer", textDecoration: "underline" }}>{item.quantidade}</a>
+                          </td>
+                          <td>
+                            <button className="btn btn-sm" onClick={() => handleToggleAtivoItem(item)}>{item.ativo ? "Desativar" : "Ativar"}</button>
+                          </td>
+                          <td></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ fontWeight: 600, fontSize: 13, margin: "24px 0 8px" }}>Lançar entrega retroativa <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0, fontSize: 12 }}>(entregue fora do Kanban — ex.: direto por WhatsApp)</span></div>
+                <div className="form-row three">
+                  <div className="field">
+                    <label>Item</label>
+                    <select value={entregaItemId} onChange={(e) => setEntregaItemId(e.target.value)}>
+                      <option value="">Selecionar…</option>
+                      {itensEscopoList.map((i) => <option key={i.id} value={i.id}>{i.tipo}{i.descricao ? ` — ${i.descricao}` : ""}</option>)}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Mês</label>
+                    <input type="month" value={entregaAnoMes} onChange={(e) => setEntregaAnoMes(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Quantidade</label>
+                    <input type="number" min="1" value={entregaQuantidade} onChange={(e) => setEntregaQuantidade(e.target.value)} />
+                  </div>
+                  <div className="field span-2">
+                    <label>Observação <span className="hint">opcional</span></label>
+                    <input type="text" value={entregaObs} onChange={(e) => setEntregaObs(e.target.value)} placeholder="Contexto de como foi entregue" />
+                  </div>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn btn-envox" onClick={handleLancarEntregaManual} disabled={savingEntrega}>
+                    {savingEntrega ? "Lançando…" : "Lançar entrega"}
+                  </button>
+                </div>
+
+                <div style={{ fontWeight: 600, fontSize: 13, margin: "24px 0 8px" }}>Reconciliação — contratado × entregue (últimos 6 meses)</div>
+                {loadingReconciliacao && <div className="empty">Carregando…</div>}
+                {!loadingReconciliacao && reconciliacao.map((mes) => (
+                  <div key={mes.ano_mes} style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 4 }}>
+                      {mes.ano_mes} {!mes.fechado && <span className="pill" style={{ marginLeft: 6 }}>em andamento</span>}
+                    </div>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Item</th>
+                            <th>Contratado</th>
+                            <th>Entregue</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {mes.itens.length === 0 && <tr><td colSpan="4">Sem itens ativos.</td></tr>}
+                          {mes.itens.map((item) => (
+                            <tr key={item.item_escopo_id}>
+                              <td>{item.tipo}{item.descricao ? ` — ${item.descricao}` : ""}</td>
+                              <td>{item.quantidade_contratada}</td>
+                              <td>{item.quantidade_entregue}</td>
+                              <td><span className="pill" style={{ color: STATUS_RECONCILIACAO_CORES[item.status] }}>{STATUS_RECONCILIACAO_LABELS[item.status] || item.status}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
 
           <div className="form-section" id="secao-links" ref={(el) => (secaoRefs.current[5] = el)}>
@@ -1004,8 +1424,190 @@ function ClienteForm({ clienteId, onCancel, onSaved }) {
             )}
           </div>
 
+          <div className="form-section" id="secao-contatos-portal" ref={(el) => (secaoRefs.current[8] = el)}>
+            <div className="form-section-title">09 · Contatos do Portal</div>
+            <div className="form-section-hint">Pessoas do lado do cliente com login no Portal do Cliente — confirmam documentos de aditivo e (em breve) acompanham entregáveis.</div>
+
+            {!isEdit && (
+              <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
+                Salve o cadastro do cliente primeiro para cadastrar contatos do portal.
+              </div>
+            )}
+
+            {isEdit && (
+              <>
+                <div className="form-row three">
+                  <div className="field">
+                    <label>Nome <span className="req">*</span></label>
+                    <input type="text" value={contatoNome} onChange={(e) => setContatoNome(e.target.value)} placeholder="Ex.: Marcos Silva" />
+                  </div>
+                  <div className="field">
+                    <label>Cargo <span className="hint">opcional</span></label>
+                    <input type="text" value={contatoCargo} onChange={(e) => setContatoCargo(e.target.value)} placeholder="Ex.: Sócio, Marketing…" />
+                  </div>
+                  <div className="field">
+                    <label>E-mail <span className="req">*</span></label>
+                    <input type="email" value={contatoEmail} onChange={(e) => setContatoEmail(e.target.value)} placeholder="contato@cliente.com.br" />
+                  </div>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn btn-envox" onClick={handleCriarContato} disabled={savingContato}>
+                    {savingContato ? "Criando…" : "Criar contato"}
+                  </button>
+                </div>
+
+                {linkGerado && (
+                  <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 12, color: "var(--ink-3)" }}>Link de definição de senha (envie por WhatsApp/e-mail):</span>
+                    <code style={{ fontSize: 12, wordBreak: "break-all" }}>{linkGerado.url}</code>
+                    <button className="btn btn-sm" onClick={() => handleCopiarLink(linkGerado.url)}>Copiar</button>
+                  </div>
+                )}
+
+                <div className="table-wrap" style={{ marginTop: 12 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Nome</th>
+                        <th className="table-mobile-hide">Cargo</th>
+                        <th className="table-mobile-hide">E-mail</th>
+                        <th>Senha definida</th>
+                        <th>Ativo</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contatosList.length === 0 && <tr><td colSpan="6">Nenhum contato cadastrado ainda.</td></tr>}
+                      {contatosList.map((c) => (
+                        <tr key={c.id}>
+                          <td>{c.nome}</td>
+                          <td className="table-mobile-hide">{c.cargo || "—"}</td>
+                          <td className="table-mobile-hide">{c.email}</td>
+                          <td>{c.senha_definida ? "Sim" : "Não"}</td>
+                          <td>
+                            <button className="btn btn-sm" onClick={() => handleToggleAtivoContato(c)}>
+                              {c.ativo ? "Desativar" : "Ativar"}
+                            </button>
+                          </td>
+                          <td>
+                            <button className="btn btn-sm" onClick={() => handleReenviarLink(c.id)}>
+                              {c.senha_definida ? "Gerar novo link" : "Reenviar link"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="form-section" id="secao-documentos-acordo" ref={(el) => (secaoRefs.current[9] = el)}>
+            <div className="form-section-title">10 · Documentos de Acordo</div>
+            <div className="form-section-hint">Aditivo de escopo — quando a quantidade de um item contratado muda por acordo com o cliente. Só vira vigente (e só aí atualiza o item de verdade) quando <strong>todo mundo selecionado</strong> confirmar.</div>
+
+            {!isEdit && (
+              <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
+                Salve o cadastro do cliente primeiro para criar documentos de acordo.
+              </div>
+            )}
+
+            {isEdit && (
+              <>
+                <div className="field">
+                  <label>Motivo da alteração <span className="req">*</span></label>
+                  <textarea value={docMotivo} onChange={(e) => setDocMotivo(e.target.value)} placeholder="Ex.: cliente pediu redução de posts a partir de agosto por corte de orçamento"></textarea>
+                </div>
+
+                <div style={{ fontWeight: 600, fontSize: 13, margin: "16px 0 8px" }}>Itens que mudam</div>
+                {itensEscopoList.length === 0 && <div className="field-help">Cadastre itens de escopo na seção 05 primeiro.</div>}
+                {itensEscopoList.map((item) => (
+                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0" }}>
+                    <input type="checkbox" checked={!!(item.id in docItensSelecionados)} onChange={() => toggleItemDocumento(item)} id={`doc-item-${item.id}`} />
+                    <label htmlFor={`doc-item-${item.id}`} style={{ minWidth: 200 }}>{item.tipo}{item.descricao ? ` — ${item.descricao}` : ""} <span style={{ color: "var(--ink-3)" }}>(atual: {item.quantidade})</span></label>
+                    {item.id in docItensSelecionados && (
+                      <input
+                        type="number" min="0" style={{ width: 90 }}
+                        value={docItensSelecionados[item.id]}
+                        onChange={(e) => setDocItensSelecionados((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                ))}
+
+                <div style={{ fontWeight: 600, fontSize: 13, margin: "16px 0 8px" }}>Internos que precisam confirmar</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                  {envoxersList.map((e) => (
+                    <label key={e.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input type="checkbox" checked={!!docEnvoxerIds[e.id]} onChange={() => toggleEnvoxerDocumento(e.id)} /> {e.nome}
+                    </label>
+                  ))}
+                </div>
+
+                <div style={{ fontWeight: 600, fontSize: 13, margin: "16px 0 8px" }}>Contato(s) do cliente que precisam confirmar</div>
+                {contatosList.filter((c) => c.ativo).length === 0 && <div className="field-help">Cadastre um contato do portal na seção 09 primeiro.</div>}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                  {contatosList.filter((c) => c.ativo).map((c) => (
+                    <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input type="checkbox" checked={!!docContatoIds[c.id]} onChange={() => toggleContatoDocumento(c.id)} /> {c.nome}
+                    </label>
+                  ))}
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <button className="btn btn-envox" onClick={handleCriarDocumentoAcordo} disabled={savingDocumento}>
+                    {savingDocumento ? "Criando…" : "Criar documento e enviar para confirmação"}
+                  </button>
+                </div>
+
+                <div className="table-wrap" style={{ marginTop: 20 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Motivo</th>
+                        <th className="table-mobile-hide">Itens</th>
+                        <th>Status</th>
+                        <th>Confirmações</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {documentosList.length === 0 && <tr><td colSpan="5">Nenhum documento de acordo ainda.</td></tr>}
+                      {documentosList.map((doc) => {
+                        const confirmadas = doc.confirmacoes.filter((c) => c.confirmado_em).length;
+                        const meuId = EnvoxersAPI.getEnvoxerId();
+                        const minhaConfirmacao = doc.confirmacoes.find((c) => c.tipo_confirmante === "envoxer" && c.envoxer_id === meuId);
+                        const possoConfirmar = doc.status === "aguardando_confirmacoes" && minhaConfirmacao && !minhaConfirmacao.confirmado_em;
+                        const possoCancelar = doc.status === "aguardando_confirmacoes" && (permissao === "admin" || permissao === "gestor");
+                        return (
+                          <tr key={doc.id}>
+                            <td>{doc.motivo}</td>
+                            <td className="table-mobile-hide">{doc.itens_alterados.map((i) => `${i.tipo} (${i.quantidade_anterior}→${i.quantidade_nova})`).join(", ")}</td>
+                            <td><span className="pill" style={{ color: STATUS_DOCUMENTO_CORES[doc.status] }}>{STATUS_DOCUMENTO_LABELS[doc.status] || doc.status}</span></td>
+                            <td>{confirmadas}/{doc.confirmacoes.length}</td>
+                            <td>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                {possoConfirmar && (
+                                  <button className="btn btn-sm" onClick={() => handleConfirmarDocumento(doc)}>Confirmar (eu)</button>
+                                )}
+                                {possoCancelar && (
+                                  <button className="btn btn-sm" style={{ color: "var(--farol-vermelho)" }} onClick={() => handleCancelarDocumento(doc)}>Cancelar</button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="form-footer">
-            <span className="save-hint">Confira as 8 seções antes de salvar.</span>
+            <span className="save-hint">Confira as 10 seções antes de salvar.</span>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn" onClick={onCancel}>Cancelar</button>
               <button className="btn btn-envox" onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Salvar cliente"}</button>
