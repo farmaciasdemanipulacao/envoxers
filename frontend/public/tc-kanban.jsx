@@ -573,6 +573,19 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     return lista;
   };
 
+  const handleAplicarProcesso = async () => {
+    setEtapaLoading(true);
+    try {
+      const novas = await EnvoxersAPI.api(`/tarefas/${tarefaId}/aplicar-processo`, { method: "POST" });
+      await carregarEtapas();
+      toast(`${novas.length} etapa(s) do processo adicionada(s)`, "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEtapaLoading(false);
+    }
+  };
+
   const handleCriarEtapa = async () => {
     if (!novaEtapaTitulo.trim()) {
       toast("Título da etapa é obrigatório", "error");
@@ -909,7 +922,14 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                       </div>
                     </div>
                   ) : (
-                    <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setNovaEtapaAberta(true)}>+ Nova etapa</button>
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button className="btn btn-sm" onClick={() => setNovaEtapaAberta(true)}>+ Nova etapa</button>
+                      {servicoId && (
+                        <button className="btn btn-sm" onClick={handleAplicarProcesso} disabled={etapaLoading} title="Puxa as etapas-modelo cadastradas no serviço desta tarefa">
+                          Usar processo do serviço
+                        </button>
+                      )}
+                    </div>
                   )}
                 </>
               )}

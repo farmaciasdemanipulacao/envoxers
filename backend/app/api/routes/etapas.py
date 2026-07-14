@@ -2,7 +2,7 @@
 entre elas (LIBERAR_PROXIMA_ETAPA, MOVER_TAREFA_COLUNA, MARCAR_TAREFA_CONCLUIDA,
 CRIAR_ALERTA_RESPONSAVEL). Ver app/services/etapas_automacao.py para a execução.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +15,8 @@ from app.models.envoxer import Envoxer
 from app.models.tarefa import Tarefa, STATUS_TAREFA_VALUES
 from app.models.etapa import Etapa
 from app.models.automacao_etapa import AutomacaoEtapa, ACAO_AUTOMACAO_VALUES
+from app.models.etapa_template import EtapaTemplate
+from app.models.automacao_etapa_template import AutomacaoEtapaTemplate
 from app.schemas.etapa import EtapaCreate, EtapaUpdate, EtapaResponse, AutomacaoEtapaUpsert, AutomacaoEtapaResponse
 from app.services.etapas_automacao import executar_automacao
 
@@ -285,3 +287,68 @@ async def remover_automacao(
     if automacao:
         await db.delete(automacao)
         await db.flush()
+
+
+@router.post("/tarefas/{tarefa_id}/aplicar-processo", response_model=list[EtapaResponse], status_code=201)
+async def aplicar_processo(
+    tarefa_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    """Copia as etapas-modelo do serviço da tarefa para dentro dela como Etapas
+    reais, na sequência das que já existirem (não substitui nada)."""
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
+    if tarefa.servico_id is None:
+        raise HTTPException(status_code=400, detail="Tarefa sem serviço definido")
+
+    result = await db.execute(
+        select(EtapaTemplate)
+        .where(EtapaTemplate.servico_id == tarefa.servico_id)
+        .order_by(EtapaTemplate.ordem, EtapaTemplate.id)
+    )
+    templates = list(result.scalars().all())
+    if not templates:
+        raise HTTPException(status_code=400, detail="Este serviço não tem etapas-modelo cadastradas")
+
+    automacoes_result = await db.execute(
+        select(AutomacaoEtapaTemplate).where(
+            AutomacaoEtapaTemplate.etapa_template_id.in_([t.id for t in templates])
+        )
+    )
+    automacoes_por_template = {a.etapa_template_id: a for a in automacoes_result.scalars().all()}
+
+    ordem_result = await db.execute(select(Etapa.ordem).where(Etapa.tarefa_id == tarefa_id))
+    proxima_ordem = max([o for (o,) in ordem_result.all()], default=-1) + 1
+    hoje = date.today()
+
+    novas_etapas = []
+    for template in templates:
+        etapa = Etapa(
+            tarefa_id=tarefa_id,
+            titulo=template.titulo,
+            descricao=template.descricao,
+            prazo=hoje + timedelta(days=template.prazo_dias) if template.prazo_dias is not None else None,
+            ordem=proxima_ordem,
+        )
+        proxima_ordem += 1
+        db.add(etapa)
+        novas_etapas.append((etapa, automacoes_por_template.get(template.id)))
+
+    await db.flush()
+
+    for etapa, automacao_template in novas_etapas:
+        await db.refresh(etapa)
+        if automacao_template:
+            db.add(
+                AutomacaoEtapa(
+                    etapa_id=etapa.id,
+                    acao=automacao_template.acao,
+                    coluna_destino=automacao_template.coluna_destino,
+                    ativo=automacao_template.ativo,
+                )
+            )
+
+    await db.flush()
+    resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
+    ids_novas = {e.id for e, _ in novas_etapas}
+    return [r for r in resp if r.id in ids_novas]

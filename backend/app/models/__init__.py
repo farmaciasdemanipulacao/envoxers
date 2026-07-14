@@ -25,3 +25,5 @@ from app.models.alerta_config import AlertaConfig  # noqa: F401
 from app.models.etapa import Etapa  # noqa: F401
 from app.models.automacao_etapa import AutomacaoEtapa  # noqa: F401
 from app.models.pendencia import Pendencia  # noqa: F401
+from app.models.etapa_template import EtapaTemplate  # noqa: F401
+from app.models.automacao_etapa_template import AutomacaoEtapaTemplate  # noqa: F401
