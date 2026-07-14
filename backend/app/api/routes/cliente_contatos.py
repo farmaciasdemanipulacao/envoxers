@@ -28,7 +28,11 @@ TOKEN_VALIDADE_DIAS = 7
 def _gerar_link_token(contato: ClienteContato) -> str:
     contato.set_senha_token = secrets.token_urlsafe(32)
     contato.set_senha_token_expira = datetime.now(timezone.utc) + timedelta(days=TOKEN_VALIDADE_DIAS)
-    return f"/portal/definir-senha?token={contato.set_senha_token}"
+    # O portal é uma SPA sem rota por caminho — "/portal/definir-senha" não existe
+    # de verdade e cai no fallback errado do nginx (index.html do app interno,
+    # que quebra porque os scripts são carregados por caminho relativo). A tela
+    # de definir senha é resolvida por query param (?token=) na própria "/portal/".
+    return f"/portal/?token={contato.set_senha_token}"
 
 
 def _serializar(contato: ClienteContato) -> ClienteContatoResponse:
