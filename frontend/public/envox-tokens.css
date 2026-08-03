@@ -322,10 +322,11 @@ a:hover { text-decoration: underline; }
 .notif-popover-text { font-size: 12px; color: var(--ink-3); line-height: 1.5; }
 .notif-popover-actions { display: flex; gap: 8px; margin-top: 10px; }
 
-/* Page */
+/* Page — sem teto de largura: o conteúdo sempre ocupa 100% do espaço
+   disponível (área à direita da sidebar), pra aproveitar telas grandes. */
 .page {
   padding: 28px 32px 60px;
-  max-width: 1400px;
+  width: 100%;
 }
 .page-header {
   display: flex; align-items: flex-end;
@@ -1461,7 +1462,7 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 /* ============================================================
    RELATÓRIO TEMPO × CUSTO — F1
    ============================================================ */
-.rep-shell { padding: 28px 32px 60px; max-width: 1400px; }
+.rep-shell { padding: 28px 32px 60px; width: 100%; }
 
 .rep-tabs {
   display: inline-flex;
@@ -1675,7 +1676,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
 /* ============================================================
    SOLICITAÇÕES — inbox
    ============================================================ */
-.solic-shell { padding: 28px 32px 60px; max-width: 1400px; }
+.solic-shell { padding: 28px 32px 60px; width: 100%; }
 
 .solic-grid {
   display: grid;
@@ -1795,7 +1796,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
 /* ============================================================
    CALENDÁRIO — F2
    ============================================================ */
-.cal-shell { padding: 28px 32px 60px; max-width: 1400px; }
+.cal-shell { padding: 28px 32px 60px; width: 100%; }
 
 .cal-topbar {
   display: flex; align-items: center; gap: 12px;
@@ -1931,7 +1932,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
 /* ============================================================
    FAROL — Central de risco (Prompts 7 e 8)
    ============================================================ */
-.farol-shell { padding: 28px 32px 60px; max-width: 1400px; }
+.farol-shell { padding: 28px 32px 60px; width: 100%; }
 
 /* Health score orbe */
 .health-orb {
@@ -2291,7 +2292,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
 /* =====================================================================
    ICP Builder — comparativo Retidos vs. Perdidos
 ===================================================================== */
-.icp-shell { padding: 28px 32px 60px; max-width: 1400px; }
+.icp-shell { padding: 28px 32px 60px; width: 100%; }
 
 .icp-header-cards {
   display: grid;
@@ -2441,7 +2442,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
 /* =====================================================================
    Painel de faturamento
 ===================================================================== */
-.fat-shell { padding: 28px 32px 60px; max-width: 1400px; }
+.fat-shell { padding: 28px 32px 60px; width: 100%; }
 
 .fat-hero {
   display: grid;
