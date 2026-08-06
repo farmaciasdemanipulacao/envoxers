@@ -23,7 +23,8 @@ function fmtDataAlerta(iso) {
   return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function AlertasScreen({ onAbrirCliente }) {
+function AlertasScreen({ permissao, onAbrirCliente }) {
+  const podeAgir = permissao === "admin" || permissao === "gestor";
   const toast = EnvoxersShared.useToast();
   const [alertas, setAlertas] = useStateAlert([]);
   const [loading, setLoading] = useStateAlert(true);
@@ -121,7 +122,9 @@ function AlertasScreen({ onAbrirCliente }) {
                 <span className="alert-item-time">{fmtDataAlerta(a.created_at)}</span>
                 {a.status === "aberto" && (
                   <>
-                    <button className="btn btn-sm" onClick={(e) => reconhecerInline(e, a)} disabled={reconhecendoId === a.id}>Reconhecer</button>
+                    {podeAgir && (
+                      <button className="btn btn-sm" onClick={(e) => reconhecerInline(e, a)} disabled={reconhecendoId === a.id}>Reconhecer</button>
+                    )}
                     <button className="btn btn-envox btn-sm" onClick={(e) => abrirFichaInline(e, a)}>Abrir ficha</button>
                   </>
                 )}
@@ -134,6 +137,7 @@ function AlertasScreen({ onAbrirCliente }) {
       {alertaAberto && (
         <AlertaModal
           alerta={alertaAberto}
+          podeAgir={podeAgir}
           onClose={() => setAbrindoId(null)}
           onAtualizado={() => carregar()}
         />
@@ -142,7 +146,7 @@ function AlertasScreen({ onAbrirCliente }) {
   );
 }
 
-function AlertaModal({ alerta, onClose, onAtualizado }) {
+function AlertaModal({ alerta, podeAgir, onClose, onAtualizado }) {
   const toast = EnvoxersShared.useToast();
   const [saving, setSaving] = useStateAlert(false);
   const [resolucaoNota, setResolucaoNota] = useStateAlert(alerta.resolucao_nota || "");
@@ -251,6 +255,7 @@ function AlertaModal({ alerta, onClose, onAtualizado }) {
                 <div className="modal-side-value">{alerta.reconhecido_por_nome}</div>
               </div>
             )}
+            {podeAgir && (
             <div className="modal-side-block">
               <div className="modal-side-label">Ações</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
@@ -276,6 +281,7 @@ function AlertaModal({ alerta, onClose, onAtualizado }) {
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
       </div>

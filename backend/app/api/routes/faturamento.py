@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_envoxer
+from app.api.deps import get_current_admin
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
@@ -65,7 +65,8 @@ def _mrr_em(clientes: list[Cliente], referencia: date) -> float:
 @router.get("/faturamento/painel")
 async def painel_faturamento(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    # Painel é 100% financeiro (MRR/receita) — admin-only de ponta a ponta (D-090).
+    _: Annotated[Envoxer, Depends(get_current_admin)],
 ):
     hoje = date.today()
 

@@ -26,7 +26,8 @@ function FarolDot({ cor, sem_dado }) {
   return <span className="farol-dot" style={{ width: 7, height: 7, borderRadius: "50%", display: "inline-block", background: FAROL_CORES[cor] }}></span>;
 }
 
-function FarolScreen() {
+function FarolScreen({ permissao }) {
+  const isAdminValores = permissao === "admin";
   const toast = EnvoxersShared.useToast();
   const [itens, setItens] = useStateFarol([]);
   const [loading, setLoading] = useStateFarol(true);
@@ -93,12 +94,16 @@ function FarolScreen() {
         <div className="kpi">
           <div className="kpi-label">Vermelho <EnvoxersShared.HelpIcon helpKey="farol_kpi_verm" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-vermelho)" }}>{kpis.vermelhos}</div>
-          <div className="kpi-hint"><span className="mono">{EnvoxersShared.formatMoney(kpis.mrrVermelho)}</span> de MRR em risco imediato</div>
+          <div className="kpi-hint">
+            {isAdminValores ? <><span className="mono">{EnvoxersShared.formatMoney(kpis.mrrVermelho)}</span> de MRR em risco imediato</> : "clientes em risco imediato"}
+          </div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Amarelo <EnvoxersShared.HelpIcon helpKey="farol_kpi_amar" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-amarelo)" }}>{kpis.amarelos}</div>
-          <div className="kpi-hint"><span className="mono">{EnvoxersShared.formatMoney(kpis.mrrAmarelo)}</span> de MRR em atenção</div>
+          <div className="kpi-hint">
+            {isAdminValores ? <><span className="mono">{EnvoxersShared.formatMoney(kpis.mrrAmarelo)}</span> de MRR em atenção</> : "clientes em atenção"}
+          </div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Verde <EnvoxersShared.HelpIcon helpKey="farol_kpi_verde" /></div>
@@ -132,7 +137,7 @@ function FarolScreen() {
             <div className="farol-row-motivo">{i.motivo_texto} <EnvoxersShared.HelpIcon helpKey="farol_motivo" /></div>
           </div>
           <div className="farol-row-side">
-            <div className="kv">{EnvoxersShared.formatMoney(i.valor_contrato)}/mês</div>
+            {i.valor_contrato != null && <div className="kv">{EnvoxersShared.formatMoney(i.valor_contrato)}/mês</div>}
             <div>{i.meses_de_casa ?? "—"}m de casa</div>
             <div>{i.responsavel_nome ? i.responsavel_nome.split(" ")[0] : "—"}</div>
           </div>

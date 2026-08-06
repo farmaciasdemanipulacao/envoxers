@@ -1,4 +1,4 @@
-const { useState: useStateCli, useEffect: useEffectCli, useMemo: useMemoCli, useRef: useRefCli } = React;
+const { useState: useStateCli, useEffect: useEffectCli, useMemo: useMemoCli } = React;
 
 const SEGMENTOS_SUGERIDOS = [
   "Farmácia de manipulação", "Clínica estética", "Clínica odontológica",
@@ -23,8 +23,6 @@ const PERFIL_CLIENTE_COLOR = { facil: "var(--farol-verde)", neutro: "var(--farol
 
 const STATUS_DOCUMENTO_LABELS = { aguardando_confirmacoes: "Aguardando confirmações", vigente: "Vigente", cancelado: "Cancelado" };
 const STATUS_DOCUMENTO_CORES = { aguardando_confirmacoes: "var(--farol-amarelo)", vigente: "var(--farol-verde)", cancelado: "var(--ink-4)" };
-
-const TIPO_ITEM_ESCOPO_SUGESTOES = ["post_social", "post_blog", "post_gmn", "foto", "video", "campanha", "reuniao", "outro"];
 const STATUS_RECONCILIACAO_LABELS = { completo: "Completo", parcial: "Parcial", nao_entregue: "Não entregue", excedente: "Excedente", em_andamento: "Em andamento" };
 const STATUS_RECONCILIACAO_CORES = {
   completo: "var(--farol-verde)", excedente: "var(--farol-verde)", parcial: "var(--farol-amarelo)",
@@ -53,6 +51,7 @@ function formatDataCurta(iso) {
 }
 
 function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
+  const isAdminValores = permissao === "admin";
   const [clientes, setClientes] = useStateCli([]);
   const [loading, setLoading] = useStateCli(true);
   const [busca, setBusca] = useStateCli("");
@@ -115,9 +114,15 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
   }, [clientes]);
 
   const exportarCsv = () => {
+    const cabecalho = ["Cliente", "Segmento", "Responsável", "Meses", "Tipo", "Farol"];
+    if (isAdminValores) cabecalho.splice(4, 0, "Contrato/mês");
     const linhas = [
-      ["Cliente", "Segmento", "Responsável", "Meses", "Contrato/mês", "Tipo", "Farol"],
-      ...filtrados.map((c) => [c.nome, c.segmento || "", c.responsavel_nome || "", c.meses_de_casa ?? "", c.valor_contrato, c.tipo_receita, c.status_farol]),
+      cabecalho,
+      ...filtrados.map((c) => {
+        const linha = [c.nome, c.segmento || "", c.responsavel_nome || "", c.meses_de_casa ?? "", c.tipo_receita, c.status_farol];
+        if (isAdminValores) linha.splice(4, 0, c.valor_contrato);
+        return linha;
+      }),
     ];
     const csv = linhas.map((l) => l.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -164,11 +169,13 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
           <div className="kpi-value">{kpis.ativos}</div>
           <div className="kpi-hint">{kpis.recorrentes} recorrentes · {kpis.pontuais} pontuais</div>
         </div>
+        {isAdminValores && (
         <div className="kpi">
           <div className="kpi-label">MRR contratado <EnvoxersShared.HelpIcon helpKey="cli_kpi_mrr" /></div>
           <div className="kpi-value mono"><span className="unit">R$</span> {kpis.mrr.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div>
           <div className="kpi-hint">soma de contratos recorrentes</div>
         </div>
+        )}
         <div className="kpi">
           <div className="kpi-label">Farol vermelho <EnvoxersShared.HelpIcon helpKey="cli_kpi_verm" /></div>
           <div className="kpi-value" style={{ color: "var(--farol-vermelho)" }}>{kpis.vermelhos}</div>
@@ -218,7 +225,7 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
               <th className="table-mobile-hide">Responsável</th>
               <th className="table-mobile-hide">Início</th>
               <th className="table-mobile-hide">Meses</th>
-              <th style={{ textAlign: "right" }}>Contrato/mês</th>
+              {isAdminValores && <th style={{ textAlign: "right" }}>Contrato/mês</th>}
               <th style={{ width: 80 }} className="table-mobile-hide">Tipo</th>
             </tr>
           </thead>
@@ -226,11 +233,11 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
             {loading && <tr><td colSpan="8">Carregando…</td></tr>}
             {!loading && filtrados.length === 0 && <tr><td colSpan="8">Nenhum cliente encontrado.</td></tr>}
             {filtrados.map((c) => (
-              <tr key={c.id} onClick={() => podeEditar && setEditando({ id: c.id })} style={{ cursor: podeEditar ? "pointer" : "default" }}>
+              <tr key={c.id} onClick={() => setEditando({ id: c.id })} style={{ cursor: "pointer" }}>
                 <td><span className="farol-dot" style={{ width: 7, height: 7, borderRadius: "50%", display: "inline-block", background: `var(--farol-${c.status_farol})` }}></span></td>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div className="avatar sm gray">{EnvoxersShared.initials(c.nome)}</div>
+                    <EnvoxersShared.Avatar nome={c.nome} fotoUrl={c.logo_url} size="sm" className="gray" />
                     <span>{c.nome}</span>
                   </div>
                 </td>
@@ -238,14 +245,14 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
                 <td className="table-mobile-hide">
                   {c.responsavel_nome ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div className="avatar sm">{EnvoxersShared.initials(c.responsavel_nome)}</div>
+                      <EnvoxersShared.Avatar nome={c.responsavel_nome} fotoUrl={c.responsavel_foto} size="sm" />
                       <span>{c.responsavel_nome.split(" ")[0]}</span>
                     </div>
                   ) : "—"}
                 </td>
                 <td className="table-mobile-hide">{formatDataCurta(c.data_inicio_contrato)}</td>
                 <td className="table-mobile-hide">{c.meses_de_casa ?? "—"}</td>
-                <td className="mono" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(c.valor_contrato)}</td>
+                {isAdminValores && <td className="mono" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(c.valor_contrato)}</td>}
                 <td className="table-mobile-hide">{c.tipo_receita === "recorrente" ? "Recorrente" : "Pontual"}</td>
               </tr>
             ))}
@@ -263,14 +270,17 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
 
 function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
   const isEdit = !!clienteId;
+  // Reforma de RBAC: valor de contrato/ticket/serviços é admin+gestor (leitura
+  // E escrita) — só envoxer não vê/edita dinheiro (core/valores.py::redigir_gestor).
+  const isAdminValores = permissao === "admin";
+  // Envoxer só visualiza cliente — não edita nada (pedido de RBAC). O formulário
+  // inteiro (todas as seções) fica inerte via pointer-events, só navegação entre
+  // seções e "Voltar" continuam ativos.
+  const readOnly = permissao === "envoxer";
   const toast = EnvoxersShared.useToast();
   const [loading, setLoading] = useStateCli(isEdit);
   const [saving, setSaving] = useStateCli(false);
   const [secaoAtiva, setSecaoAtiva] = useStateCli(0);
-  const secaoRefs = useRefCli([]);
-  const fimRef = useRefCli(null);
-  const suprimirObserverRef = useRefCli(false);
-  const suprimirTimeoutRef = useRefCli(null);
 
   const [envoxersList, setEnvoxersList] = useStateCli([]);
   const [servicosList, setServicosList] = useStateCli([]);
@@ -278,6 +288,8 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
   const [nome, setNome] = useStateCli("");
   const [responsavelId, setResponsavelId] = useStateCli("");
   const [logoUrl, setLogoUrl] = useStateCli("");
+  const [enviandoLogo, setEnviandoLogo] = useStateCli(false);
+  const [arquivoLogoParaRecortar, setArquivoLogoParaRecortar] = useStateCli(null);
   const [valorContrato, setValorContrato] = useStateCli(0);
   const [tipoReceita, setTipoReceita] = useStateCli("recorrente");
   const [dataInicio, setDataInicio] = useStateCli("");
@@ -290,7 +302,9 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
 
   const [itensEscopoList, setItensEscopoList] = useStateCli([]);
   const [savingItemEscopo, setSavingItemEscopo] = useStateCli(false);
-  const [itemTipo, setItemTipo] = useStateCli("");
+  const [itemServicoId, setItemServicoId] = useStateCli("");
+  const [itemEditandoId, setItemEditandoId] = useStateCli(null);
+  const [itemEditServicoId, setItemEditServicoId] = useStateCli("");
   const [itemDescricao, setItemDescricao] = useStateCli("");
   const [itemCadencia, setItemCadencia] = useStateCli("mensal");
   const [itemQuantidade, setItemQuantidade] = useStateCli(0);
@@ -657,8 +671,9 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
   };
 
   const handleCriarItemEscopo = async () => {
-    if (!itemTipo) {
-      toast("Informe o tipo do item", "error");
+    const servicoEscolhido = servicosList.find((s) => String(s.id) === itemServicoId);
+    if (!servicoEscolhido) {
+      toast("Selecione o serviço do item", "error");
       return;
     }
     setSavingItemEscopo(true);
@@ -666,12 +681,13 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
       await EnvoxersAPI.api(`/clientes/${clienteId}/itens-escopo`, {
         method: "POST",
         body: JSON.stringify({
-          tipo: itemTipo, descricao: itemDescricao || null, cadencia: itemCadencia,
+          tipo: servicoEscolhido.nome, servico_id: servicoEscolhido.id,
+          descricao: itemDescricao || null, cadencia: itemCadencia,
           quantidade: Number(itemQuantidade) || 0,
         }),
       });
       toast("Item de escopo criado!", "success");
-      setItemTipo("");
+      setItemServicoId("");
       setItemDescricao("");
       setItemQuantidade(0);
       await carregarItensEscopo();
@@ -683,32 +699,6 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
     }
   };
 
-  const handleAtualizarQuantidadeItem = async (item) => {
-    const novaStr = window.prompt(`Nova quantidade contratada para "${item.tipo}" (atual: ${item.quantidade}):`, item.quantidade);
-    if (novaStr === null) return;
-    const nova = Number(novaStr);
-    if (Number.isNaN(nova) || nova < 0) {
-      toast("Quantidade inválida", "error");
-      return;
-    }
-    if (nova === item.quantidade) return;
-    const motivo = window.prompt("Motivo da mudança (obrigatório):", "");
-    if (!motivo) {
-      toast("Motivo é obrigatório para mudar a quantidade", "error");
-      return;
-    }
-    try {
-      await EnvoxersAPI.api(`/clientes/${clienteId}/itens-escopo/${item.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ quantidade: nova, motivo }),
-      });
-      toast("Quantidade atualizada!", "success");
-      await carregarItensEscopo();
-      await carregarReconciliacao();
-    } catch (err) {
-      toast(err.message, "error");
-    }
-  };
 
   const handleToggleAtivoItem = async (item) => {
     try {
@@ -720,6 +710,48 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
       await carregarReconciliacao();
     } catch (err) {
       toast(err.message, "error");
+    }
+  };
+
+  const handleLogoFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) setArquivoLogoParaRecortar(file);
+    e.target.value = "";
+  };
+
+  const handleConfirmarRecorteLogo = async (blob) => {
+    setArquivoLogoParaRecortar(null);
+    setEnviandoLogo(true);
+    try {
+      const resp = await EnvoxersAPI.upload(`/clientes/${clienteId}/logo`, blob, "logo.jpg");
+      setLogoUrl(resp.logo_url || "");
+      toast("Logo atualizada!", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEnviandoLogo(false);
+    }
+  };
+
+  const handleSalvarServicoItem = async (item) => {
+    const servicoEscolhido = servicosList.find((s) => String(s.id) === itemEditServicoId);
+    if (!servicoEscolhido) {
+      toast("Selecione o serviço", "error");
+      return;
+    }
+    setSavingItemEscopo(true);
+    try {
+      await EnvoxersAPI.api(`/clientes/${clienteId}/itens-escopo/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ servico_id: servicoEscolhido.id, tipo: servicoEscolhido.nome }),
+      });
+      setItemEditandoId(null);
+      await carregarItensEscopo();
+      toast("Serviço do item atualizado — próximo card automático já nasce com ele", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSavingItemEscopo(false);
     }
   };
 
@@ -825,47 +857,9 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
     }
   };
 
-  const irParaSecao = (i) => {
-    setSecaoAtiva(i);
-    suprimirObserverRef.current = true;
-    secaoRefs.current[i]?.scrollIntoView({ behavior: "smooth", block: "start" });
-
-    const liberar = () => { suprimirObserverRef.current = false; };
-    if (suprimirTimeoutRef.current) clearTimeout(suprimirTimeoutRef.current);
-    if ("onscrollend" in window) {
-      window.addEventListener("scrollend", liberar, { once: true });
-    } else {
-      suprimirTimeoutRef.current = setTimeout(liberar, 700);
-    }
-  };
-
-  useEffectCli(() => {
-    if (loading) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (suprimirObserverRef.current) return;
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const idx = secaoRefs.current.indexOf(entry.target);
-          if (idx !== -1) setSecaoAtiva(idx);
-        }
-      });
-    }, { root: null, rootMargin: "-35% 0px -55% 0px", threshold: 0 });
-    secaoRefs.current.forEach((el) => { if (el) observer.observe(el); });
-
-    // A última seção pode ser curta demais pra nunca cruzar sozinha a faixa de 35-45%
-    // (não sobra espaço abaixo dela pra rolar) — sentinela no fim da página, com um
-    // observer próprio (rootMargin cheio, não a faixa estreita), força o destaque nesse
-    // caso. Criado depois do observer das seções pra ser notificado depois e ter a
-    // palavra final, sem depender de listener de scroll manual (que teria timing
-    // imprevisível em relação ao callback assíncrono do IntersectionObserver).
-    const observerFim = new IntersectionObserver((entries) => {
-      if (suprimirObserverRef.current) return;
-      if (entries[0]?.isIntersecting) setSecaoAtiva(secaoRefs.current.length - 1);
-    }, { root: null, threshold: 0 });
-    if (fimRef.current) observerFim.observe(fimRef.current);
-
-    return () => { observer.disconnect(); observerFim.disconnect(); };
-  }, [loading]);
+  // Cada seção é uma tela própria — troca de seção só muda qual bloco está
+  // montado, sem scroll (o formulário inteiro não fica mais numa página só).
+  const irParaSecao = (i) => setSecaoAtiva(i);
 
   if (loading) {
     return <div className="page"><div className="app-loading">Carregando cliente…</div></div>;
@@ -876,6 +870,7 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
   const proximoSugerido = checkinList.find((c) => c.proximo_sugerido && !c.proximo_realizado)?.proximo_sugerido;
 
   return (
+    <>
     <div className="page">
       <div className="page-header">
         <div className="page-title-block">
@@ -901,7 +896,10 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
 
         <div className="form-panel">
 
-          <div className="form-section" id="secao-identidade" ref={(el) => (secaoRefs.current[0] = el)}>
+          <div style={readOnly ? { pointerEvents: "none", opacity: 0.85 } : undefined}>
+
+          {secaoAtiva === 0 && (
+          <div className="form-section">
             <div className="form-section-title">01 · Identidade <EnvoxersShared.HelpIcon helpKey="form_cli_ident" /></div>
             <div className="form-section-hint">Como o cliente aparece no sistema.</div>
             <div className="form-row">
@@ -917,20 +915,38 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
                 </select>
               </div>
               <div className="field">
-                <label>Logo (URL) <span className="hint">opcional</span></label>
-                <input type="text" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…" />
+                <label>Logo <span className="hint">opcional</span></label>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <EnvoxersShared.Avatar nome={nome} fotoUrl={logoUrl} size="md" />
+                  {isEdit ? (
+                    <label className="btn btn-sm" style={{ cursor: "pointer" }}>
+                      {enviandoLogo ? "Enviando…" : "Trocar logo"}
+                      <input type="file" accept="image/*" onChange={handleLogoFile} disabled={enviandoLogo} style={{ display: "none" }} />
+                    </label>
+                  ) : (
+                    <span className="hint">salve o cliente pra poder subir a logo</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
+          )}
 
-          <div className="form-section" id="secao-contrato" ref={(el) => (secaoRefs.current[1] = el)}>
+          {secaoAtiva === 1 && (
+          <div className="form-section">
             <div className="form-section-title">02 · Contrato <EnvoxersShared.HelpIcon helpKey="form_cli_contrato" /></div>
             <div className="form-section-hint">O que decide MRR, projeção 90d e retenção.</div>
             <div className="form-row three">
               <div className="field">
                 <label>Valor do contrato/mês <span className="req">*</span></label>
-                <EnvoxersShared.MoneyInput value={valorContrato} onChange={setValorContrato} />
-                <div className="field-help">Snapshot financeiro — pode diferir da soma dos serviços.</div>
+                {isAdminValores ? (
+                  <>
+                    <EnvoxersShared.MoneyInput value={valorContrato} onChange={setValorContrato} />
+                    <div className="field-help">Snapshot financeiro — pode diferir da soma dos serviços.</div>
+                  </>
+                ) : (
+                  <div className="field-help">🔒 Restrito ao admin.</div>
+                )}
               </div>
               <div className="field">
                 <label>Tipo de receita <span className="req">*</span></label>
@@ -988,8 +1004,10 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
               </div>
             )}
           </div>
+          )}
 
-          <div className="form-section" id="secao-icp" ref={(el) => (secaoRefs.current[2] = el)}>
+          {secaoAtiva === 2 && (
+          <div className="form-section">
             <div className="form-section-title">03 · ICP <EnvoxersShared.HelpIcon helpKey="form_cli_icp" /></div>
             <div className="form-section-hint">Estes campos são o que permite, em F3, dizer <em>quem</em> devemos aceitar e quem não.</div>
             <div className="form-row">
@@ -1014,7 +1032,11 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
               </div>
               <div className="field">
                 <label>Ticket do cliente <span className="hint">faturamento dele</span></label>
-                <EnvoxersShared.MoneyInput value={ticket} onChange={setTicket} />
+                {isAdminValores ? (
+                  <EnvoxersShared.MoneyInput value={ticket} onChange={setTicket} />
+                ) : (
+                  <div className="field-help">🔒 Restrito ao admin.</div>
+                )}
               </div>
               <div className="field">
                 <label>Maturidade digital</label>
@@ -1026,10 +1048,14 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
               </div>
             </div>
           </div>
+          )}
 
-          <div className="form-section" id="secao-servicos" ref={(el) => (secaoRefs.current[3] = el)}>
+          {secaoAtiva === 3 && (
+          <div className="form-section">
             <div className="form-section-title">04 · Serviços contratados <EnvoxersShared.HelpIcon helpKey="form_cli_servicos" /></div>
-            <div className="form-section-hint">Marque o que este cliente contratou e o valor por serviço.</div>
+            <div className="form-section-hint">
+              {isAdminValores ? "Marque o que este cliente contratou e o valor por serviço." : "🔒 Seleção e valor por serviço são restritos ao admin — mostrando só o que já está contratado."}
+            </div>
             <div className="service-grid">
               {servicosList.map((s) => {
                 const sel = servicosSelecionados[s.id];
@@ -1037,11 +1063,12 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
                   <div
                     key={s.id}
                     className={`service-card${sel ? " checked" : ""}`}
-                    onClick={() => toggleServico(s.id)}
+                    onClick={isAdminValores ? () => toggleServico(s.id) : undefined}
                     role="checkbox"
                     aria-checked={!!sel}
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleServico(s.id); } }}
+                    tabIndex={isAdminValores ? 0 : -1}
+                    style={isAdminValores ? undefined : { cursor: "default" }}
+                    onKeyDown={isAdminValores ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleServico(s.id); } } : undefined}
                   >
                     <div className="service-card-head">
                       <span className="service-card-name">{s.nome}</span>
@@ -1050,20 +1077,26 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
                       </span>
                     </div>
                     {s.descricao && <div className="service-card-desc">{s.descricao}</div>}
-                    <div className="service-card-value" onClick={(e) => e.stopPropagation()}>
-                      <EnvoxersShared.MoneyInput value={sel ? sel.valor_mensal : 0} onChange={(v) => setValorServico(s.id, v)} />
-                    </div>
+                    {isAdminValores && (
+                      <div className="service-card-value" onClick={(e) => e.stopPropagation()}>
+                        <EnvoxersShared.MoneyInput value={sel ? sel.valor_mensal : 0} onChange={(v) => setValorServico(s.id, v)} />
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
-            <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink-3)", padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
-              <span>Soma dos serviços marcados</span>
-              <strong className="mono" style={{ color: "var(--ink)" }}>{EnvoxersShared.formatMoney(somaServicos)}</strong>
-            </div>
+            {isAdminValores && (
+              <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink-3)", padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)" }}>
+                <span>Soma dos serviços marcados</span>
+                <strong className="mono" style={{ color: "var(--ink)" }}>{EnvoxersShared.formatMoney(somaServicos)}</strong>
+              </div>
+            )}
           </div>
+          )}
 
-          <div className="form-section" id="secao-escopo" ref={(el) => (secaoRefs.current[4] = el)}>
+          {secaoAtiva === 4 && (
+          <div className="form-section">
             <div className="form-section-title">05 · Escopo & Entregáveis <EnvoxersShared.HelpIcon helpKey="form_cli_escopo" /></div>
             <div className="form-section-hint">Itens contratados (posts, vídeos, fotos, GMN…) com quantidade e cadência — controle de entregáveis. O <em>limite de alterações</em> vira sinal do Farol em F2.</div>
 
@@ -1081,14 +1114,20 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
 
             {isEdit && (
               <>
-                <div style={{ fontWeight: 600, fontSize: 13, margin: "20px 0 8px" }}>Itens contratados</div>
+                <div style={{ fontWeight: 600, fontSize: 13, margin: "20px 0 8px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span>Itens contratados</span>
+                  <span style={{ fontWeight: 400, fontSize: 12, color: "var(--ink-3)" }}>
+                    Pra mudar a quantidade contratada, use{" "}
+                    <a onClick={() => irParaSecao(9)} style={{ cursor: "pointer", textDecoration: "underline" }}>Documentos de Acordo →</a>
+                  </span>
+                </div>
                 <div className="form-row three">
                   <div className="field">
-                    <label>Tipo <span className="req">*</span></label>
-                    <input type="text" value={itemTipo} onChange={(e) => setItemTipo(e.target.value)} placeholder="Ex.: post_social" list="tipos-item-escopo" />
-                    <datalist id="tipos-item-escopo">
-                      {TIPO_ITEM_ESCOPO_SUGESTOES.map((t) => <option key={t}>{t}</option>)}
-                    </datalist>
+                    <label>Serviço <span className="req">*</span></label>
+                    <select value={itemServicoId} onChange={(e) => setItemServicoId(e.target.value)}>
+                      <option value="">Selecionar…</option>
+                      {servicosList.filter((s) => s.ativo).map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                    </select>
                   </div>
                   <div className="field">
                     <label>Descrição <span className="hint">opcional</span></label>
@@ -1117,6 +1156,7 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
                     <thead>
                       <tr>
                         <th>Tipo</th>
+                        <th>Serviço</th>
                         <th className="table-mobile-hide">Descrição</th>
                         <th>Cadência</th>
                         <th>Quantidade</th>
@@ -1125,21 +1165,47 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {itensEscopoList.length === 0 && <tr><td colSpan="6">Nenhum item de escopo cadastrado ainda.</td></tr>}
-                      {itensEscopoList.map((item) => (
-                        <tr key={item.id}>
-                          <td>{item.tipo}</td>
-                          <td className="table-mobile-hide">{item.descricao || "—"}</td>
-                          <td>{item.cadencia === "mensal" ? "Mensal" : "Pontual"}</td>
-                          <td>
-                            <a onClick={() => handleAtualizarQuantidadeItem(item)} style={{ cursor: "pointer", textDecoration: "underline" }}>{item.quantidade}</a>
-                          </td>
-                          <td>
-                            <button className="btn btn-sm" onClick={() => handleToggleAtivoItem(item)}>{item.ativo ? "Desativar" : "Ativar"}</button>
-                          </td>
-                          <td></td>
-                        </tr>
-                      ))}
+                      {itensEscopoList.length === 0 && <tr><td colSpan="7">Nenhum item de escopo cadastrado ainda.</td></tr>}
+                      {itensEscopoList.map((item) => {
+                        const servicoAtual = servicosList.find((s) => s.id === item.servico_id);
+                        const editando = itemEditandoId === item.id;
+                        return (
+                          <tr key={item.id}>
+                            <td>{item.tipo}</td>
+                            <td>
+                              {editando ? (
+                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                  <select className="table-edit-select" value={itemEditServicoId} onChange={(e) => setItemEditServicoId(e.target.value)}>
+                                    <option value="">Selecionar…</option>
+                                    {servicosList.filter((s) => s.ativo).map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                                  </select>
+                                  <button className="btn btn-sm btn-envox" disabled={savingItemEscopo} onClick={() => handleSalvarServicoItem(item)}>Salvar</button>
+                                  <button className="btn btn-sm" onClick={() => setItemEditandoId(null)}>Cancelar</button>
+                                </div>
+                              ) : servicoAtual ? (
+                                servicoAtual.nome
+                              ) : (
+                                <span style={{ color: "var(--farol-amarelo)" }} title="Sem serviço vinculado — o card automático não nasce com Serviço/Etapas preenchidos até isso ser corrigido">
+                                  não vinculado
+                                </span>
+                              )}
+                            </td>
+                            <td className="table-mobile-hide">{item.descricao || "—"}</td>
+                            <td>{item.cadencia === "mensal" ? "Mensal" : "Pontual"}</td>
+                            <td>{item.quantidade}</td>
+                            <td>
+                              <button className="btn btn-sm" onClick={() => handleToggleAtivoItem(item)}>{item.ativo ? "Desativar" : "Ativar"}</button>
+                            </td>
+                            <td>
+                              {!editando && (
+                                <button className="btn btn-sm" onClick={() => { setItemEditandoId(item.id); setItemEditServicoId(item.servico_id ? String(item.servico_id) : ""); }}>
+                                  {servicoAtual ? "Trocar serviço" : "Vincular serviço"}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1207,8 +1273,10 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
               </>
             )}
           </div>
+          )}
 
-          <div className="form-section" id="secao-links" ref={(el) => (secaoRefs.current[5] = el)}>
+          {secaoAtiva === 5 && (
+          <div className="form-section">
             <div className="form-section-title">06 · Links & observações <EnvoxersShared.HelpIcon helpKey="form_cli_links" /></div>
             <div className="form-row">
               <div className="field">
@@ -1229,8 +1297,10 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
               </div>
             </div>
           </div>
+          )}
 
-          <div className="form-section" id="secao-pulso" ref={(el) => (secaoRefs.current[6] = el)}>
+          {secaoAtiva === 6 && (
+          <div className="form-section">
             <div className="form-section-title">07 · Pulso & Check-in <EnvoxersShared.HelpIcon helpKey="cli_cadencia" /></div>
             <div className="form-section-hint">Nota mensal de satisfação e registro de contatos com o cliente.</div>
 
@@ -1377,8 +1447,10 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
               </>
             )}
           </div>
+          )}
 
-          <div className="form-section" id="secao-perfil" ref={(el) => (secaoRefs.current[7] = el)}>
+          {secaoAtiva === 7 && (
+          <div className="form-section">
             <div className="form-section-title">08 · Perfil Comportamental <EnvoxersShared.HelpIcon helpKey="cli_perfil" /></div>
             <div className="form-section-hint">Calculado automaticamente a partir do histórico de aprovações e alterações — base do ICP Builder (F3).</div>
 
@@ -1423,8 +1495,10 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
               </>
             )}
           </div>
+          )}
 
-          <div className="form-section" id="secao-contatos-portal" ref={(el) => (secaoRefs.current[8] = el)}>
+          {secaoAtiva === 8 && (
+          <div className="form-section">
             <div className="form-section-title">09 · Contatos do Portal</div>
             <div className="form-section-hint">Pessoas do lado do cliente com login no Portal do Cliente — confirmam documentos de aditivo e (em breve) acompanham entregáveis.</div>
 
@@ -1502,8 +1576,10 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
               </>
             )}
           </div>
+          )}
 
-          <div className="form-section" id="secao-documentos-acordo" ref={(el) => (secaoRefs.current[9] = el)}>
+          {secaoAtiva === 9 && (
+          <div className="form-section">
             <div className="form-section-title">10 · Documentos de Acordo</div>
             <div className="form-section-hint">Aditivo de escopo — quando a quantidade de um item contratado muda por acordo com o cliente. Só vira vigente (e só aí atualiza o item de verdade) quando <strong>todo mundo selecionado</strong> confirmar.</div>
 
@@ -1605,19 +1681,34 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
               </>
             )}
           </div>
+          )}
+
+          </div>
 
           <div className="form-footer">
-            <span className="save-hint">Confira as 10 seções antes de salvar.</span>
+            {readOnly ? (
+              <span className="save-hint">🔒 Modo visualização — colaborador não edita cadastro de cliente.</span>
+            ) : (
+              <span className="save-hint">Confira as 10 seções antes de salvar.</span>
+            )}
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn" onClick={onCancel}>Cancelar</button>
-              <button className="btn btn-envox" onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Salvar cliente"}</button>
+              <button className="btn" onClick={onCancel}>{readOnly ? "Voltar" : "Cancelar"}</button>
+              {!readOnly && (
+                <button className="btn btn-envox" onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Salvar cliente"}</button>
+              )}
             </div>
           </div>
-          <div ref={fimRef} style={{ height: 1 }} aria-hidden="true" />
-
         </div>
       </div>
     </div>
+    {arquivoLogoParaRecortar && (
+      <EnvoxersShared.AvatarCropModal
+        file={arquivoLogoParaRecortar}
+        onCancel={() => setArquivoLogoParaRecortar(null)}
+        onConfirm={handleConfirmarRecorteLogo}
+      />
+    )}
+    </>
   );
 }
 

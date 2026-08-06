@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_envoxer
+from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
@@ -21,6 +21,7 @@ from app.models.alerta_config import AlertaConfig
 from app.schemas.farol import FarolClienteResponse, FarolKpisResponse
 from app.schemas.alerta import AlertaUpdate, AlertaResponse
 from app.services.farol import calcular_farol_cliente, LABELS, _texto_sinal
+from app.core.valores import eh_admin, redigir
 
 router = APIRouter(tags=["farol"])
 
@@ -88,7 +89,7 @@ async def farol_kpis(
 @router.get("/farol", response_model=list[FarolClienteResponse])
 async def listar_farol(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     hoje = date.today()
     agora = datetime.now(timezone.utc)
@@ -191,21 +192,42 @@ async def listar_farol(
 
         cliente.status_farol = calculo["farol"]
 
-        respostas.append(FarolClienteResponse(
+        # Sinal "margem" é a única % de dinheiro entre os 8 sinais — some pra
+        # não-admin (D-090), mantendo a cor (o indicador operacional continua útil).
+        sinais_resp = {nome: {"cor": cor, "valor": valor} for nome, (cor, valor) in sinais.items()}
+        motivo_texto_resp = calculo["motivo_texto"]
+        if not eh_admin(envoxer):
+            sinais_resp["margem"]["valor"] = None
+            # motivo_texto é prosa livre montada a partir dos MESMOS sinais (D-090) —
+            # o número de margem também vazava ali (ex.: "margem 18.2%"), então
+            # remonta a frase substituindo só o trecho de margem por algo sem %.
+            partes = []
+            for nome_sinal, (cor_sinal, valor_sinal) in sinais.items():
+                if cor_sinal not in ("vermelho", "amarelo"):
+                    continue
+                if nome_sinal == "margem":
+                    partes.append("margem baixa" if cor_sinal == "vermelho" else "margem em atenção")
+                else:
+                    partes.append(_texto_sinal(nome_sinal, valor_sinal))
+            motivo_texto_resp = " · ".join(partes) if partes else "Todos os sinais saudáveis."
+
+        resposta = FarolClienteResponse(
             cliente_id=cliente.id,
             cliente_nome=cliente.nome,
             responsavel_nome=responsavel_nome,
             farol=calculo["farol"],
             health_score=calculo["health_score"],
-            sinais={nome: {"cor": cor, "valor": valor} for nome, (cor, valor) in sinais.items()},
+            sinais=sinais_resp,
             sinais_vermelhos=calculo["sinais_vermelhos"],
             sinais_amarelos=calculo["sinais_amarelos"],
-            motivo_texto=calculo["motivo_texto"],
+            motivo_texto=motivo_texto_resp,
             sugestao_acao=calculo["sugestao_acao"],
             valor_contrato=float(cliente.valor_contrato or 0),
             meses_de_casa=_meses_de_casa(cliente.data_inicio_contrato),
             calculado_em=agora,
-        ))
+        )
+        redigir(resposta, ["valor_contrato"], envoxer)
+        respostas.append(resposta)
 
     await db.flush()
 
@@ -272,7 +294,7 @@ async def atualizar_alerta(
     alerta_id: int,
     payload: AlertaUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     result = await db.execute(select(AlertaFarol).where(AlertaFarol.id == alerta_id))
     alerta = result.scalar_one_or_none()

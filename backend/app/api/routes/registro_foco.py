@@ -16,7 +16,11 @@ from app.schemas.registro_foco import (
     FocoFinalizarRequest,
     RegistroFocoResponse,
     FocoResumoResponse,
+    FocoAtivoItem,
+    FocoOfflineItem,
+    FocoStatusTimeResponse,
 )
+from app.core.valores import redigir
 
 router = APIRouter(prefix="/foco", tags=["foco"])
 
@@ -34,14 +38,14 @@ async def _sessao_ativa(db: AsyncSession, envoxer_id: int) -> Optional[RegistroF
     return result.scalar_one_or_none()
 
 
-async def _to_response(db: AsyncSession, registro: RegistroFoco) -> RegistroFocoResponse:
+async def _to_response(db: AsyncSession, registro: RegistroFoco, envoxer: Envoxer) -> RegistroFocoResponse:
     tarefa = (await db.execute(select(Tarefa).where(Tarefa.id == registro.tarefa_id))).scalar_one_or_none()
     cliente_nome = None
     if tarefa is not None:
         cliente = (await db.execute(select(Cliente).where(Cliente.id == tarefa.cliente_id))).scalar_one_or_none()
         cliente_nome = cliente.nome if cliente else None
 
-    return RegistroFocoResponse(
+    resp = RegistroFocoResponse(
         id=registro.id,
         tarefa_id=registro.tarefa_id,
         tarefa_titulo=tarefa.titulo if tarefa else None,
@@ -56,6 +60,8 @@ async def _to_response(db: AsyncSession, registro: RegistroFoco) -> RegistroFoco
         comentario=registro.comentario,
         descartado=registro.descartado,
     )
+    redigir(resp, ["custo"], envoxer)
+    return resp
 
 
 @router.get("/ativo", response_model=Optional[RegistroFocoResponse])
@@ -66,7 +72,7 @@ async def obter_foco_ativo(
     registro = await _sessao_ativa(db, envoxer.id)
     if registro is None:
         return None
-    return await _to_response(db, registro)
+    return await _to_response(db, registro, envoxer)
 
 
 @router.post("/iniciar", response_model=RegistroFocoResponse, status_code=201)
@@ -91,7 +97,7 @@ async def iniciar_foco(
     db.add(registro)
     await db.flush()
     await db.refresh(registro)
-    return await _to_response(db, registro)
+    return await _to_response(db, registro, envoxer)
 
 
 async def _obter_registro_do_envoxer(db: AsyncSession, registro_id: int, envoxer_id: int) -> RegistroFoco:
@@ -125,7 +131,7 @@ async def pausar_ou_retomar_foco(
 
     await db.flush()
     await db.refresh(registro)
-    return await _to_response(db, registro)
+    return await _to_response(db, registro, envoxer)
 
 
 def _finalizar_registro(registro: RegistroFoco, custo_hora: float, comentario: Optional[str] = None) -> None:
@@ -182,7 +188,7 @@ async def finalizar_foco(
 
     await db.flush()
     await db.refresh(registro)
-    return await _to_response(db, registro)
+    return await _to_response(db, registro, envoxer)
 
 
 @router.get("/resumo", response_model=FocoResumoResponse)
@@ -221,10 +227,78 @@ async def resumo_foco(
     ))
     (semana_min,) = (await db.execute(semana_stmt)).one()
 
-    return FocoResumoResponse(
+    resposta = FocoResumoResponse(
         hoje_min=int(hoje_min),
         hoje_custo=float(hoje_custo),
         hoje_sessoes=int(hoje_sessoes),
         semana_min=int(semana_min),
         semana_meta_min=META_SEMANAL_MIN,
     )
+    redigir(resposta, ["hoje_custo"], envoxer)
+    return resposta
+
+
+@router.get("/status", response_model=FocoStatusTimeResponse)
+async def status_foco_time(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    """Status do time inteiro na tela 'Quem está em Foco' (D-090, redesenhada a pedido
+    do Gus): quem está com o timer ligado agora + quem está offline com o último
+    registro (início/fim) de cada um. Visível a qualquer envoxer logado (sem valor $)."""
+    result = await db.execute(
+        select(RegistroFoco, Envoxer, Tarefa, Cliente.nome)
+        .join(Envoxer, Envoxer.id == RegistroFoco.envoxer_id)
+        .join(Tarefa, Tarefa.id == RegistroFoco.tarefa_id)
+        .outerjoin(Cliente, Cliente.id == Tarefa.cliente_id)
+        .where(RegistroFoco.fim.is_(None))
+        .order_by(RegistroFoco.inicio)
+    )
+    ativos = [
+        FocoAtivoItem(
+            envoxer_id=env.id,
+            envoxer_nome=env.nome,
+            envoxer_foto=env.foto_url,
+            tarefa_id=tarefa.id,
+            tarefa_titulo=tarefa.titulo,
+            cliente_nome=cliente_nome,
+            inicio=registro.inicio,
+            pausado_em=registro.pausado_em,
+        )
+        for registro, env, tarefa, cliente_nome in result.all()
+    ]
+    ativos_ids = {item.envoxer_id for item in ativos}
+
+    todos_result = await db.execute(
+        select(Envoxer).where(Envoxer.ativo.is_(True), Envoxer.deleted_at.is_(None)).order_by(Envoxer.nome)
+    )
+    offline: list[FocoOfflineItem] = []
+    for env in todos_result.scalars().all():
+        if env.id in ativos_ids:
+            continue
+        # Último registro FINALIZADO desse envoxer — quem está offline não tem sessão
+        # aberta por definição (senão estaria em `ativos`), então fim sempre existe aqui.
+        ultimo_result = await db.execute(
+            select(RegistroFoco, Tarefa.titulo, Cliente.nome)
+            .join(Tarefa, Tarefa.id == RegistroFoco.tarefa_id)
+            .outerjoin(Cliente, Cliente.id == Tarefa.cliente_id)
+            .where(RegistroFoco.envoxer_id == env.id, RegistroFoco.fim.is_not(None))
+            .order_by(RegistroFoco.fim.desc())
+            .limit(1)
+        )
+        row = ultimo_result.first()
+        if row is None:
+            offline.append(FocoOfflineItem(envoxer_id=env.id, envoxer_nome=env.nome, envoxer_foto=env.foto_url))
+            continue
+        ultimo_registro, ultimo_tarefa_titulo, ultimo_cliente_nome = row
+        offline.append(FocoOfflineItem(
+            envoxer_id=env.id,
+            envoxer_nome=env.nome,
+            envoxer_foto=env.foto_url,
+            ultimo_tarefa_titulo=ultimo_tarefa_titulo,
+            ultimo_cliente_nome=ultimo_cliente_nome,
+            ultimo_inicio=ultimo_registro.inicio,
+            ultimo_fim=ultimo_registro.fim,
+        ))
+
+    return FocoStatusTimeResponse(ativos=ativos, offline=offline)

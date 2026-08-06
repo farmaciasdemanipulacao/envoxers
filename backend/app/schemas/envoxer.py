@@ -41,7 +41,8 @@ class EnvoxerResponse(EnvoxerBase):
     pontos: int
     salario_mensal: Optional[float] = None
     horas_mes: int
-    custo_hora: float
+    # Optional (não `float`) pra permitir redigir() pra não-admin, ver app/core/valores.py (D-090).
+    custo_hora: Optional[float] = None
     created_at: datetime
     updated_at: datetime
 

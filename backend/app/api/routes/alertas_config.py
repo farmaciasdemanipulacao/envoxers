@@ -1,5 +1,5 @@
 """Configuração de alertas — catálogo de tipos (Farol geral + sinais individuais +
-chat DM) que o admin master liga/desliga e define quem recebe. Só admin acessa.
+chat DM) que admin/gestor ligam/desligam e definem quem recebe.
 """
 from typing import Annotated
 
@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_gestor_ou_admin
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.alerta_config import AlertaConfig
@@ -21,7 +21,7 @@ _PAPEIS_VALIDOS = {"admin", "gestor", "envoxer"}
 @router.get("", response_model=list[AlertaConfigResponse])
 async def listar_alertas_config(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     result = await db.execute(select(AlertaConfig).order_by(AlertaConfig.grupo, AlertaConfig.id))
     return result.scalars().all()
@@ -32,7 +32,7 @@ async def atualizar_alerta_config(
     config_id: int,
     payload: AlertaConfigUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     config = await db.get(AlertaConfig, config_id)
     if config is None:

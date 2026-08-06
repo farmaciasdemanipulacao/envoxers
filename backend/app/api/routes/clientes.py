@@ -1,11 +1,12 @@
 from datetime import date, datetime, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
+from app.core.uploads import salvar_foto_avatar
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
@@ -16,6 +17,7 @@ from app.models.motivo_churn import MotivoChurnCatalogo
 from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse, ClienteListItem, ClienteServicoItem
 from app.schemas.churn import ChurnSnapshotResponse
 from app.services.perfil import recalcular_e_persistir_perfil
+from app.core.valores import eh_admin, redigir
 
 router = APIRouter(prefix="/clientes", tags=["clientes"])
 
@@ -30,7 +32,7 @@ def _meses_de_casa(inicio: Optional[date]) -> Optional[int]:
 @router.get("", response_model=list[ClienteListItem])
 async def listar_clientes(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     """Equivalente a vw_cliente_lista do schema.sql, calculado aqui em vez de VIEW no banco."""
     soma_servicos = (
@@ -53,23 +55,23 @@ async def listar_clientes(
 
     itens = []
     for cliente, soma, resp_nome, resp_foto in result.all():
-        itens.append(
-            ClienteListItem(
-                id=cliente.id,
-                nome=cliente.nome,
-                logo_url=cliente.logo_url,
-                status_farol=cliente.status_farol,
-                tipo_receita=cliente.tipo_receita,
-                segmento=cliente.segmento,
-                data_inicio_contrato=cliente.data_inicio_contrato,
-                valor_contrato=float(cliente.valor_contrato),
-                valor_servicos_soma=float(soma or 0),
-                meses_de_casa=_meses_de_casa(cliente.data_inicio_contrato),
-                responsavel_nome=resp_nome,
-                responsavel_foto=resp_foto,
-                ativo=cliente.ativo,
-            )
+        item = ClienteListItem(
+            id=cliente.id,
+            nome=cliente.nome,
+            logo_url=cliente.logo_url,
+            status_farol=cliente.status_farol,
+            tipo_receita=cliente.tipo_receita,
+            segmento=cliente.segmento,
+            data_inicio_contrato=cliente.data_inicio_contrato,
+            valor_contrato=float(cliente.valor_contrato),
+            valor_servicos_soma=float(soma or 0),
+            meses_de_casa=_meses_de_casa(cliente.data_inicio_contrato),
+            responsavel_nome=resp_nome,
+            responsavel_foto=resp_foto,
+            ativo=cliente.ativo,
         )
+        redigir(item, ["valor_contrato", "valor_servicos_soma"], envoxer)
+        itens.append(item)
     return itens
 
 
@@ -77,7 +79,7 @@ async def listar_clientes(
 async def obter_cliente(
     cliente_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     result = await db.execute(
         select(Cliente).where(and_(Cliente.id == cliente_id, Cliente.deleted_at.is_(None)))
@@ -89,6 +91,8 @@ async def obter_cliente(
     resp = ClienteResponse.model_validate(cliente)
     if cliente.data_cancelamento is not None:
         resp.churn = await _obter_churn_snapshot(db, cliente_id)
+        if resp.churn is not None:
+            redigir(resp.churn, ["valor_contrato_snap", "ticket_snap", "margem_media_snap"], envoxer)
     elif cliente.ativo:
         resp.perfil = await recalcular_e_persistir_perfil(db, cliente_id)
 
@@ -103,6 +107,10 @@ async def obter_cliente(
     escopo_result = await db.execute(select(Escopo).where(Escopo.cliente_id == cliente_id))
     escopo = escopo_result.scalar_one_or_none()
     resp.limite_alteracoes = escopo.limite_alteracoes if escopo else 2
+
+    redigir(resp, ["valor_contrato", "ticket"], envoxer)
+    for servico in resp.servicos:
+        redigir(servico, ["valor_mensal"], envoxer)
     return resp
 
 
@@ -125,22 +133,30 @@ async def _obter_churn_snapshot(db: AsyncSession, cliente_id: int) -> Optional[C
 async def criar_cliente(
     payload: ClienteCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+    envoxer: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     data = payload.model_dump(exclude={"servicos", "escopo"})
+    # Gestor continua podendo cadastrar cliente, mas não define valores monetários
+    # nessa criação — só admin. Cliente nasce com 0/sem ticket, admin completa depois.
+    if not eh_admin(envoxer):
+        data["valor_contrato"] = 0
+        data["ticket"] = None
     cliente = Cliente(**data)
     db.add(cliente)
     await db.flush()
 
-    for item in payload.servicos:
-        db.add(ClienteServico(cliente_id=cliente.id, **item.model_dump()))
+    if eh_admin(envoxer):
+        for item in payload.servicos:
+            db.add(ClienteServico(cliente_id=cliente.id, **item.model_dump()))
 
     if payload.escopo:
         db.add(Escopo(cliente_id=cliente.id, **payload.escopo.model_dump()))
 
     await db.flush()
     await db.refresh(cliente)
-    return cliente
+    resp = ClienteResponse.model_validate(cliente)
+    redigir(resp, ["valor_contrato", "ticket"], envoxer)
+    return resp
 
 
 @router.patch("/{cliente_id}", response_model=ClienteResponse)
@@ -148,7 +164,7 @@ async def atualizar_cliente(
     cliente_id: int,
     payload: ClienteUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+    envoxer: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     result = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
     cliente = result.scalar_one_or_none()
@@ -156,10 +172,20 @@ async def atualizar_cliente(
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
     updates = payload.model_dump(exclude_unset=True, exclude={"servicos", "escopo"})
+    if not eh_admin(envoxer):
+        # Formulário do gestor sempre reenvia esses campos junto com o resto (não é
+        # diff) — como a LEITURA vem redigida (null) pra gestor, se a escrita não
+        # fosse bloqueada aqui, qualquer salvamento do gestor zeraria o valor de
+        # contrato/ticket de verdade no banco. Ignorar esses 2 campos preserva o
+        # valor já existente.
+        updates.pop("valor_contrato", None)
+        updates.pop("ticket", None)
     for field, value in updates.items():
         setattr(cliente, field, value)
 
-    if payload.servicos is not None:
+    if payload.servicos is not None and eh_admin(envoxer):
+        # Mesma razão acima: `servicos[].valor_mensal` também é dinheiro — gestor não
+        # mexe (a seleção de serviços contratados fica com o admin).
         await db.execute(
             ClienteServico.__table__.delete().where(ClienteServico.cliente_id == cliente_id)
         )
@@ -177,7 +203,33 @@ async def atualizar_cliente(
 
     await db.flush()
     await db.refresh(cliente)
-    return cliente
+    resp = ClienteResponse.model_validate(cliente)
+    redigir(resp, ["valor_contrato", "ticket"], envoxer)
+    return resp
+
+
+@router.post("/{cliente_id}/logo", response_model=ClienteResponse)
+async def enviar_logo(
+    cliente_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+    arquivo: UploadFile = File(...),
+):
+    """Logo do cliente passa pelo mesmo recorte quadrado (arrastar/zoom no frontend,
+    ver AvatarCropModal) e processamento de imagem do avatar do Envoxer (D-090/D-102)
+    — `salvar_foto_avatar` é genérico, não tem nada específico de Envoxer."""
+    result = await db.execute(select(Cliente).where(and_(Cliente.id == cliente_id, Cliente.deleted_at.is_(None))))
+    cliente = result.scalar_one_or_none()
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    salvo = await salvar_foto_avatar(arquivo)
+    cliente.logo_url = salvo["url"]
+    await db.flush()
+    await db.refresh(cliente)
+    resp = ClienteResponse.model_validate(cliente)
+    redigir(resp, ["valor_contrato", "ticket"], envoxer)
+    return resp
 
 
 @router.delete("/{cliente_id}", status_code=204)

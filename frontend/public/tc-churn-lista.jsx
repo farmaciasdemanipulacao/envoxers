@@ -192,7 +192,7 @@ function ChurnListaScreen() {
                 <div className="form-row three">
                   <div>
                     <div className="modal-side-label">Valor de contrato</div>
-                    <div className="modal-side-value mono">{EnvoxersShared.formatMoney(detalhe.valor_contrato_snap)}</div>
+                    <div className="modal-side-value mono">{detalhe.valor_contrato_snap != null ? EnvoxersShared.formatMoney(detalhe.valor_contrato_snap) : "🔒 admin"}</div>
                   </div>
                   <div>
                     <div className="modal-side-label">Margem média</div>

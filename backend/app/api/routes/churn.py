@@ -16,6 +16,7 @@ from app.models.farol_calculo import FarolCalculo
 from app.models.perfil_cliente import PerfilCliente
 from app.models.pulso_satisfacao import PulsoSatisfacao
 from app.schemas.churn import ClienteCancelarRequest, MotivoChurnResponse, ChurnSnapshotResponse, ChurnListaItemResponse
+from app.core.valores import redigir_gestor
 
 router = APIRouter(tags=["churn"])
 
@@ -23,11 +24,13 @@ router = APIRouter(tags=["churn"])
 # hint do KPI no wireframe: "últimos 24 meses").
 JANELA_CHURN_LISTA_MESES = 24
 
+_CAMPOS_VALOR_CHURN = ["valor_contrato_snap", "ticket_snap", "margem_media_snap"]
+
 
 @router.get("/churn", response_model=list[ChurnListaItemResponse])
 async def listar_churn(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     desde = date.today() - timedelta(days=JANELA_CHURN_LISTA_MESES * 30)
     result = await db.execute(
@@ -40,6 +43,7 @@ async def listar_churn(
     for snapshot, motivo_nome in result.all():
         resp = ChurnListaItemResponse.model_validate(snapshot)
         resp.motivo_nome = motivo_nome
+        redigir_gestor(resp, _CAMPOS_VALOR_CHURN, envoxer)
         respostas.append(resp)
     return respostas
 
@@ -132,4 +136,5 @@ async def cancelar_cliente(
 
     resp = ChurnSnapshotResponse.model_validate(snapshot)
     resp.motivo_nome = motivo.nome
+    redigir_gestor(resp, _CAMPOS_VALOR_CHURN, envoxer)
     return resp

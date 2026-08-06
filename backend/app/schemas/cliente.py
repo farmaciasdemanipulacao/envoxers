@@ -9,7 +9,9 @@ from app.schemas.churn import ChurnSnapshotResponse
 
 class ClienteServicoItem(BaseModel):
     servico_id: int
-    valor_mensal: float = 0
+    # Optional (não só `float = 0`) pra permitir redigir com None na resposta pra
+    # não-admin (ver app/core/valores.py, D-090) sem quebrar validação do response_model.
+    valor_mensal: Optional[float] = 0
     observacao: Optional[str] = None
 
 
@@ -68,6 +70,10 @@ class ClienteResponse(ClienteBase):
     churn: Optional[ChurnSnapshotResponse] = None
     servicos: list[ClienteServicoItem] = []
     limite_alteracoes: int = 2
+    # Sobrescreve o tipo de ClienteBase (que exige float, sem default None) pra
+    # permitir redigir(response, ["valor_contrato", "ticket"], envoxer) pra não-admin.
+    # (`ticket` já é Optional em ClienteBase, não precisa sobrescrever.)
+    valor_contrato: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -82,8 +88,9 @@ class ClienteListItem(BaseModel):
     tipo_receita: str
     segmento: Optional[str] = None
     data_inicio_contrato: Optional[date] = None
-    valor_contrato: float
-    valor_servicos_soma: float
+    # Optional pra permitir redigir() pra não-admin (D-090) — resto do payload continua igual.
+    valor_contrato: Optional[float] = None
+    valor_servicos_soma: Optional[float] = None
     meses_de_casa: Optional[int] = None
     responsavel_nome: Optional[str] = None
     responsavel_foto: Optional[str] = None

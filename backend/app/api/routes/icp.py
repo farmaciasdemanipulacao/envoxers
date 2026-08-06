@@ -12,13 +12,14 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_envoxer
+from app.api.deps import get_current_gestor_ou_admin
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
 from app.models.churn_snapshot import ChurnSnapshot
 from app.models.farol_calculo import FarolCalculo
 from app.services.perfil import recalcular_e_persistir_perfil
+from app.core.valores import redigir_gestor_dict
 
 router = APIRouter(tags=["icp"])
 
@@ -61,7 +62,7 @@ def _media(valores: list) -> Optional[float]:
 @router.get("/icp/comparativo")
 async def icp_comparativo(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     hoje = date.today()
 
@@ -138,6 +139,9 @@ async def icp_comparativo(
                 f'{d["dimensao_label"]} "{d["valor"]}": {d["pct_perdidos"]}% dos perdidos '
                 f'vs {d["pct_retidos"]}% dos retidos'
             )
+
+    redigir_gestor_dict(retidos_bloco, ["ticket_medio", "margem_media"], envoxer)
+    redigir_gestor_dict(perdidos_bloco, ["ticket_medio", "margem_media"], envoxer)
 
     return {
         "retidos": retidos_bloco,

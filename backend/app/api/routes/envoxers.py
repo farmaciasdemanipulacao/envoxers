@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin, get_current_envoxer
 from app.core.security import hash_password
+from app.core.uploads import salvar_foto_avatar
+from app.core.valores import redigir
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.schemas.envoxer import EnvoxerCreate, EnvoxerUpdate, EnvoxerResponse
@@ -27,12 +29,15 @@ def _liberar_email(envoxer: Envoxer) -> None:
 @router.get("", response_model=list[EnvoxerResponse])
 async def listar_envoxers(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     result = await db.execute(
         select(Envoxer).where(Envoxer.deleted_at.is_(None)).order_by(Envoxer.nome)
     )
-    return result.scalars().all()
+    itens = [EnvoxerResponse.model_validate(e) for e in result.scalars().all()]
+    for item in itens:
+        redigir(item, ["salario_mensal", "custo_hora"], envoxer)
+    return itens
 
 
 @router.post("", response_model=EnvoxerResponse, status_code=201)
@@ -87,6 +92,41 @@ async def atualizar_envoxer(
     await db.flush()
     await db.refresh(envoxer)
     return envoxer
+
+
+@router.post("/me/foto", response_model=EnvoxerResponse)
+async def upload_minha_foto(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    arquivo: UploadFile = File(...),
+):
+    """Self-service (D-090) — qualquer envoxer logado troca a própria foto, sem precisar de admin."""
+    salvo = await salvar_foto_avatar(arquivo)
+    envoxer.foto_url = salvo["url"]
+    await db.flush()
+    await db.refresh(envoxer)
+    resp = EnvoxerResponse.model_validate(envoxer)
+    redigir(resp, ["salario_mensal", "custo_hora"], envoxer)
+    return resp
+
+
+@router.post("/{envoxer_id}/foto", response_model=EnvoxerResponse)
+async def upload_foto_de(
+    envoxer_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Envoxer, Depends(get_current_admin)],
+    arquivo: UploadFile = File(...),
+):
+    """Admin troca a foto de qualquer envoxer (D-090) — mesmo padrão de upload dos anexos de tarefa."""
+    result = await db.execute(select(Envoxer).where(Envoxer.id == envoxer_id))
+    alvo = result.scalar_one_or_none()
+    if alvo is None:
+        raise HTTPException(status_code=404, detail="Envoxer não encontrado")
+    salvo = await salvar_foto_avatar(arquivo)
+    alvo.foto_url = salvo["url"]
+    await db.flush()
+    await db.refresh(alvo)
+    return alvo
 
 
 @router.delete("/{envoxer_id}", status_code=204)

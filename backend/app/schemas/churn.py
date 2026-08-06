@@ -30,7 +30,8 @@ class ChurnSnapshotResponse(BaseModel):
     canal_aquisicao_snap: Optional[str] = None
     maturidade_snap: Optional[str] = None
     perfil_snap: Optional[str] = None
-    valor_contrato_snap: float
+    # Optional (não `float`) pra permitir redigir() pra não-admin, ver app/core/valores.py (D-090).
+    valor_contrato_snap: Optional[float] = None
     tipo_receita_snap: str
     margem_media_snap: Optional[float] = None
     pulso_medio_snap: Optional[float] = None
@@ -54,7 +55,8 @@ class ChurnListaItemResponse(BaseModel):
     canal_aquisicao_snap: Optional[str] = None
     maturidade_snap: Optional[str] = None
     perfil_snap: Optional[str] = None
-    valor_contrato_snap: float
+    # Optional (não `float`) pra permitir redigir() pra não-admin, ver app/core/valores.py (D-090).
+    valor_contrato_snap: Optional[float] = None
     tipo_receita_snap: str
     margem_media_snap: Optional[float] = None
     pulso_medio_snap: Optional[float] = None

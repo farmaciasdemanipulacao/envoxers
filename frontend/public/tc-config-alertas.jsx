@@ -13,7 +13,7 @@ function ConfigAlertasScreen({ permissao }) {
   const [loading, setLoading] = useStateCfgAlertas(true);
   const [salvandoId, setSalvandoId] = useStateCfgAlertas(null);
   const toast = EnvoxersShared.useToast();
-  const isAdmin = permissao === "admin";
+  const isAdmin = permissao === "admin" || permissao === "gestor";
 
   const carregar = async () => {
     setLoading(true);
@@ -53,7 +53,7 @@ function ConfigAlertasScreen({ permissao }) {
     return (
       <div className="page">
         <EnvoxersShared.PageHeader title="Configuração de Alertas" />
-        <p className="td-muted">Apenas admin pode configurar alertas.</p>
+        <p className="td-muted">Apenas admin/gestor podem configurar alertas.</p>
       </div>
     );
   }

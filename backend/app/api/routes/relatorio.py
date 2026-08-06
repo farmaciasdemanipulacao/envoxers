@@ -6,6 +6,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_envoxer
+from app.core.valores import eh_admin, redigir_dict
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
@@ -35,15 +36,25 @@ def _periodo_para_datas(periodo: str, inicio: Optional[date], fim: Optional[date
 @router.get("/tempo-custo")
 async def relatorio_tempo_custo(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    # Tela cheia "Relatório de custo" continua 100% admin (nem gestor) — mas o
+    # agrupar=cliente também alimenta o widget "Relatório rápido" do Dashboard do
+    # dia, que passou a ser visível pra todo mundo (D-10x RBAC), com os valores
+    # redigidos pra quem não é admin/gestor. Por isso a rota abre pra qualquer
+    # envoxer logado, e quem block/redige é o corpo da função por `agrupar`.
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
     agrupar: str = "cliente",
     periodo: str = "mes",
     inicio: Optional[date] = None,
     fim: Optional[date] = None,
     tipo_receita: Optional[str] = None,
 ):
-    if agrupar not in ("cliente", "servico", "tipo", "envoxer"):
-        raise HTTPException(status_code=400, detail="agrupar deve ser cliente, servico, tipo ou envoxer")
+    if agrupar not in ("cliente", "servico", "envoxer"):
+        raise HTTPException(status_code=400, detail="agrupar deve ser cliente, servico ou envoxer")
+    if agrupar in ("servico", "envoxer") and not eh_admin(envoxer):
+        # Só a tela cheia do Relatório de custo usa esses 2 agrupamentos (nav já
+        # esconde a tela pra quem não é admin) — o widget do Dashboard só usa
+        # agrupar=cliente, então não precisa deles abertos.
+        raise HTTPException(status_code=403, detail="Apenas admin")
     if tipo_receita is not None and tipo_receita not in ("recorrente", "pontual"):
         raise HTTPException(status_code=400, detail="tipo_receita deve ser recorrente ou pontual")
 
@@ -83,7 +94,11 @@ async def relatorio_tempo_custo(
                 "margem_reais": round(margem_reais, 2),
                 "margem_pct": round(margem_pct, 1) if margem_pct is not None else None,
             })
+        # Ordena com os valores reais (prioriza pior margem) e só DEPOIS redige —
+        # a ordem continua útil mesmo pra quem não vê o número.
         itens.sort(key=lambda i: (i["margem_pct"] is None, i["margem_pct"]))
+        for item in itens:
+            redigir_dict(item, ["valor_contrato", "margem_reais", "margem_pct"], envoxer)
 
     elif agrupar == "servico":
         stmt = (
@@ -112,35 +127,6 @@ async def relatorio_tempo_custo(
                 "horas": round(min_total / 60, 2),
                 "custo_horas": custo_total,
                 "pct_custo_total": round(custo_total / custo_geral * 100, 1),
-            })
-        itens.sort(key=lambda i: i["custo_horas"], reverse=True)
-
-    elif agrupar == "tipo":
-        stmt = (
-            select(
-                func.coalesce(Tarefa.tipo_tarefa, "Sem tipo"),
-                func.count(func.distinct(Tarefa.id)),
-                func.coalesce(func.sum(RegistroFoco.duracao_min), 0),
-                func.coalesce(func.sum(RegistroFoco.custo), 0),
-            )
-            .select_from(RegistroFoco)
-            .join(Tarefa, Tarefa.id == RegistroFoco.tarefa_id)
-            .where(
-                RegistroFoco.fim.is_not(None), RegistroFoco.descartado.is_(False),
-                RegistroFoco.inicio >= inicio_dt, RegistroFoco.inicio < fim_dt,
-            )
-            .group_by(Tarefa.tipo_tarefa)
-        )
-        rows = (await db.execute(stmt)).all()
-        itens = []
-        for tipo_tarefa, qtd_tarefas, min_total, custo_total in rows:
-            custo_total = float(custo_total)
-            itens.append({
-                "tipo_tarefa": tipo_tarefa,
-                "qtd_tarefas": qtd_tarefas,
-                "horas": round(min_total / 60, 2),
-                "custo_horas": custo_total,
-                "custo_medio_tarefa": round(custo_total / qtd_tarefas, 2) if qtd_tarefas else 0,
             })
         itens.sort(key=lambda i: i["custo_horas"], reverse=True)
 

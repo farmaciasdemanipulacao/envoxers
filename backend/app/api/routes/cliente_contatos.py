@@ -1,4 +1,6 @@
-"""Portal do Cliente — Módulo A: gestão interna dos contatos do cliente (só gestor/admin).
+"""Portal do Cliente — Módulo A: gestão interna dos contatos do cliente.
+Leitura aberta a qualquer envoxer logado; criar/editar/reenviar link continuam
+restritos a gestor/admin.
 
 Sem infra de e-mail no projeto — ao criar um contato ou reenviar o link, a
 resposta inclui `link_definicao_senha` pronto pra copiar e mandar por
@@ -13,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_gestor_ou_admin
+from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
@@ -65,7 +67,9 @@ async def _get_contato_ou_404(db: AsyncSession, cliente_id: int, contato_id: int
 async def listar_contatos(
     cliente_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+    # Leitura aberta (reforma de RBAC — colaborador vê a ficha do cliente inteira,
+    # só não edita nada). Criar/editar/reenviar link continuam gestor+admin abaixo.
+    _: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     await _get_cliente_ou_404(db, cliente_id)
     result = await db.execute(

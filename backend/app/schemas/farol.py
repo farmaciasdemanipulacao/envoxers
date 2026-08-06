@@ -16,7 +16,8 @@ class FarolClienteResponse(BaseModel):
     sinais_amarelos: list[str]
     motivo_texto: str
     sugestao_acao: Optional[str] = None
-    valor_contrato: float
+    # Optional (não `float`) pra permitir redigir() pra não-admin, ver app/core/valores.py (D-090).
+    valor_contrato: Optional[float] = None
     meses_de_casa: Optional[int] = None
     calculado_em: datetime
 
