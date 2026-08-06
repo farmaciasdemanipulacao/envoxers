@@ -46,6 +46,7 @@ class EtapaResponse(BaseModel):
     descricao: Optional[str] = None
     responsavel_id: Optional[int] = None
     responsavel_nome: Optional[str] = None
+    responsavel_foto: Optional[str] = None
     prazo: Optional[date] = None
     ordem: int
     status: str

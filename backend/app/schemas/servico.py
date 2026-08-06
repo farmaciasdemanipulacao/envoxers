@@ -25,3 +25,12 @@ class ServicoResponse(ServicoBase):
 
     class Config:
         from_attributes = True
+
+
+class ServicoExclusaoResponse(BaseModel):
+    servico_excluido_id: int
+    substituto_id: int
+    contratos_migrados: int
+    itens_escopo_migrados: int
+    tarefas_migradas: int
+    etapas_modelo_migradas: int

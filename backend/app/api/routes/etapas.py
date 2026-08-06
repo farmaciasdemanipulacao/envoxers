@@ -2,7 +2,7 @@
 entre elas (LIBERAR_PROXIMA_ETAPA, MOVER_TAREFA_COLUNA, MARCAR_TAREFA_CONCLUIDA,
 CRIAR_ALERTA_RESPONSAVEL). Ver app/services/etapas_automacao.py para a execução.
 """
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,10 +15,8 @@ from app.models.envoxer import Envoxer
 from app.models.tarefa import Tarefa, STATUS_TAREFA_VALUES
 from app.models.etapa import Etapa
 from app.models.automacao_etapa import AutomacaoEtapa, ACAO_AUTOMACAO_VALUES
-from app.models.etapa_template import EtapaTemplate
-from app.models.automacao_etapa_template import AutomacaoEtapaTemplate
 from app.schemas.etapa import EtapaCreate, EtapaUpdate, EtapaResponse, AutomacaoEtapaUpsert, AutomacaoEtapaResponse
-from app.services.etapas_automacao import executar_automacao
+from app.services.etapas_automacao import executar_automacao, aplicar_processo_do_servico
 
 router = APIRouter(tags=["etapas"])
 
@@ -55,18 +53,18 @@ async def _obter_automacao(db: AsyncSession, etapa_id: int) -> Optional[Automaca
     return result.scalar_one_or_none()
 
 
-async def _nomes_envoxers(db: AsyncSession, ids: set[int]) -> dict[int, str]:
+async def _envoxers_por_id(db: AsyncSession, ids: set[int]) -> dict[int, tuple[str, Optional[str]]]:
     ids = {i for i in ids if i}
     if not ids:
         return {}
-    result = await db.execute(select(Envoxer.id, Envoxer.nome).where(Envoxer.id.in_(ids)))
-    return {row[0]: row[1] for row in result.all()}
+    result = await db.execute(select(Envoxer.id, Envoxer.nome, Envoxer.foto_url).where(Envoxer.id.in_(ids)))
+    return {row[0]: (row[1], row[2]) for row in result.all()}
 
 
 async def _to_response(db: AsyncSession, etapas: list[Etapa]) -> list[EtapaResponse]:
     """Monta a lista com nome do responsável, automação e cálculo de bloqueio pela etapa anterior."""
     etapas = sorted(etapas, key=lambda e: (e.ordem, e.id))
-    nomes = await _nomes_envoxers(db, {e.responsavel_id for e in etapas})
+    envoxers = await _envoxers_por_id(db, {e.responsavel_id for e in etapas})
 
     automacoes_result = await db.execute(
         select(AutomacaoEtapa).where(AutomacaoEtapa.etapa_id.in_([e.id for e in etapas] or [-1]))
@@ -85,13 +83,15 @@ async def _to_response(db: AsyncSession, etapas: list[Etapa]) -> list[EtapaRespo
             and anterior.status != "concluida"
         )
         automacao = automacoes_por_etapa.get(etapa.id)
+        envoxer = envoxers.get(etapa.responsavel_id)
         resp = EtapaResponse(
             id=etapa.id,
             tarefa_id=etapa.tarefa_id,
             titulo=etapa.titulo,
             descricao=etapa.descricao,
             responsavel_id=etapa.responsavel_id,
-            responsavel_nome=nomes.get(etapa.responsavel_id),
+            responsavel_nome=envoxer[0] if envoxer else None,
+            responsavel_foto=envoxer[1] if envoxer else None,
             prazo=etapa.prazo,
             ordem=etapa.ordem,
             status=etapa.status,
@@ -296,59 +296,16 @@ async def aplicar_processo(
     _: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     """Copia as etapas-modelo do serviço da tarefa para dentro dela como Etapas
-    reais, na sequência das que já existirem (não substitui nada)."""
+    reais (com o responsável padrão de cada uma), na sequência das que já
+    existirem (não substitui nada)."""
     tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
     if tarefa.servico_id is None:
         raise HTTPException(status_code=400, detail="Tarefa sem serviço definido")
 
-    result = await db.execute(
-        select(EtapaTemplate)
-        .where(EtapaTemplate.servico_id == tarefa.servico_id)
-        .order_by(EtapaTemplate.ordem, EtapaTemplate.id)
-    )
-    templates = list(result.scalars().all())
-    if not templates:
+    novas_etapas = await aplicar_processo_do_servico(db, tarefa_id, tarefa.servico_id)
+    if not novas_etapas:
         raise HTTPException(status_code=400, detail="Este serviço não tem etapas-modelo cadastradas")
 
-    automacoes_result = await db.execute(
-        select(AutomacaoEtapaTemplate).where(
-            AutomacaoEtapaTemplate.etapa_template_id.in_([t.id for t in templates])
-        )
-    )
-    automacoes_por_template = {a.etapa_template_id: a for a in automacoes_result.scalars().all()}
-
-    ordem_result = await db.execute(select(Etapa.ordem).where(Etapa.tarefa_id == tarefa_id))
-    proxima_ordem = max([o for (o,) in ordem_result.all()], default=-1) + 1
-    hoje = date.today()
-
-    novas_etapas = []
-    for template in templates:
-        etapa = Etapa(
-            tarefa_id=tarefa_id,
-            titulo=template.titulo,
-            descricao=template.descricao,
-            prazo=hoje + timedelta(days=template.prazo_dias) if template.prazo_dias is not None else None,
-            ordem=proxima_ordem,
-        )
-        proxima_ordem += 1
-        db.add(etapa)
-        novas_etapas.append((etapa, automacoes_por_template.get(template.id)))
-
-    await db.flush()
-
-    for etapa, automacao_template in novas_etapas:
-        await db.refresh(etapa)
-        if automacao_template:
-            db.add(
-                AutomacaoEtapa(
-                    etapa_id=etapa.id,
-                    acao=automacao_template.acao,
-                    coluna_destino=automacao_template.coluna_destino,
-                    ativo=automacao_template.ativo,
-                )
-            )
-
-    await db.flush()
     resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
-    ids_novas = {e.id for e, _ in novas_etapas}
+    ids_novas = {e.id for e in novas_etapas}
     return [r for r in resp if r.id in ids_novas]

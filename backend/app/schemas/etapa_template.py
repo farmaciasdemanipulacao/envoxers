@@ -25,6 +25,7 @@ class EtapaTemplateCreate(BaseModel):
     titulo: str
     descricao: Optional[str] = None
     prazo_dias: Optional[int] = None
+    responsavel_padrao_envoxer_id: Optional[int] = None
 
 
 class EtapaTemplateUpdate(BaseModel):
@@ -34,6 +35,7 @@ class EtapaTemplateUpdate(BaseModel):
     descricao: Optional[str] = None
     prazo_dias: Optional[int] = None
     ordem: Optional[int] = None
+    responsavel_padrao_envoxer_id: Optional[int] = None
 
 
 class EtapaTemplateResponse(BaseModel):
@@ -43,6 +45,9 @@ class EtapaTemplateResponse(BaseModel):
     descricao: Optional[str] = None
     prazo_dias: Optional[int] = None
     ordem: int
+    responsavel_padrao_envoxer_id: Optional[int] = None
+    responsavel_padrao_nome: Optional[str] = None
+    responsavel_padrao_foto: Optional[str] = None
     automacao: Optional[AutomacaoEtapaTemplateResponse] = None
 
     model_config = ConfigDict(from_attributes=True)

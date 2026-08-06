@@ -22,5 +22,10 @@ class EtapaTemplate(Base, TimestampMixin):
     # (etapa_template não sabe a data real de nenhuma tarefa específica).
     prazo_dias: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     ordem: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Quem executa essa etapa por padrão sempre que o processo é aplicado (manual ou
+    # automaticamente na criação do card) — copiado pra Etapa.responsavel_id na aplicação.
+    responsavel_padrao_envoxer_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("envoxer.id", ondelete="SET NULL"), nullable=True
+    )
 
     tenant_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=1)

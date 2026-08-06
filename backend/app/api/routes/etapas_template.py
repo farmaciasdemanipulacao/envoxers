@@ -1,7 +1,7 @@
 """Etapas-modelo de um Serviço — "receita" de processo reaproveitável, aplicada
 numa Tarefa via POST /tarefas/{id}/aplicar-processo (ver app/api/routes/etapas.py).
-CRUD restrito a admin, mesma regra do catálogo de Serviços (mexer aqui não
-afeta tarefas já criadas — só as próximas aplicações do processo).
+CRUD restrito a gestor+admin, mesma regra do catálogo de Serviços (mexer aqui
+não afeta tarefas já criadas — só as próximas aplicações do processo).
 """
 from typing import Annotated, Optional
 
@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_gestor_ou_admin
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.servico import Servico
@@ -68,9 +68,14 @@ async def _to_response(db: AsyncSession, templates: list[EtapaTemplate]) -> list
     )
     automacoes_por_template = {a.etapa_template_id: a for a in automacoes_result.scalars().all()}
 
+    ids_responsavel = {t.responsavel_padrao_envoxer_id for t in templates if t.responsavel_padrao_envoxer_id}
+    envs_result = await db.execute(select(Envoxer.id, Envoxer.nome, Envoxer.foto_url).where(Envoxer.id.in_(ids_responsavel or [-1])))
+    envs_por_id = {row[0]: (row[1], row[2]) for row in envs_result.all()}
+
     respostas = []
     for template in templates:
         automacao = automacoes_por_template.get(template.id)
+        envoxer = envs_por_id.get(template.responsavel_padrao_envoxer_id)
         respostas.append(
             EtapaTemplateResponse(
                 id=template.id,
@@ -79,6 +84,9 @@ async def _to_response(db: AsyncSession, templates: list[EtapaTemplate]) -> list
                 descricao=template.descricao,
                 prazo_dias=template.prazo_dias,
                 ordem=template.ordem,
+                responsavel_padrao_envoxer_id=template.responsavel_padrao_envoxer_id,
+                responsavel_padrao_nome=envoxer[0] if envoxer else None,
+                responsavel_padrao_foto=envoxer[1] if envoxer else None,
                 automacao=AutomacaoEtapaTemplateResponse.model_validate(automacao) if automacao else None,
             )
         )
@@ -89,7 +97,7 @@ async def _to_response(db: AsyncSession, templates: list[EtapaTemplate]) -> list
 async def listar_templates(
     servico_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     await _obter_servico_ou_404(db, servico_id)
     templates = await _listar_templates_ordenados(db, servico_id)
@@ -101,7 +109,7 @@ async def criar_template(
     servico_id: int,
     payload: EtapaTemplateCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     await _obter_servico_ou_404(db, servico_id)
     if not payload.titulo.strip():
@@ -115,6 +123,7 @@ async def criar_template(
         titulo=payload.titulo,
         descricao=payload.descricao,
         prazo_dias=payload.prazo_dias,
+        responsavel_padrao_envoxer_id=payload.responsavel_padrao_envoxer_id,
         ordem=maior_ordem + 1,
     )
     db.add(template)
@@ -130,7 +139,7 @@ async def atualizar_template(
     template_id: int,
     payload: EtapaTemplateUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     await _obter_servico_ou_404(db, servico_id)
     template = await _obter_template_ou_404(db, servico_id, template_id)
@@ -150,7 +159,7 @@ async def excluir_template(
     servico_id: int,
     template_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     await _obter_servico_ou_404(db, servico_id)
     template = await _obter_template_ou_404(db, servico_id, template_id)
@@ -167,7 +176,7 @@ async def configurar_automacao_template(
     template_id: int,
     payload: AutomacaoEtapaTemplateUpsert,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     await _obter_servico_ou_404(db, servico_id)
     await _obter_template_ou_404(db, servico_id, template_id)
@@ -197,7 +206,7 @@ async def remover_automacao_template(
     servico_id: int,
     template_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     await _obter_servico_ou_404(db, servico_id)
     await _obter_template_ou_404(db, servico_id, template_id)

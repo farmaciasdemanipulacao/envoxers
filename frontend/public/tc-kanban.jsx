@@ -11,12 +11,6 @@ const STATUS_COLS = [
   { key: "finalizado", label: "Finalizado", phase: "saida", helpKey: "kanban_col_finalizado" },
 ];
 
-const TIPOS_TAREFA = [
-  "Post estático", "Carrossel", "Reels", "Story", "Campanha de tráfego",
-  "Criativo (arte)", "Vídeo curto", "Vídeo longo", "E-mail marketing",
-  "Landing page", "Roteiro", "Legenda", "Cronograma editorial", "Relatório mensal",
-];
-
 const ETIQUETA_CORES = ["azul", "amarelo", "vermelho", "verde", "roxo", "cinza"];
 
 function fmtPrazoKb(prazo) {
@@ -43,16 +37,23 @@ function fmtHMS(totalSegundos) {
   return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
-function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAbrirNovaTarefa, onNavigate }) {
+function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAbrirNovaTarefa, onNavigate }) {
+  // Card manual (fora do que nasce automático da cota contratada) só pode ser
+  // criado por gestor/admin — mesma trava que já existe no backend (POST
+  // /tarefas exige get_current_gestor_ou_admin). Escondendo o botão aqui
+  // fechamos o gap de UX de mostrar uma ação que ia dar 403 pra quem não é
+  // gestor/admin.
+  const podeCriarCard = permissao === "admin" || permissao === "gestor";
   const [tarefas, setTarefas] = useStateKb([]);
   const [clientes, setClientes] = useStateKb([]);
   const [envoxersList, setEnvoxersList] = useStateKb([]);
   const [loading, setLoading] = useStateKb(true);
   const [busca, setBusca] = useStateKb("");
   const [filtroCliente, setFiltroCliente] = useStateKb("");
-  const [filtroResponsavel, setFiltroResponsavel] = useStateKb("");
+  // Colaborador sempre abre o Kanban já filtrado nele mesmo (pedido de RBAC) —
+  // continua vendo o board inteiro, só o filtro já vem pré-marcado, e dá pra trocar.
+  const [filtroResponsavel, setFiltroResponsavel] = useStateKb(permissao === "envoxer" && envoxerId ? String(envoxerId) : "");
   const [filtroStatus, setFiltroStatus] = useStateKb("");
-  const [filtroTipo, setFiltroTipo] = useStateKb("");
   const [filtroAtrasadas, setFiltroAtrasadas] = useStateKb(false);
   const [ocultarFinalizadas, setOcultarFinalizadas] = useStateKb(true);
   const toast = EnvoxersShared.useToast();
@@ -83,16 +84,11 @@ function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAb
       if (filtroCliente && String(t.cliente_id) !== filtroCliente) return false;
       if (filtroResponsavel && String(t.responsavel_envoxer_id) !== filtroResponsavel) return false;
       if (filtroStatus && t.status !== filtroStatus) return false;
-      if (filtroTipo && (t.tipo_tarefa || "") !== filtroTipo) return false;
       if (filtroAtrasadas && (t.status === "finalizado" || fmtPrazoKb(t.prazo).cls !== "atrasada")) return false;
       if (busca && !t.titulo.toLowerCase().includes(busca.toLowerCase())) return false;
       return true;
     });
-  }, [tarefas, busca, filtroCliente, filtroResponsavel, filtroStatus, filtroTipo, filtroAtrasadas, ocultarFinalizadas]);
-
-  const tiposDisponiveis = useMemoKb(() => {
-    return [...new Set(tarefas.map((t) => t.tipo_tarefa).filter(Boolean))].sort();
-  }, [tarefas]);
+  }, [tarefas, busca, filtroCliente, filtroResponsavel, filtroStatus, filtroAtrasadas, ocultarFinalizadas]);
 
   const moverCard = async (tarefaId, novoStatus) => {
     setTarefas((prev) => prev.map((t) => (t.id === tarefaId ? { ...t, status: novoStatus } : t)));
@@ -115,9 +111,11 @@ function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAb
           <button className="btn" onClick={() => onNavigate("calendario")}>
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="12" height="10" rx="1" /><path d="M2 7h12M6 2v3M10 2v3" /></svg> Calendário
           </button>
-          <button className="btn btn-envox" onClick={() => onAbrirNovaTarefa("nova")}>
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg> Nova demanda
-          </button>
+          {podeCriarCard && (
+            <button className="btn btn-envox" onClick={() => onAbrirNovaTarefa("nova")}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg> Nova demanda
+            </button>
+          )}
         </div>
       </div>
 
@@ -138,10 +136,6 @@ function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAb
           <select className="chip" value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
             <option value="">Todos os status</option>
             {STATUS_COLS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-          </select>
-          <select className="chip" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
-            <option value="">Todos os tipos</option>
-            {tiposDisponiveis.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
           <label className="chip" style={{ cursor: "pointer" }}>
             <input type="checkbox" checked={filtroAtrasadas} onChange={(e) => setFiltroAtrasadas(e.target.checked)} style={{ marginRight: 6 }} />
@@ -166,7 +160,7 @@ function KanbanScreen({ focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAb
               focoElapsed={focoElapsed}
               onDropTarefa={moverCard}
               onAbrirTarefa={onAbrirTarefa}
-              onNovaNestaColuna={() => onAbrirNovaTarefa(col.key)}
+              onNovaNestaColuna={podeCriarCard ? () => onAbrirNovaTarefa(col.key) : null}
             />
           ))}
         </div>
@@ -195,9 +189,11 @@ function KanbanColuna({ col, tarefas, focoAtivo, focoElapsed, onDropTarefa, onAb
       <div className="kb-col-head">
         <span className="kb-col-name">{col.label} <EnvoxersShared.HelpIcon helpKey={col.helpKey} /></span>
         <span className="kb-col-count">{tarefas.length}</span>
-        <button className="kb-col-add" onClick={onNovaNestaColuna} title="Nova nesta coluna">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 2v8M2 6h8" /></svg>
-        </button>
+        {onNovaNestaColuna && (
+          <button className="kb-col-add" onClick={onNovaNestaColuna} title="Nova nesta coluna">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 2v8M2 6h8" /></svg>
+          </button>
+        )}
       </div>
       <div className="kb-col-body">
         {tarefas.length === 0 && <div className="kb-empty">— sem demandas —</div>}
@@ -232,7 +228,6 @@ function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
       </div>
       <div className="kb-card-title">{t.titulo}</div>
       <div className="kb-card-meta">
-        {t.tipo_tarefa && <span className="pill">{t.tipo_tarefa}</span>}
         {t.etiqueta && <span className={`tag tag-${t.etiqueta_cor || "cinza"}`}>{t.etiqueta}</span>}
       </div>
       <div className="kb-card-foot">
@@ -258,7 +253,7 @@ function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
         )}
         {t.responsavel_nome && (
           <span className="assignee" title={t.responsavel_nome}>
-            <div className="avatar sm gray">{initialsKb(t.responsavel_nome)}</div>
+            <EnvoxersShared.Avatar nome={t.responsavel_nome} fotoUrl={t.responsavel_foto} size="sm" className="gray" />
           </span>
         )}
       </div>
@@ -276,14 +271,14 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
 
   const [clienteId, setClienteId] = useStateKb("");
   const [servicoId, setServicoId] = useStateKb("");
+  const [entregas, setEntregas] = useStateKb([]);
+  const [entregaLoading, setEntregaLoading] = useStateKb(false);
   const [titulo, setTitulo] = useStateKb("");
-  const [tipoTarefa, setTipoTarefa] = useStateKb("");
   const [responsavelId, setResponsavelId] = useStateKb("");
   const [status, setStatus] = useStateKb(statusInicial || "nova");
   const [prazo, setPrazo] = useStateKb("");
   const [etiqueta, setEtiqueta] = useStateKb("");
   const [etiquetaCor, setEtiquetaCor] = useStateKb("cinza");
-  const [legenda, setLegenda] = useStateKb("");
   const [novoComentario, setNovoComentario] = useStateKb("");
   const [editandoTitulo, setEditandoTitulo] = useStateKb(false);
   const [tituloSalvando, setTituloSalvando] = useStateKb(false);
@@ -296,12 +291,13 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   const [acaoLoading, setAcaoLoading] = useStateKb(false);
 
   const [etapas, setEtapas] = useStateKb([]);
-  const [novaEtapaAberta, setNovaEtapaAberta] = useStateKb(false);
-  const [novaEtapaTitulo, setNovaEtapaTitulo] = useStateKb("");
-  const [novaEtapaDescricao, setNovaEtapaDescricao] = useStateKb("");
-  const [novaEtapaResponsavel, setNovaEtapaResponsavel] = useStateKb("");
-  const [novaEtapaPrazo, setNovaEtapaPrazo] = useStateKb("");
   const [etapaLoading, setEtapaLoading] = useStateKb(false);
+  const [etapaEditandoId, setEtapaEditandoId] = useStateKb(null);
+  const [etapaEditTitulo, setEtapaEditTitulo] = useStateKb("");
+  const [etapaEditDescricao, setEtapaEditDescricao] = useStateKb("");
+  const [etapaEditResponsavel, setEtapaEditResponsavel] = useStateKb("");
+  const [etapaEditPrazo, setEtapaEditPrazo] = useStateKb("");
+  const [comoFazerEtapa, setComoFazerEtapa] = useStateKb(null);
   const [automacaoAbertaId, setAutomacaoAbertaId] = useStateKb(null);
   const [automacaoAcao, setAutomacaoAcao] = useStateKb("LIBERAR_PROXIMA_ETAPA");
   const [automacaoColuna, setAutomacaoColuna] = useStateKb("");
@@ -322,13 +318,11 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
           setClienteId(String(t.cliente_id));
           setServicoId(t.servico_id ? String(t.servico_id) : "");
           setTitulo(t.titulo);
-          setTipoTarefa(t.tipo_tarefa || "");
           setResponsavelId(t.responsavel_envoxer_id ? String(t.responsavel_envoxer_id) : "");
           setStatus(t.status);
           setPrazo(t.prazo || "");
           setEtiqueta(t.etiqueta || "");
           setEtiquetaCor(t.etiqueta_cor || "cinza");
-          setLegenda(t.legenda || "");
 
           const [aprovs, alts, tarefasCliente, etapasCarregadas] = await Promise.all([
             EnvoxersAPI.api(`/tarefas/${tarefaId}/aprovacoes`),
@@ -339,6 +333,10 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
           setAprovacoes(aprovs);
           setAlteracoesLista(alts);
           setEtapas(etapasCarregadas);
+
+          if (t.item_escopo_id) {
+            setEntregas(await EnvoxersAPI.api(`/tarefas/${tarefaId}/entregas`));
+          }
 
           const outras = tarefasCliente.filter((x) => x.id !== tarefaId);
           setTarefasConcluidas(
@@ -366,17 +364,44 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     })();
   }, [tarefaId]);
 
+  const carregarEntregas = async () => {
+    setEntregas(await EnvoxersAPI.api(`/tarefas/${tarefaId}/entregas`));
+  };
+
+  const handleMarcarEntrega = async (check) => {
+    setEntregaLoading(true);
+    try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}/entregas/${check.id}/${check.entregue ? "desmarcar" : "marcar"}`, { method: "POST" });
+      await carregarEntregas();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEntregaLoading(false);
+    }
+  };
+
+  const handleRegistrarEntregaExtra = async () => {
+    setEntregaLoading(true);
+    try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}/entregas/extra`, { method: "POST" });
+      await carregarEntregas();
+      toast("Entrega extra registrada", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEntregaLoading(false);
+    }
+  };
+
   const buildPayload = () => ({
     cliente_id: Number(clienteId),
     servico_id: servicoId ? Number(servicoId) : null,
     titulo,
-    tipo_tarefa: tipoTarefa || null,
     responsavel_envoxer_id: responsavelId ? Number(responsavelId) : null,
     status,
     prazo: prazo || null,
     etiqueta: etiqueta || null,
     etiqueta_cor: etiqueta ? etiquetaCor : null,
-    legenda: legenda || null,
   });
 
   const handleSave = async () => {
@@ -429,7 +454,10 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
 
   const handleExcluir = async () => {
     if (!isEdit) return;
-    if (!confirm("Excluir esta demanda? Não pode ser desfeito.")) return;
+    const aviso = tarefa?.item_escopo_id
+      ? `Excluir esta demanda? As ${entregas.filter((e) => e.entregue).length} entrega(s) já marcada(s) neste card serão perdidas — um card novo (zerado) nasce sozinho automaticamente. Não pode ser desfeito.`
+      : "Excluir esta demanda? Não pode ser desfeito.";
+    if (!confirm(aviso)) return;
     try {
       await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "DELETE" });
       toast("Demanda excluída", "success");
@@ -448,18 +476,6 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
       });
       setTarefa(t);
       setNovoComentario("");
-    } catch (err) {
-      toast(err.message, "error");
-    }
-  };
-
-  const handleUploadCriativo = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const t = await EnvoxersAPI.upload(`/tarefas/${tarefaId}/criativo`, file);
-      setTarefa(t);
-      toast("Criativo enviado!", "success");
     } catch (err) {
       toast(err.message, "error");
     }
@@ -586,36 +602,6 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     }
   };
 
-  const handleCriarEtapa = async () => {
-    if (!novaEtapaTitulo.trim()) {
-      toast("Título da etapa é obrigatório", "error");
-      return;
-    }
-    setEtapaLoading(true);
-    try {
-      await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas`, {
-        method: "POST",
-        body: JSON.stringify({
-          titulo: novaEtapaTitulo,
-          descricao: novaEtapaDescricao || null,
-          responsavel_id: novaEtapaResponsavel ? Number(novaEtapaResponsavel) : null,
-          prazo: novaEtapaPrazo || null,
-        }),
-      });
-      await carregarEtapas();
-      setNovaEtapaTitulo("");
-      setNovaEtapaDescricao("");
-      setNovaEtapaResponsavel("");
-      setNovaEtapaPrazo("");
-      setNovaEtapaAberta(false);
-      toast("Etapa criada", "success");
-    } catch (err) {
-      toast(err.message, "error");
-    } finally {
-      setEtapaLoading(false);
-    }
-  };
-
   const handleToggleEtapa = async (etapa) => {
     setEtapaLoading(true);
     try {
@@ -629,6 +615,54 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
         setStatus(t.status);
       }
       toast(acao === "concluir" ? "Etapa concluída" : "Etapa reaberta", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEtapaLoading(false);
+    }
+  };
+
+  const handleAbrirEdicaoEtapa = (etapa) => {
+    setEtapaEditandoId(etapa.id);
+    setEtapaEditTitulo(etapa.titulo);
+    setEtapaEditDescricao(etapa.descricao || "");
+    setEtapaEditResponsavel(etapa.responsavel_id ? String(etapa.responsavel_id) : "");
+    setEtapaEditPrazo(etapa.prazo || "");
+  };
+
+  const handleSalvarEdicaoEtapa = async (etapaId) => {
+    if (!etapaEditTitulo.trim()) {
+      toast("Título da etapa é obrigatório", "error");
+      return;
+    }
+    setEtapaLoading(true);
+    try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas/${etapaId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          titulo: etapaEditTitulo,
+          descricao: etapaEditDescricao || null,
+          responsavel_id: etapaEditResponsavel ? Number(etapaEditResponsavel) : null,
+          prazo: etapaEditPrazo || null,
+        }),
+      });
+      setEtapaEditandoId(null);
+      await carregarEtapas();
+      toast("Etapa atualizada", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEtapaLoading(false);
+    }
+  };
+
+  const handleExcluirEtapa = async (etapa) => {
+    if (!confirm(`Excluir a etapa "${etapa.titulo}" deste card?`)) return;
+    setEtapaLoading(true);
+    try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas/${etapa.id}`, { method: "DELETE" });
+      await carregarEtapas();
+      toast("Etapa excluída", "success");
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -682,6 +716,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   const statusLabel = (STATUS_COLS.find((c) => c.key === status) || {}).label || status;
 
   return (
+    <>
     <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal">
         <div className="modal-head">
@@ -693,7 +728,6 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                 <span>{servicosList.find((s) => String(s.id) === servicoId).nome}</span>
               </>
             )}
-            {tipoTarefa && <><span style={{ color: "var(--ink-4)" }}>·</span><span className="pill">{tipoTarefa}</span></>}
             {isEdit && (
               <span className={`status-pill status-pill-${(STATUS_COLS.find((c) => c.key === status) || {}).phase || "entrada"}`} style={{ marginLeft: "auto" }}>
                 <span className="status-pill-dot"></span>{statusLabel}
@@ -747,6 +781,37 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
         ) : (
           <div className="modal-body">
             <div className="modal-main">
+              {isEdit && tarefa?.item_escopo_id && (
+                <>
+                  <div className="modal-section-title">
+                    Entregas do mês <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0 }}>
+                      ({entregas.filter((e) => e.entregue).length}/{entregas.length})
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                    {entregas.map((e) => (
+                      <label
+                        key={e.id}
+                        title={e.entregue ? `Entregue por ${e.entregue_por_nome || "—"}` : ""}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
+                          border: "1px solid var(--border)", borderRadius: "var(--r-md)", cursor: "pointer",
+                          color: e.excedente ? "var(--envox)" : "inherit",
+                        }}
+                      >
+                        <input type="checkbox" checked={e.entregue} disabled={entregaLoading} onChange={() => handleMarcarEntrega(e)} />
+                        {e.numero}{e.excedente ? " (extra)" : ""}
+                      </label>
+                    ))}
+                  </div>
+                  {(permissao === "admin" || permissao === "gestor") && (
+                    <button className="btn btn-sm" onClick={handleRegistrarEntregaExtra} disabled={entregaLoading} style={{ marginBottom: 12 }}>
+                      + Registrar entrega extra
+                    </button>
+                  )}
+                </>
+              )}
+
               {bloqueado ? (
                 <>
                   <div className="foco-lock-banner">
@@ -805,30 +870,12 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
 
               {isEdit && (
                 <>
-                  <div className="modal-section-title">Criativo <EnvoxersShared.HelpIcon helpKey="modal_criativo" /></div>
-                  {tarefa?.criativo ? (
-                    <div className="creative-preview">
-                      <a href={tarefa.criativo} target="_blank" rel="noreferrer">{tarefa.criativo.split("/").pop()}</a>
-                    </div>
-                  ) : (
-                    <div className="creative-preview">nenhum criativo enviado</div>
-                  )}
-                  <label className="btn btn-sm" style={{ marginTop: 8, display: "inline-flex", cursor: "pointer" }}>
-                    Enviar criativo
-                    <input type="file" style={{ display: "none" }} onChange={handleUploadCriativo} />
-                  </label>
-                </>
-              )}
-
-              <div className="modal-section-title">Legenda <EnvoxersShared.HelpIcon helpKey="modal_legenda" /></div>
-              <textarea value={legenda} onChange={(e) => setLegenda(e.target.value)} placeholder="Texto que acompanha o criativo" style={{ width: "100%", minHeight: 70 }}></textarea>
-
-              {isEdit && (
-                <>
                   <div className="modal-section-title">Etapas do processo <EnvoxersShared.HelpIcon helpKey="modal_etapas" /></div>
                   <div className="etapa-list">
                     {etapas.length === 0 && (
-                      <div style={{ color: "var(--ink-4)", fontSize: 13, marginBottom: 8 }}>nenhuma etapa cadastrada</div>
+                      <div style={{ color: "var(--ink-4)", fontSize: 13, marginBottom: 8 }}>
+                        nenhuma etapa — cadastre o processo em Serviços ou selecione um serviço com processo pra puxar automaticamente
+                      </div>
                     )}
                     {etapas.map((etapa) => {
                       const concluida = etapa.status === "concluida";
@@ -852,38 +899,87 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                             onChange={() => handleToggleEtapa(etapa)}
                           />
                           <div className="etapa-body">
-                            <div className="etapa-head">
-                              <span className={"etapa-titulo" + (concluida ? " concluida" : "")}>{etapa.titulo}</span>
-                              {etapa.bloqueada && (
-                                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="etapa-icon" title="Bloqueada">
-                                  <rect x="3" y="7" width="10" height="7" rx="1" /><path d="M5 7V5a3 3 0 0 1 6 0v2" />
-                                </svg>
-                              )}
-                              {etapa.automacao && etapa.automacao.ativo && (
-                                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" className="etapa-icon" title="Tem automação configurada">
-                                  <path d="M9 1L3 9h4l-1 6 6-8H8z" />
-                                </svg>
-                              )}
-                            </div>
-                            {etapa.descricao && <div className="etapa-desc">{etapa.descricao}</div>}
-                            <div className="etapa-meta">
-                              {etapa.responsavel_nome && (
-                                <span className="etapa-meta-item">
-                                  <span className="avatar sm gray">{initialsKb(etapa.responsavel_nome)}</span> {etapa.responsavel_nome}
-                                </span>
-                              )}
-                              {etapa.prazo && <span className="etapa-meta-item">{fmtPrazoKb(etapa.prazo).txt}</span>}
-                              <button className="etapa-automacao-toggle" onClick={() => handleAbrirAutomacao(etapa)}>
-                                {etapa.automacao ? "Editar automação" : "+ Configurar automação"}
-                              </button>
-                            </div>
+                            {etapaEditandoId === etapa.id ? (
+                              <div className="etapa-automacao-form" style={{ marginTop: 0 }}>
+                                <div>
+                                  <label>Título da etapa</label>
+                                  <input type="text" value={etapaEditTitulo} onChange={(e) => setEtapaEditTitulo(e.target.value)} placeholder="Título" />
+                                </div>
+                                <div>
+                                  <label>Descrição / como fazer</label>
+                                  <textarea value={etapaEditDescricao} onChange={(e) => setEtapaEditDescricao(e.target.value)} placeholder="Opcional"></textarea>
+                                </div>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <div style={{ flex: 1 }}>
+                                    <label>Responsável</label>
+                                    <select value={etapaEditResponsavel} onChange={(e) => setEtapaEditResponsavel(e.target.value)}>
+                                      <option value="">—</option>
+                                      {envoxersList.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                                    </select>
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <label>Prazo</label>
+                                    <input type="date" value={etapaEditPrazo} onChange={(e) => setEtapaEditPrazo(e.target.value)} />
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <button className="btn btn-envox btn-sm" onClick={() => handleSalvarEdicaoEtapa(etapa.id)} disabled={etapaLoading}>Salvar</button>
+                                  <button className="btn btn-sm" onClick={() => setEtapaEditandoId(null)}>Cancelar</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="etapa-row">
+                                <div className="etapa-main">
+                                  <div className="etapa-head">
+                                    <span className={"etapa-titulo" + (concluida ? " concluida" : "")}>{etapa.titulo}</span>
+                                    {etapa.bloqueada && (
+                                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="etapa-icon" title="Bloqueada">
+                                        <rect x="3" y="7" width="10" height="7" rx="1" /><path d="M5 7V5a3 3 0 0 1 6 0v2" />
+                                      </svg>
+                                    )}
+                                    {etapa.automacao && etapa.automacao.ativo && (
+                                      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" className="etapa-icon" title="Tem automação configurada">
+                                        <path d="M9 1L3 9h4l-1 6 6-8H8z" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <div className="etapa-meta">
+                                    {etapa.responsavel_nome && (
+                                      <span className="etapa-meta-item">
+                                        <EnvoxersShared.Avatar nome={etapa.responsavel_nome} fotoUrl={etapa.responsavel_foto} size="sm" className="gray" /> {etapa.responsavel_nome}
+                                      </span>
+                                    )}
+                                    {etapa.descricao && (
+                                      <button className="etapa-automacao-toggle" onClick={() => setComoFazerEtapa(etapa)}>Como fazer</button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="etapa-side">
+                                  <span className={"etapa-prazo-badge " + (EnvoxersShared.corPrazoEtapa(etapa.prazo) || "neutro")}>
+                                    {etapa.prazo ? fmtPrazoKb(etapa.prazo).txt : "sem prazo"}
+                                  </span>
+                                  <div className="etapa-actions">
+                                    <button className="etapa-icon-btn" title="Editar etapa" onClick={() => handleAbrirEdicaoEtapa(etapa)}>
+                                      <EnvoxersShared.IconEditar />
+                                    </button>
+                                    <button className="etapa-icon-btn" title={etapa.automacao ? "Editar automação" : "Configurar automação"} onClick={() => handleAbrirAutomacao(etapa)}>
+                                      <EnvoxersShared.IconAutomacao />
+                                    </button>
+                                    <button className="etapa-icon-btn danger" title="Excluir etapa" onClick={() => handleExcluirEtapa(etapa)}>
+                                      <EnvoxersShared.IconExcluir />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                             {automacaoAbertaId === etapa.id && (
                               <div className="etapa-automacao-form">
+                                <p className="etapa-automacao-hint">Quando essa etapa for marcada como <strong>concluída</strong>, o sistema faz automaticamente:</p>
                                 <select value={automacaoAcao} onChange={(e) => setAutomacaoAcao(e.target.value)}>
-                                  <option value="LIBERAR_PROXIMA_ETAPA">Liberar próxima etapa</option>
-                                  <option value="MOVER_TAREFA_COLUNA">Mover tarefa de coluna</option>
-                                  <option value="MARCAR_TAREFA_CONCLUIDA">Marcar tarefa como Finalizado</option>
-                                  <option value="CRIAR_ALERTA_RESPONSAVEL">Criar alerta para o responsável</option>
+                                  <option value="LIBERAR_PROXIMA_ETAPA">Liberar próxima etapa (que fica bloqueada até aqui)</option>
+                                  <option value="MOVER_TAREFA_COLUNA">Mover o card pra outra coluna do Kanban</option>
+                                  <option value="MARCAR_TAREFA_CONCLUIDA">Marcar o card inteiro como Finalizado</option>
+                                  <option value="CRIAR_ALERTA_RESPONSAVEL">Avisar o responsável da próxima etapa</option>
                                 </select>
                                 {automacaoAcao === "MOVER_TAREFA_COLUNA" && (
                                   <select value={automacaoColuna} onChange={(e) => setAutomacaoColuna(e.target.value)} style={{ marginTop: 6 }}>
@@ -903,32 +999,11 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                     })}
                   </div>
 
-                  {novaEtapaAberta ? (
-                    <div className="comment-box" style={{ marginTop: 8 }}>
-                      <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
-                        <input type="text" value={novaEtapaTitulo} onChange={(e) => setNovaEtapaTitulo(e.target.value)} placeholder="Título da etapa" />
-                        <textarea value={novaEtapaDescricao} onChange={(e) => setNovaEtapaDescricao(e.target.value)} placeholder="Descrição (opcional)" style={{ minHeight: 50 }}></textarea>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <select value={novaEtapaResponsavel} onChange={(e) => setNovaEtapaResponsavel(e.target.value)} style={{ flex: 1 }}>
-                            <option value="">Responsável…</option>
-                            {envoxersList.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-                          </select>
-                          <input type="date" value={novaEtapaPrazo} onChange={(e) => setNovaEtapaPrazo(e.target.value)} style={{ flex: 1 }} />
-                        </div>
-                      </div>
-                      <div className="comment-box-actions" style={{ gap: 8 }}>
-                        <button className="btn btn-sm" onClick={() => setNovaEtapaAberta(false)}>Cancelar</button>
-                        <button className="btn btn-envox btn-sm" onClick={handleCriarEtapa} disabled={etapaLoading}>Adicionar etapa</button>
-                      </div>
-                    </div>
-                  ) : (
+                  {servicoId && etapas.length === 0 && (
                     <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <button className="btn btn-sm" onClick={() => setNovaEtapaAberta(true)}>+ Nova etapa</button>
-                      {servicoId && (
-                        <button className="btn btn-sm" onClick={handleAplicarProcesso} disabled={etapaLoading} title="Puxa as etapas-modelo cadastradas no serviço desta tarefa">
-                          Usar processo do serviço
-                        </button>
-                      )}
+                      <button className="btn btn-sm" onClick={handleAplicarProcesso} disabled={etapaLoading} title="Puxa as etapas-modelo cadastradas no serviço desta tarefa">
+                        Puxar etapas do serviço
+                      </button>
                     </div>
                   )}
                 </>
@@ -1107,17 +1182,9 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
               </div>
 
               <div className="modal-side-block">
-                <div className="modal-side-label">Tipo de tarefa</div>
-                <select className="modal-side-select" value={tipoTarefa} disabled={bloqueado} onChange={(e) => setTipoTarefa(e.target.value)}>
-                  <option value="">—</option>
-                  {TIPOS_TAREFA.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-
-              <div className="modal-side-block">
                 <div className="modal-side-label">Responsável</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div className="avatar sm gray">{initialsKb(responsavel?.nome)}</div>
+                  <EnvoxersShared.Avatar nome={responsavel?.nome} fotoUrl={responsavel?.foto_url} size="sm" className="gray" />
                   <select className="modal-side-select" value={responsavelId} disabled={bloqueado} onChange={(e) => setResponsavelId(e.target.value)}>
                     <option value="">—</option>
                     {envoxersList.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
@@ -1189,6 +1256,14 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
         )}
       </div>
     </div>
+    {comoFazerEtapa && (
+      <EnvoxersShared.ComoFazerModal
+        titulo={comoFazerEtapa.titulo}
+        descricao={comoFazerEtapa.descricao}
+        onClose={() => setComoFazerEtapa(null)}
+      />
+    )}
+    </>
   );
 }
 
