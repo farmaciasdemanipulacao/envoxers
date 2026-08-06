@@ -4,15 +4,17 @@ padrão do Farol/ICP/Perfil). Resolve o problema de negócio: quando o cliente
 reclama que algo não foi entregue meses atrás, a resposta já está aqui —
 não precisa recontar no WhatsApp/servidor.
 """
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Optional
 
 from sqlalchemy import select, func, and_
 
+from app.models.cliente import Cliente
 from app.models.item_escopo import ItemEscopo
 from app.models.item_escopo_historico import ItemEscopoHistorico
 from app.models.entrega_manual import EntregaManual
 from app.models.tarefa import Tarefa
+from app.models.entrega_check import EntregaCheck
 from app.models.alerta_entrega import AlertaEntrega
 from app.schemas.item_escopo import ReconciliacaoItemResponse, ReconciliacaoMesResponse, EntregaManualResponse
 
@@ -65,20 +67,28 @@ async def _entregas_manuais_do_mes(db, item_id: int, ano_mes: str) -> list[Entre
     ]
 
 
+async def _qtd_checks_entregues(db, item_id: int, ano_mes: str) -> int:
+    """Card do mês (1 por item_escopo/ano_mes) × checks marcados como entregues
+    dentro dele. Substitui a contagem antiga de 'Tarefa finalizada no mês' —
+    agora o card inteiro anda no Kanban como um bloco só, e o progresso real
+    de entrega é o checklist interno (`EntregaCheck`)."""
+    tarefa_id = (await db.execute(
+        select(Tarefa.id).where(
+            Tarefa.item_escopo_id == item_id, Tarefa.ano_mes == ano_mes, Tarefa.deleted_at.is_(None),
+        )
+    )).scalar_one_or_none()
+    if tarefa_id is None:
+        return 0
+    return (await db.execute(
+        select(func.count()).select_from(EntregaCheck).where(
+            EntregaCheck.tarefa_id == tarefa_id, EntregaCheck.entregue.is_(True),
+        )
+    )).scalar_one()
+
+
 async def _calcular_item_mensal(db, item: ItemEscopo, ano: int, mes: int, fechado: bool) -> ReconciliacaoItemResponse:
     ano_mes = _ano_mes_str(ano, mes)
-    inicio = datetime(ano, mes, 1, tzinfo=timezone.utc)
-    fim_ano, fim_mes = _somar_meses(ano, mes, 1)
-    fim = datetime(fim_ano, fim_mes, 1, tzinfo=timezone.utc)
-
-    qtd_tarefas_result = await db.execute(
-        select(func.count()).select_from(Tarefa).where(
-            Tarefa.item_escopo_id == item.id, Tarefa.deleted_at.is_(None),
-            Tarefa.status == "finalizado", Tarefa.finalizada_em.is_not(None),
-            Tarefa.finalizada_em >= inicio, Tarefa.finalizada_em < fim,
-        )
-    )
-    qtd_tarefas = qtd_tarefas_result.scalar_one()
+    qtd_tarefas = await _qtd_checks_entregues(db, item.id, ano_mes)
 
     entregas_manuais = await _entregas_manuais_do_mes(db, item.id, ano_mes)
     qtd_manual = sum(e.quantidade for e in entregas_manuais)
@@ -93,13 +103,7 @@ async def _calcular_item_mensal(db, item: ItemEscopo, ano: int, mes: int, fechad
 
 
 async def _calcular_item_pontual(db, item: ItemEscopo) -> ReconciliacaoItemResponse:
-    qtd_tarefas_result = await db.execute(
-        select(func.count()).select_from(Tarefa).where(
-            Tarefa.item_escopo_id == item.id, Tarefa.deleted_at.is_(None),
-            Tarefa.status == "finalizado",
-        )
-    )
-    qtd_tarefas = qtd_tarefas_result.scalar_one()
+    qtd_tarefas = await _qtd_checks_entregues(db, item.id, "pontual")
 
     manuais_result = await db.execute(select(EntregaManual).where(EntregaManual.item_escopo_id == item.id))
     manuais = manuais_result.scalars().all()
@@ -141,7 +145,18 @@ async def calcular_reconciliacao_range(db, cliente_id: int, meses: int = 6) -> l
     itens_mensais = [i for i in itens if i.cadencia == "mensal"]
     itens_pontuais = [i for i in itens if i.cadencia == "pontual"]
 
+    data_inicio = (await db.execute(
+        select(Cliente.data_inicio_contrato).where(Cliente.id == cliente_id)
+    )).scalar_one_or_none()
+
     periodo = _ultimos_meses(hoje, meses)
+    if data_inicio is not None:
+        # Sem isso, um cliente novo (contrato começando este mês) aparecia com
+        # meses passados marcados "não entregue" — como se já devesse ter
+        # entregado antes de sequer ser cliente. Corta o período pra começar
+        # no mês do início do contrato (nunca mostra mês anterior a isso).
+        periodo = [(ano, mes) for (ano, mes) in periodo if (ano, mes) >= (data_inicio.year, data_inicio.month)]
+
     respostas = []
     for idx, (ano, mes) in enumerate(periodo):
         ano_mes = _ano_mes_str(ano, mes)

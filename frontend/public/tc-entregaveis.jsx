@@ -61,18 +61,18 @@ function EntregaveisScreen({ onAbrirCliente }) {
     <div className="page">
       <EnvoxersShared.PageHeader
         title="Controle de Entregáveis"
-        subtitle="Contratado × entregue por cliente no mês corrente — pra nunca mais precisar recontar no WhatsApp."
+        subtitle="Contratado × entregue por cliente, últimos 6 meses — pra nunca mais precisar recontar no WhatsApp."
       />
 
       <div style={{ fontWeight: 600, fontSize: 13, margin: "8px 0" }}>
-        Clientes com gap este mês {comGap.length > 0 && <span className="pill" style={{ color: "var(--farol-vermelho)", marginLeft: 6 }}>{comGap.length}</span>}
+        Clientes com gap em aberto {comGap.length > 0 && <span className="pill" style={{ color: "var(--farol-vermelho)", marginLeft: 6 }}>{comGap.length}</span>}
       </div>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Cliente</th>
-              <th>Mês</th>
+              <th>Gap desde</th>
               <th>Itens com gap</th>
               <th>Total de itens</th>
               <th>Pior status</th>
@@ -84,7 +84,7 @@ function EntregaveisScreen({ onAbrirCliente }) {
             {!loadingPainel && painel.map((p) => (
               <tr key={p.cliente_id} onClick={() => onAbrirCliente(p.cliente_id)} style={{ cursor: "pointer" }}>
                 <td>{p.cliente_nome}</td>
-                <td>{p.ano_mes}</td>
+                <td>{p.ano_mes_mais_antigo_gap || "—"}</td>
                 <td>{p.itens_com_gap}</td>
                 <td>{p.total_itens}</td>
                 <td><span className="pill" style={{ color: STATUS_ENTR_CORES[p.pior_status] }}>{STATUS_ENTR_LABELS[p.pior_status] || p.pior_status}</span></td>
