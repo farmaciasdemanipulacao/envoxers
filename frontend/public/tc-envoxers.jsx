@@ -72,7 +72,7 @@ function EnvoxersScreen({ permissao }) {
               <th>Nome</th>
               <th className="table-mobile-hide">Cargo</th>
               <th className="table-mobile-hide">E-mail</th>
-              <th className="table-mobile-hide" style={{ textAlign: "right" }}>Custo/hora</th>
+              {isAdmin && <th className="table-mobile-hide" style={{ textAlign: "right" }}>Custo/hora</th>}
               <th style={{ width: 110 }}>Permissão</th>
             </tr>
           </thead>
@@ -83,13 +83,13 @@ function EnvoxersScreen({ permissao }) {
               <tr key={e.id} onClick={() => isAdmin && setEditando(e)} style={{ cursor: isAdmin ? "pointer" : "default" }}>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div className={"avatar md" + (e.permissao === "admin" ? "" : " gray")}>{EnvoxersShared.initials(e.nome)}</div>
+                    <EnvoxersShared.Avatar nome={e.nome} fotoUrl={e.foto_url} size="md" className={e.permissao === "admin" ? "" : "gray"} />
                     <span>{e.nome}{!e.ativo && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--ink-4)" }}>(inativo)</span>}</span>
                   </div>
                 </td>
                 <td className="table-mobile-hide">{e.cargo}</td>
                 <td className="table-mobile-hide">{e.email}</td>
-                <td className="table-mobile-hide mono" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(e.custo_hora)}</td>
+                {isAdmin && <td className="table-mobile-hide mono" style={{ textAlign: "right" }}>{e.custo_hora != null ? EnvoxersShared.formatMoney(e.custo_hora) : "—"}</td>}
                 <td>{e.permissao}</td>
               </tr>
             ))}
@@ -113,6 +113,8 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
   const [email, setEmail] = useStateEnv(envoxer?.email || "");
   const [cargo, setCargo] = useStateEnv(envoxer?.cargo || "");
   const [fotoUrl, setFotoUrl] = useStateEnv(envoxer?.foto_url || "");
+  const [enviandoFoto, setEnviandoFoto] = useStateEnv(false);
+  const [arquivoParaRecortar, setArquivoParaRecortar] = useStateEnv(null);
   const [permissao, setPermissao] = useStateEnv(envoxer?.permissao || "envoxer");
   const [salarioMensal, setSalarioMensal] = useStateEnv(envoxer?.salario_mensal ?? "");
   const [horasMes, setHorasMes] = useStateEnv(envoxer?.horas_mes ?? 220);
@@ -120,6 +122,26 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
   const [senha, setSenha] = useStateEnv("");
   const [saving, setSaving] = useStateEnv(false);
   const toast = EnvoxersShared.useToast();
+
+  const handleFotoFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) setArquivoParaRecortar(file);
+    e.target.value = "";
+  };
+
+  const handleConfirmarRecorteFoto = async (blob) => {
+    setArquivoParaRecortar(null);
+    setEnviandoFoto(true);
+    try {
+      const resp = await EnvoxersAPI.upload(`/envoxers/${envoxer.id}/foto`, blob, "avatar.jpg");
+      setFotoUrl(resp.foto_url || "");
+      toast("Foto atualizada!", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEnviandoFoto(false);
+    }
+  };
 
   const custoHoraCalculado = (Number(salarioMensal) > 0 && Number(horasMes) > 0)
     ? Number(salarioMensal) / Number(horasMes)
@@ -149,6 +171,7 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
   };
 
   return (
+    <>
     <div className="page">
       <div className="page-header">
         <div className="page-title-block">
@@ -177,8 +200,18 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
                 <input type="text" value={cargo} onChange={(e) => setCargo(e.target.value)} placeholder="Ex.: Social Media Sênior" />
               </div>
               <div className="field">
-                <label>Foto (URL) <span className="hint">opcional</span></label>
-                <input type="text" value={fotoUrl} onChange={(e) => setFotoUrl(e.target.value)} placeholder="https://…" />
+                <label>Foto <span className="hint">opcional</span></label>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <EnvoxersShared.Avatar nome={nome} fotoUrl={fotoUrl} size="md" />
+                  {isEdit ? (
+                    <label className="btn btn-sm" style={{ cursor: "pointer" }}>
+                      {enviandoFoto ? "Enviando…" : "Trocar foto"}
+                      <input type="file" accept="image/*" onChange={handleFotoFile} disabled={enviandoFoto} style={{ display: "none" }} />
+                    </label>
+                  ) : (
+                    <span className="hint">salve o envoxer pra poder subir a foto</span>
+                  )}
+                </div>
               </div>
               <div className="field">
                 <label>Permissão <span className="req">*</span></label>
@@ -238,6 +271,14 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
         </div>
       </div>
     </div>
+    {arquivoParaRecortar && (
+      <EnvoxersShared.AvatarCropModal
+        file={arquivoParaRecortar}
+        onCancel={() => setArquivoParaRecortar(null)}
+        onConfirm={handleConfirmarRecorteFoto}
+      />
+    )}
+    </>
   );
 }
 

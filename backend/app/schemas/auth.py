@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr
 
 
@@ -12,6 +14,7 @@ class Token(BaseModel):
     id: int
     nome: str
     permissao: str
+    foto_url: Optional[str] = None
 
 
 class EnvoxerMe(BaseModel):
@@ -20,6 +23,7 @@ class EnvoxerMe(BaseModel):
     email: str
     cargo: str
     permissao: str
+    foto_url: Optional[str] = None
 
     class Config:
         from_attributes = True

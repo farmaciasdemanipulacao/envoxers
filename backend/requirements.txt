@@ -29,3 +29,6 @@ pytz==2024.2
 
 # === WEB PUSH NOTIFICATIONS ===
 pywebpush>=2.0.0
+
+# === IMAGEM ===
+Pillow==11.0.0

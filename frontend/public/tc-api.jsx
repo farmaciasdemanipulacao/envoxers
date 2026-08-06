@@ -5,11 +5,12 @@ function getToken() {
   return localStorage.getItem("envoxers_token");
 }
 
-function setSession(token, nome, permissao, id) {
+function setSession(token, nome, permissao, id, fotoUrl) {
   localStorage.setItem("envoxers_token", token);
   localStorage.setItem("envoxers_nome", nome);
   localStorage.setItem("envoxers_permissao", permissao);
   if (id != null) localStorage.setItem("envoxers_id", String(id));
+  localStorage.setItem("envoxers_foto_url", fotoUrl || "");
 }
 
 function clearSession() {
@@ -17,6 +18,7 @@ function clearSession() {
   localStorage.removeItem("envoxers_nome");
   localStorage.removeItem("envoxers_permissao");
   localStorage.removeItem("envoxers_id");
+  localStorage.removeItem("envoxers_foto_url");
 }
 
 function getEnvoxerId() {
@@ -50,13 +52,16 @@ async function api(path, options = {}) {
   return res.json();
 }
 
-async function upload(path, file) {
+async function upload(path, file, nomeArquivo) {
   const token = getToken();
   const headers = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const formData = new FormData();
-  formData.append("arquivo", file);
+  // `file` pode ser um Blob sem nome (ex.: canvas.toBlob() do recorte de foto,
+  // ver AvatarCropModal) — sem o 3º argumento aqui o FormData manda "blob" sem
+  // extensão, então deixamos explícito.
+  formData.append("arquivo", file, nomeArquivo || file.name || "arquivo.jpg");
 
   const res = await fetch(`${API_BASE}${path}`, { method: "POST", headers, body: formData });
 

@@ -15,7 +15,7 @@ function LoginScreen({ onLoggedIn }) {
         method: "POST",
         body: JSON.stringify({ email, senha }),
       });
-      EnvoxersAPI.setSession(data.access_token, data.nome, data.permissao, data.id);
+      EnvoxersAPI.setSession(data.access_token, data.nome, data.permissao, data.id, data.foto_url);
       onLoggedIn();
     } catch (err) {
       setErro(err.message || "Falha no login");

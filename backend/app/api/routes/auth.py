@@ -24,7 +24,13 @@ async def login(payload: LoginRequest, db: Annotated[AsyncSession, Depends(get_d
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Envoxer inativo")
 
     access_token = create_access_token({"sub": str(envoxer.id), "tipo": "envoxer"})
-    return Token(access_token=access_token, id=envoxer.id, nome=envoxer.nome, permissao=envoxer.permissao)
+    return Token(
+        access_token=access_token,
+        id=envoxer.id,
+        nome=envoxer.nome,
+        permissao=envoxer.permissao,
+        foto_url=envoxer.foto_url,
+    )
 
 
 @router.get("/me", response_model=EnvoxerMe)

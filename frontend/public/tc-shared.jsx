@@ -77,9 +77,234 @@ function initials(nome) {
   return (nome || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 }
 
+// Avatar com foto de verdade quando existe `fotoUrl` (D-090 — upload de imagem do
+// usuário), cai pras iniciais quando não há. `size`/`className` seguem o mesmo
+// padrão de classes já usado em todo o app ("avatar sm", "avatar md gray" etc.).
+function Avatar({ nome, fotoUrl, size = "", className = "" }) {
+  const classes = ["avatar", size, className].filter(Boolean).join(" ");
+  if (fotoUrl) {
+    return <img src={fotoUrl} alt={nome || ""} className={classes} style={{ objectFit: "cover" }} />;
+  }
+  return <div className={classes}>{initials(nome)}</div>;
+}
+
+// Ícones discretos reaproveitados nas ações de item de lista (Etapas do processo
+// e Etapas-modelo do Serviço) — mesmo estilo stroke-based já usado no resto do app.
+function IconEditar(props) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+      <path d="M11 2l3 3-8 8-3.5 1 1-3.5z" />
+    </svg>
+  );
+}
+function IconAutomacao(props) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" {...props}>
+      <path d="M9 1L3 9h4l-1 6 6-8H8z" />
+    </svg>
+  );
+}
+function IconExcluir(props) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+      <path d="M3 4h10M6.5 4V3a1 1 0 011-1h1a1 1 0 011 1v1M4.5 4l.6 9a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-9" />
+    </svg>
+  );
+}
+
+// Modal "Como fazer" — descrição/passo-a-passo de uma etapa, separado do card
+// pra não bagunçar a lista quando a instrução é longa (D-100).
+function ComoFazerModal({ titulo, descricao, onClose }) {
+  return (
+    <div className="modal-overlay open como-fazer-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal" style={{ maxWidth: 480 }}>
+        <div className="modal-head">
+          <div className="modal-eyebrow"><span>Como fazer</span></div>
+          <h2 className="modal-title">{titulo}</h2>
+          <button className="modal-close" onClick={onClose} aria-label="Fechar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="modal-main">
+            {descricao ? (
+              <div style={{ whiteSpace: "pre-wrap", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>{descricao}</div>
+            ) : (
+              <div style={{ color: "var(--ink-4)", fontSize: 13 }}>Nenhuma instrução cadastrada pra essa etapa ainda.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Cor de urgência do prazo de uma etapa — verde (mais de 1 semana), amarelo
+// (dentro dos próximos 7 dias), vermelho (atrasado). `null` quando não há prazo.
+function corPrazoEtapa(prazo) {
+  if (!prazo) return null;
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const d = new Date(prazo + "T00:00:00");
+  const dias = Math.round((d - hoje) / 86400000);
+  if (dias < 0) return "vermelho";
+  if (dias <= 7) return "amarelo";
+  return "verde";
+}
+
+// Recorte de foto de perfil (D-102) — antes o servidor cortava sempre o CENTRO
+// geométrico da imagem, então qualquer foto vertical (corpo inteiro) ou muito
+// larga cortava metade do rosto fora. Agora quem envia arrasta/dá zoom pra
+// escolher o enquadramento antes do upload; o resultado já sai quadrado, então
+// o backend (core/uploads.py::salvar_foto_avatar) só reprocessa/reencodifica,
+// sem precisar mais adivinhar onde está o rosto.
+function AvatarCropModal({ file, onCancel, onConfirm }) {
+  const VIEWPORT = 260;
+  const SAIDA_PX = 480;
+  const [imgUrl] = useState(() => URL.createObjectURL(file));
+  const [natural, setNatural] = useState(null); // { w, h }
+  const [scale, setScale] = useState(1);
+  const [minScale, setMinScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [salvando, setSalvando] = useState(false);
+  const imgElRef = useRef(null);
+  const dragRef = useRef(null);
+
+  useEffect(() => () => URL.revokeObjectURL(imgUrl), [imgUrl]);
+
+  const clamp = (ox, oy, s, size) => {
+    if (!size) return { x: ox, y: oy };
+    const dw = size.w * s, dh = size.h * s;
+    return {
+      x: Math.min(0, Math.max(VIEWPORT - dw, ox)),
+      y: Math.min(0, Math.max(VIEWPORT - dh, oy)),
+    };
+  };
+
+  const handleImgLoad = (e) => {
+    const size = { w: e.target.naturalWidth, h: e.target.naturalHeight };
+    const cover = Math.max(VIEWPORT / size.w, VIEWPORT / size.h);
+    setNatural(size);
+    setMinScale(cover);
+    setScale(cover);
+    setOffset({ x: (VIEWPORT - size.w * cover) / 2, y: (VIEWPORT - size.h * cover) / 2 });
+  };
+
+  const handlePointerMove = useCallback((e) => {
+    if (!dragRef.current) return;
+    if (e.touches) e.preventDefault();
+    const p = e.touches ? e.touches[0] : e;
+    const dx = p.clientX - dragRef.current.startX;
+    const dy = p.clientY - dragRef.current.startY;
+    setOffset((prev) => clamp(dragRef.current.startOffset.x + dx, dragRef.current.startOffset.y + dy, dragRef.current.scale, dragRef.current.natural));
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    dragRef.current = null;
+    window.removeEventListener("mousemove", handlePointerMove);
+    window.removeEventListener("mouseup", handlePointerUp);
+    window.removeEventListener("touchmove", handlePointerMove);
+    window.removeEventListener("touchend", handlePointerUp);
+  }, [handlePointerMove]);
+
+  const handlePointerDown = (e) => {
+    if (!natural) return;
+    e.preventDefault();
+    const p = e.touches ? e.touches[0] : e;
+    dragRef.current = { startX: p.clientX, startY: p.clientY, startOffset: offset, scale, natural };
+    window.addEventListener("mousemove", handlePointerMove);
+    window.addEventListener("mouseup", handlePointerUp);
+    window.addEventListener("touchmove", handlePointerMove, { passive: false });
+    window.addEventListener("touchend", handlePointerUp);
+  };
+
+  const handleZoom = (e) => {
+    const novaEscala = Number(e.target.value);
+    if (!natural) { setScale(novaEscala); return; }
+    // Mantém o ponto que está no centro do viewport ancorado ao dar zoom,
+    // em vez de recentralizar do zero (perderia o enquadramento escolhido).
+    const cxImg = (VIEWPORT / 2 - offset.x) / scale;
+    const cyImg = (VIEWPORT / 2 - offset.y) / scale;
+    setOffset(clamp(VIEWPORT / 2 - cxImg * novaEscala, VIEWPORT / 2 - cyImg * novaEscala, novaEscala, natural));
+    setScale(novaEscala);
+  };
+
+  const handleConfirmar = () => {
+    if (!natural || !imgElRef.current) return;
+    setSalvando(true);
+    const canvas = document.createElement("canvas");
+    canvas.width = SAIDA_PX; canvas.height = SAIDA_PX;
+    const ctx = canvas.getContext("2d");
+    const sx = (0 - offset.x) / scale;
+    const sy = (0 - offset.y) / scale;
+    const sSize = VIEWPORT / scale;
+    ctx.drawImage(imgElRef.current, sx, sy, sSize, sSize, 0, 0, SAIDA_PX, SAIDA_PX);
+    canvas.toBlob((blob) => { setSalvando(false); onConfirm(blob); }, "image/jpeg", 0.92);
+  };
+
+  return (
+    <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal" style={{ maxWidth: 380 }}>
+        <div className="modal-head">
+          <div className="modal-eyebrow"><span>Foto de perfil</span></div>
+          <h2 className="modal-title">Ajustar foto</h2>
+          <button className="modal-close" onClick={onCancel} aria-label="Fechar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="modal-main" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+            <div
+              className="avatar-crop-viewport"
+              style={{ width: VIEWPORT, height: VIEWPORT }}
+              onMouseDown={handlePointerDown}
+              onTouchStart={handlePointerDown}
+            >
+              <img
+                ref={imgElRef}
+                src={imgUrl}
+                onLoad={handleImgLoad}
+                draggable={false}
+                alt="Pré-visualização da foto"
+                style={{
+                  position: "absolute",
+                  left: offset.x, top: offset.y,
+                  width: natural ? natural.w * scale : "auto",
+                  height: natural ? natural.h * scale : "auto",
+                  maxWidth: "none",
+                  userSelect: "none",
+                }}
+              />
+              <div className="avatar-crop-mask" />
+            </div>
+            <input
+              className="avatar-crop-zoom"
+              type="range"
+              min={minScale}
+              max={minScale * 3}
+              step={((minScale * 3 - minScale) || 0.01) / 100}
+              value={scale}
+              onChange={handleZoom}
+              style={{ width: VIEWPORT }}
+              disabled={!natural}
+            />
+            <div style={{ fontSize: 12, color: "var(--ink-3)", textAlign: "center" }}>
+              Arraste a foto e use o zoom pra centralizar o rosto no círculo.
+            </div>
+          </div>
+        </div>
+        <div className="comment-box-actions" style={{ gap: 8, borderTop: "1px solid var(--line)" }}>
+          <button className="btn btn-sm" onClick={onCancel}>Cancelar</button>
+          <button className="btn btn-envox btn-sm" onClick={handleConfirmar} disabled={!natural || salvando}>
+            {salvando ? "Salvando…" : "Usar essa foto"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ==================== SIDEBAR ====================
-function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapsed = false, onToggleCollapse, mobileOpen = false, isMobile = false, onCloseMobile }) {
-  const iniciais = initials(nome);
+function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, chatNaoLidas = 0, collapsed = false, onToggleCollapse, mobileOpen = false, isMobile = false, onCloseMobile }) {
 
   // title=label dá o tooltip nativo do navegador — é o que mostra o nome da seção
   // quando o menu está recolhido e o texto (.nav-label) some.
@@ -177,11 +402,17 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="12" height="10" rx="1" /><path d="M2 7h12M6 2v3M10 2v3" /></svg>,
             "nav_calendario"
           )}
-          {item(
+          {permissao === "admin" && item(
             "relatorio",
             "Relatório de custo",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V3M2 13h12" /><path d="M5 10V7M8 10V5M11 10V8" /></svg>,
             "nav_relatorio"
+          )}
+          {item(
+            "foco-ativos",
+            "Quem está em Foco",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><path d="M8 5v3l2 2" /></svg>,
+            "nav_foco_ativos"
           )}
         </nav>
       </div>
@@ -225,13 +456,13 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
       <div className="nav-section">
         <div className="nav-section-title">F3 · ICP</div>
         <nav className="nav">
-          {item(
+          {permissao !== "envoxer" && item(
             "icp",
             "ICP Builder",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 12l4-4 3 3 5-5" /></svg>,
             "nav_icp"
           )}
-          {item(
+          {permissao === "admin" && item(
             "faturamento",
             "Painel de faturamento",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13l4-6 3 3 5-7" /><path d="M9 3h5v5" /></svg>,
@@ -246,7 +477,7 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
         </nav>
       </div>
 
-      {permissao === "admin" && (
+      {(permissao === "admin" || permissao === "gestor") && (
         <div className="nav-section">
           <div className="nav-section-title">Admin</div>
           <nav className="nav">
@@ -259,8 +490,8 @@ function Sidebar({ view, onNavigate, nome, permissao, chatNaoLidas = 0, collapse
         </div>
       )}
 
-      <div className="sidebar-user">
-        <div className="avatar">{iniciais}</div>
+      <div className="sidebar-user" onClick={() => onNavigate("meu-perfil")} style={{ cursor: "pointer" }} title="Meu Perfil">
+        <Avatar nome={nome} fotoUrl={fotoUrl} />
         <div className="sidebar-user-info">
           <div className="sidebar-user-name">{nome}</div>
           <div className="sidebar-user-role">{permissao}</div>
@@ -553,8 +784,7 @@ const HELP_TEXTS = {
   rep_receita: { t: "Receita do período", b: "<p>Soma de <code>valor_contrato</code> dos clientes com horas registradas no período. É o topo de linha do período.</p>" },
   rep_margem: { t: "Margem bruta", b: "<p>(Receita − Custo do time) ÷ Receita. Ainda não desconta overhead (aluguel, ferramentas, marketing). É o teto da margem, não o piso.</p>" },
   rep_tab_cliente: { t: "Margem por cliente", b: "<p>Ordena do menos rentável ao mais rentável. Vermelho = margem &lt;10%. Amarelo = 10-20%. Verde = &gt;20%.</p><p>Cliente vermelho + farol vermelho = renegociar ou encerrar.</p>" },
-  rep_tab_servico: { t: "Por serviço", b: "<p>Onde o time está gastando horas por tipo de serviço. Mostra o \"peso\" de cada oferta na operação.</p>" },
-  rep_tab_tipo: { t: "Por tipo de tarefa", b: "<p>Custo médio por Reels, Carrossel, Story, etc. Serve para saber se o preço do escopo cobre o custo real de cada peça.</p>" },
+  rep_tab_servico: { t: "Por serviço", b: "<p>Onde o time está gastando horas por serviço. Mostra o \"peso\" de cada oferta na operação.</p>" },
   rep_tab_env: { t: "Por Envoxer", b: "<p>Horas + custo gerado + <em>utilização</em> (horas registradas ÷ meta). Utilização &gt;90% = sobrealocado; &lt;60% = subutilizado.</p>" },
 
   // --- Kanban
@@ -569,15 +799,13 @@ const HELP_TEXTS = {
   card_farol: { t: "Listra colorida do card", b: "<p>É o farol do <strong>cliente</strong>, não da tarefa. Verde/amarelo/vermelho.</p><p>Facilita ver cards de clientes em risco sem precisar ler o nome.</p>" },
   card_etiqueta: { t: "Etiquetas do card", b: "<p>Texto livre com cor. Use para agrupar campanhas, sinalizar urgência ou marcar contexto (ex.: \"Cliente vermelho\", \"Campanha julho\", \"Urgente\").</p>" },
   card_prazo: { t: "Prazo interno", b: "<p>Quando o <strong>time</strong> precisa terminar. Diferente de <em>data de publicação</em>, que é quando o conteúdo vai ao ar. Confundir os dois é erro clássico.</p>" },
-  modal_criativo: { t: "Criativo", b: "<p>Peça pronta para revisão. Substituída conforme entra em Ajustes.</p>" },
-  modal_legenda: { t: "Legenda", b: "<p>Texto que acompanha o criativo. Fica visível ao cliente na aprovação.</p>" },
   modal_foco: { t: "Foco", b: "<p>Cronômetro por tarefa. Só um Foco ativo por Envoxer por vez — o banco impede duas sessões simultâneas.</p><p>Registre para entregarmos melhor e cobrarmos o preço justo.</p>" },
   modal_aprovacao_int: { t: "Aprovação interna", b: "<p>Etapa 1 de aprovação: <strong>gestor</strong> confere antes de o cliente ver. Aprovado, vai para o cliente. Pedir ajuste devolve para Produção.</p>" },
   modal_aprovacao_cli: { t: "Aprovação do cliente", b: "<p>Etapa 2 de aprovação: <strong>cliente</strong> aprova ou pede alteração. Cada alteração é registrada com descrição, número sequencial e conta contra o limite do contrato.</p>" },
   modal_alteracoes: { t: "Alterações", b: "<p>Pedidos de ajuste do cliente, numerados. Comparado ao <em>limite de alterações</em> do escopo. Passar do limite gera alerta e alimenta o sinal 3 do farol.</p>" },
   modal_comentarios: { t: "Comentários internos", b: "<p>Mural da tarefa. Não é visto pelo cliente. Use para alinhar com o time.</p>" },
   modal_anexos: { t: "Anexos", b: "<p>Referências, briefings, arquivos-fonte. Diferente do criativo (que é a peça pronta), anexos são apoio.</p>" },
-  modal_etapas: { t: "Etapas do processo", b: "<p>Checklist do processo de execução do serviço. Só o responsável da etapa (ou gestor/admin) marca como concluída.</p><p>Uma etapa pode ter uma automação: liberar a próxima, mover a tarefa de coluna, marcar a tarefa como Finalizado, ou avisar o próximo responsável.</p>" },
+  modal_etapas: { t: "Etapas do processo", b: "<p>Checklist puxado automaticamente do processo cadastrado no Serviço da tarefa — cada etapa já nasce com o responsável padrão definido lá. Só o responsável da etapa (ou gestor/admin) marca como concluída.</p><p>Uma etapa pode ter uma automação: liberar a próxima, mover a tarefa de coluna, marcar a tarefa como Finalizado, ou avisar o próximo responsável.</p>" },
 
   // --- Cancelamentos
   churn_total: { t: "Total no histórico", b: "<p>Últimos 24 meses de cancelamentos registrados. Base de dados para o ICP builder.</p>" },
@@ -678,4 +906,7 @@ function HelpIcon({ helpKey, onDark }) {
   );
 }
 
-window.EnvoxersShared = { formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, HelpIcon, initials };
+window.EnvoxersShared = {
+  formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, HelpIcon, initials, Avatar,
+  IconEditar, IconAutomacao, IconExcluir, ComoFazerModal, corPrazoEtapa, AvatarCropModal,
+};
