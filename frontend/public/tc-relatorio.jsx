@@ -3,7 +3,6 @@ const { useState: useStateRep, useEffect: useEffectRep, useMemo: useMemoRep } = 
 const REP_TABS = [
   { key: "cliente", label: "Por cliente", helpKey: "rep_tab_cliente" },
   { key: "servico", label: "Por serviço", helpKey: "rep_tab_servico" },
-  { key: "tipo", label: "Por tipo de tarefa", helpKey: "rep_tab_tipo" },
   { key: "envoxer", label: "Por Envoxer", helpKey: "rep_tab_env" },
 ];
 
@@ -31,7 +30,7 @@ function RelatorioScreen() {
   const [periodo, setPeriodo] = useStateRep("mes");
   const [tipoReceita, setTipoReceita] = useStateRep("");
   const [loading, setLoading] = useStateRep(true);
-  const [dados, setDados] = useStateRep({ cliente: [], servico: [], tipo: [], envoxer: [] });
+  const [dados, setDados] = useStateRep({ cliente: [], servico: [], envoxer: [] });
 
   const carregar = async () => {
     setLoading(true);
@@ -41,13 +40,12 @@ function RelatorioScreen() {
         if (tipoReceita && agrupar === "cliente") p.set("tipo_receita", tipoReceita);
         return p.toString();
       };
-      const [cliente, servico, tipo, envoxer] = await Promise.all([
+      const [cliente, servico, envoxer] = await Promise.all([
         EnvoxersAPI.api(`/relatorio/tempo-custo?${params("cliente")}`),
         EnvoxersAPI.api(`/relatorio/tempo-custo?${params("servico")}`),
-        EnvoxersAPI.api(`/relatorio/tempo-custo?${params("tipo")}`),
         EnvoxersAPI.api(`/relatorio/tempo-custo?${params("envoxer")}`),
       ]);
-      setDados({ cliente: cliente.itens, servico: servico.itens, tipo: tipo.itens, envoxer: envoxer.itens });
+      setDados({ cliente: cliente.itens, servico: servico.itens, envoxer: envoxer.itens });
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -101,8 +99,6 @@ function RelatorioScreen() {
         ...dados.cliente.map((c) => [c.cliente_nome, c.segmento, c.horas, c.custo_horas, c.valor_contrato, c.margem_reais, c.margem_pct])],
       servico: [["Serviço", "Horas", "Custo horas", "% do custo total"],
         ...dados.servico.map((s) => [s.servico_nome, s.horas, s.custo_horas, s.pct_custo_total])],
-      tipo: [["Tipo de tarefa", "Qtd.", "Horas", "Custo horas", "Custo médio/tarefa"],
-        ...dados.tipo.map((t) => [t.tipo_tarefa, t.qtd_tarefas, t.horas, t.custo_horas, t.custo_medio_tarefa])],
       envoxer: [["Envoxer", "Cargo", "Horas de Foco", "Custo/hora", "Custo gerado", "Utilização %"],
         ...dados.envoxer.map((e) => [e.envoxer_nome, e.cargo, e.horas, e.custo_hora, e.custo_gerado, e.utilizacao_pct])],
     };
@@ -248,34 +244,6 @@ function RelatorioScreen() {
                   <td className="td-num" style={{ textAlign: "right" }}>{s.horas.toFixed(1)}h</td>
                   <td className="td-num table-mobile-hide" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(s.custo_horas)}</td>
                   <td className="td-num" style={{ textAlign: "right" }}>{s.pct_custo_total}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {!loading && aba === "tipo" && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Tipo de tarefa</th>
-                <th style={{ textAlign: "right" }}>Qtd.</th>
-                <th style={{ textAlign: "right" }}>Horas</th>
-                <th style={{ textAlign: "right" }} className="table-mobile-hide">Custo horas</th>
-                <th style={{ textAlign: "right" }} className="table-mobile-hide">Custo médio/tarefa</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dados.tipo.length === 0 && <tr><td colSpan="5">Nenhum registro de Foco no período.</td></tr>}
-              {dados.tipo.map((t) => (
-                <tr key={t.tipo_tarefa}>
-                  <td className="td-primary">{t.tipo_tarefa}</td>
-                  <td className="td-num" style={{ textAlign: "right" }}>{t.qtd_tarefas}</td>
-                  <td className="td-num" style={{ textAlign: "right" }}>{t.horas.toFixed(1)}h</td>
-                  <td className="td-num table-mobile-hide" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(t.custo_horas)}</td>
-                  <td className="td-num table-mobile-hide" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(t.custo_medio_tarefa)}</td>
                 </tr>
               ))}
             </tbody>

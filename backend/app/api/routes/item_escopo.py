@@ -10,6 +10,7 @@ from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
+from app.models.servico import Servico
 from app.models.item_escopo import ItemEscopo
 from app.models.item_escopo_historico import ItemEscopoHistorico
 from app.models.entrega_manual import EntregaManual
@@ -19,7 +20,7 @@ from app.schemas.item_escopo import (
     EntregaManualCreate, EntregaManualResponse, ReconciliacaoMesResponse, PainelEntregaveisItem,
     AlertaEntregaResponse, AlertaEntregaUpdate,
 )
-from app.services.entregaveis import calcular_reconciliacao_range, gerar_alertas_gap, aplicar_mudanca_quantidade
+from app.services.entregaveis import calcular_reconciliacao_range, gerar_alertas_gap
 
 router = APIRouter(tags=["item-escopo"])
 
@@ -61,8 +62,12 @@ async def criar_item_escopo(
     await _get_cliente_ou_404(db, cliente_id)
     if payload.cadencia not in ("mensal", "pontual"):
         raise HTTPException(status_code=400, detail="cadência inválida")
+    if payload.servico_id is not None:
+        servico = (await db.execute(select(Servico).where(Servico.id == payload.servico_id))).scalar_one_or_none()
+        if servico is None:
+            raise HTTPException(status_code=400, detail="Serviço não encontrado")
     item = ItemEscopo(
-        cliente_id=cliente_id, tipo=payload.tipo, descricao=payload.descricao,
+        cliente_id=cliente_id, tipo=payload.tipo, servico_id=payload.servico_id, descricao=payload.descricao,
         cadencia=payload.cadencia, quantidade=payload.quantidade,
     )
     db.add(item)
@@ -77,17 +82,14 @@ async def atualizar_item_escopo(
     item_id: int,
     payload: ItemEscopoUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    envoxer: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     item = await _get_item_ou_404(db, cliente_id, item_id)
 
-    if payload.quantidade is not None and payload.quantidade != item.quantidade:
-        if not payload.motivo:
-            raise HTTPException(status_code=400, detail="motivo é obrigatório ao mudar a quantidade")
-        await aplicar_mudanca_quantidade(db, item, payload.quantidade, payload.motivo, alterado_por_envoxer_id=envoxer.id)
-
     if payload.tipo is not None:
         item.tipo = payload.tipo
+    if payload.servico_id is not None:
+        item.servico_id = payload.servico_id
     if payload.descricao is not None:
         item.descricao = payload.descricao
     if payload.cadencia is not None:
@@ -164,28 +166,59 @@ async def reconciliacao_cliente(
     return resultado
 
 
+# Meses de histórico olhados pelo painel cruzado — mesmo padrão da reconciliação
+# individual (`GET /clientes/{id}/reconciliacao`, default `meses=6`).
+PAINEL_MESES_HISTORICO = 6
+
+
 @router.get("/entregaveis/painel", response_model=list[PainelEntregaveisItem])
 async def painel_entregaveis(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    """Visão cruzada de todos os clientes ativos no mês corrente — pra o time
-    ver de longe quem tem gap, sem precisar abrir cliente por cliente."""
+    """Visão cruzada de todos os clientes ativos — pra o time ver de longe quem
+    tem gap, sem precisar abrir cliente por cliente.
+
+    Olha os últimos PAINEL_MESES_HISTORICO meses fechados de cada cliente, não só
+    o mês corrente: um item que nunca foi entregue em 3 meses seguidos enquanto o
+    mês corrente ainda está em andamento (`em_andamento`, nunca "gap" sozinho)
+    ficava invisível aqui antes — só aparecia abrindo a ficha do cliente. Também
+    gera os `AlertaEntrega` de gap de todo mundo nesta mesma passada (mesma
+    função usada pela reconciliação individual), pra não depender de alguém
+    abrir cliente por cliente pra os alertas nascerem."""
     clientes_result = await db.execute(select(Cliente).where(Cliente.deleted_at.is_(None), Cliente.ativo.is_(True)))
     clientes = clientes_result.scalars().all()
 
     ordem_status = {"nao_entregue": 0, "parcial": 1, "em_andamento": 2, "completo": 3, "excedente": 3}
     respostas = []
     for cliente in clientes:
-        meses_resp = await calcular_reconciliacao_range(db, cliente.id, meses=1)
-        if not meses_resp or not meses_resp[0].itens:
+        meses_resp = await calcular_reconciliacao_range(db, cliente.id, meses=PAINEL_MESES_HISTORICO)
+        if not meses_resp or not meses_resp[-1].itens:
             continue
-        mes = meses_resp[0]
-        pior = min(mes.itens, key=lambda i: ordem_status.get(i.status, 9))
-        gaps = sum(1 for i in mes.itens if i.status in ("parcial", "nao_entregue"))
+        await gerar_alertas_gap(db, cliente.id, meses_resp)
+
+        mes_atual = meses_resp[-1]
+        pior_status = "completo"
+        itens_com_gap_ids: set[int] = set()
+        ano_mes_mais_antigo_gap: Optional[str] = None
+        # meses_resp vem do mais antigo pro mais recente (ver _ultimos_meses),
+        # então o primeiro gap encontrado no loop já é o mais antigo.
+        for mes in meses_resp:
+            if not mes.fechado:
+                continue
+            for item_resp in mes.itens:
+                if item_resp.status not in ("parcial", "nao_entregue"):
+                    continue
+                itens_com_gap_ids.add(item_resp.item_escopo_id)
+                if ano_mes_mais_antigo_gap is None:
+                    ano_mes_mais_antigo_gap = mes.ano_mes
+                if ordem_status[item_resp.status] < ordem_status[pior_status]:
+                    pior_status = item_resp.status
+
         respostas.append(PainelEntregaveisItem(
-            cliente_id=cliente.id, cliente_nome=cliente.nome, ano_mes=mes.ano_mes,
-            total_itens=len(mes.itens), itens_com_gap=gaps, pior_status=pior.status,
+            cliente_id=cliente.id, cliente_nome=cliente.nome, ano_mes=mes_atual.ano_mes,
+            ano_mes_mais_antigo_gap=ano_mes_mais_antigo_gap,
+            total_itens=len(mes_atual.itens), itens_com_gap=len(itens_com_gap_ids), pior_status=pior_status,
         ))
 
     respostas.sort(key=lambda r: (ordem_status.get(r.pior_status, 9), -r.itens_com_gap))

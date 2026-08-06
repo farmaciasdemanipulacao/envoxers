@@ -17,6 +17,7 @@ from app.models.cliente import Cliente
 from app.models.tarefa import Tarefa
 from app.models.evento import Evento, TIPO_EVENTO_VALUES
 from app.schemas.calendario import EventoCreate, EventoResponse
+from app.services.provisionamento import garantir_cards_do_mes
 
 router = APIRouter(tags=["calendario"])
 
@@ -29,6 +30,10 @@ async def listar_calendario(
     mes: Optional[int] = None,
     cliente_id: Optional[int] = None,
 ):
+    # Garante que os cards do ciclo corrente já existem mesmo se o Kanban ainda
+    # não foi aberto neste mês (mesma cota, mesmo padrão sob-demanda usado no
+    # provisionamento — não depende de qual ano/mes o calendário está exibindo).
+    await garantir_cards_do_mes(db)
     hoje = date.today()
     ano = ano or hoje.year
     mes = mes or hoje.month

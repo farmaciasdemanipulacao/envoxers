@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Integer, String, Text, Date, DateTime, Enum as SAEnum, ForeignKey
+from sqlalchemy import BigInteger, Boolean, Integer, String, Date, DateTime, Enum as SAEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -35,8 +35,12 @@ class Tarefa(Base, TimestampMixin):
     item_escopo_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("item_escopo.id", ondelete="SET NULL"), nullable=True
     )
+    # Ciclo de cota (ano_mes "YYYY-MM", ou "pontual" pra itens não-mensais) — 1 card
+    # por (item_escopo_id, ano_mes), gerado automaticamente a partir da cota
+    # contratada (ver services/provisionamento.py). As unidades contratadas viram
+    # `EntregaCheck` dentro deste card, não cards separados.
+    ano_mes: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
     titulo: Mapped[str] = mapped_column(String(200), nullable=False)
-    tipo_tarefa: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
     responsavel_envoxer_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("envoxer.id", ondelete="SET NULL"), nullable=True
     )
@@ -54,9 +58,6 @@ class Tarefa(Base, TimestampMixin):
     etiqueta: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     # azul|amarelo|vermelho|verde|roxo|cinza — casa com as classes .tag-* já existentes no CSS.
     etiqueta_cor: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-
-    criativo: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    legenda: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # [{envoxer_id, envoxer_nome, texto, criado_em}]
     comentarios: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)

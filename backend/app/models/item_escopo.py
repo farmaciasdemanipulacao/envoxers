@@ -25,6 +25,13 @@ class ItemEscopo(Base, TimestampMixin):
     cliente_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("cliente.id", ondelete="CASCADE"), nullable=False
     )
+    # Liga o item ao catálogo de Serviços — é o que permite o card automático (ver
+    # services/provisionamento.py) nascer com "Serviço" já preenchido. `tipo` continua
+    # gravado (= nome do serviço no momento do cadastro) por compatibilidade com todo
+    # o resto do sistema (reconciliação, alertas, título do card) que já lê esse campo.
+    servico_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("servico.id", ondelete="SET NULL"), nullable=True
+    )
     tipo: Mapped[str] = mapped_column(String(60), nullable=False)
     descricao: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     cadencia: Mapped[str] = mapped_column(

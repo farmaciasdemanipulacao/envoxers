@@ -17,9 +17,6 @@ from app.schemas.solicitacao import SolicitacaoCreate, SolicitacaoUpdate, Solici
 
 router = APIRouter(prefix="/solicitacoes", tags=["solicitacoes"])
 
-# tipo de solicitação -> tipo_tarefa do catálogo, quando existe correspondência direta.
-_TIPO_TAREFA_MAP = {"campanha": "Campanha de tráfego"}
-
 
 def _to_response(solicitacao: Solicitacao, cliente_nome: Optional[str] = None) -> SolicitacaoResponse:
     resp = SolicitacaoResponse.model_validate(solicitacao)
@@ -175,7 +172,6 @@ async def virar_demanda(
     tarefa = Tarefa(
         cliente_id=solicitacao.cliente_id,
         titulo=solicitacao.titulo,
-        tipo_tarefa=_TIPO_TAREFA_MAP.get(solicitacao.tipo),
         status="nova",
         comentarios=comentarios,
     )

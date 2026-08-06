@@ -6,17 +6,25 @@ from pydantic import BaseModel, ConfigDict
 
 class ItemEscopoCreate(BaseModel):
     tipo: str
+    servico_id: Optional[int] = None
     descricao: Optional[str] = None
     cadencia: str = "mensal"
     quantidade: int = 0
 
 
 class ItemEscopoUpdate(BaseModel):
+    # Mudança de `quantidade` (contratado) não passa mais por aqui — só pelo
+    # Documento de Acordo (exige confirmação de todas as partes). Ver
+    # `documentos_acordo.py::_efetivar_documento`, único lugar que ainda chama
+    # `aplicar_mudanca_quantidade`. `extra="forbid"` garante que um payload
+    # antigo com `quantidade`/`motivo` (aba não recarregada, script antigo)
+    # dê 422 em vez de um 200 silencioso que não muda nada.
+    model_config = ConfigDict(extra="forbid")
+
     tipo: Optional[str] = None
+    servico_id: Optional[int] = None
     descricao: Optional[str] = None
     cadencia: Optional[str] = None
-    quantidade: Optional[int] = None
-    motivo: Optional[str] = None  # obrigatório se quantidade mudar — vira ItemEscopoHistorico
     ativo: Optional[bool] = None
 
 
@@ -26,6 +34,7 @@ class ItemEscopoResponse(BaseModel):
     id: int
     cliente_id: int
     tipo: str
+    servico_id: Optional[int] = None
     descricao: Optional[str] = None
     cadencia: str
     quantidade: int
@@ -79,6 +88,7 @@ class PainelEntregaveisItem(BaseModel):
     cliente_id: int
     cliente_nome: str
     ano_mes: str
+    ano_mes_mais_antigo_gap: Optional[str] = None
     total_itens: int
     itens_com_gap: int
     pior_status: str

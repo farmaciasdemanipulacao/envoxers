@@ -25,13 +25,11 @@ class TarefaBase(BaseModel):
     servico_id: Optional[int] = None
     item_escopo_id: Optional[int] = None
     titulo: str
-    tipo_tarefa: Optional[str] = None
     responsavel_envoxer_id: Optional[int] = None
     status: str = "nova"
     prazo: Optional[date] = None
     etiqueta: Optional[str] = None
     etiqueta_cor: Optional[str] = None
-    legenda: Optional[str] = None
 
 
 class TarefaCreate(TarefaBase):
@@ -45,14 +43,12 @@ class TarefaUpdate(BaseModel):
     servico_id: Optional[int] = None
     item_escopo_id: Optional[int] = None
     titulo: Optional[str] = None
-    tipo_tarefa: Optional[str] = None
     responsavel_envoxer_id: Optional[int] = None
     status: Optional[str] = None
     ordem: Optional[int] = None
     prazo: Optional[date] = None
     etiqueta: Optional[str] = None
     etiqueta_cor: Optional[str] = None
-    legenda: Optional[str] = None
 
 
 class ComentarioCreate(BaseModel):
@@ -62,7 +58,6 @@ class ComentarioCreate(BaseModel):
 class TarefaResponse(TarefaBase):
     id: int
     ordem: int
-    criativo: Optional[str] = None
     comentarios: list[ComentarioItem] = []
     anexos: list[AnexoItem] = []
     cliente_nome: Optional[str] = None
@@ -77,8 +72,18 @@ class TarefaResponse(TarefaBase):
     aprovada_interna: bool = False
     aprovada_cliente: bool = False
     finalizada_em: Optional[datetime] = None
+    ano_mes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class EntregaCheckResponse(BaseModel):
+    id: int
+    numero: int
+    entregue: bool
+    entregue_em: Optional[datetime] = None
+    entregue_por_nome: Optional[str] = None
+    excedente: bool = False
