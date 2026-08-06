@@ -30,3 +30,16 @@ class ChatCanalResponse(BaseModel):
     outro_envoxer_id: Optional[int] = None  # só em tipo=dm — o outro participante
     nao_lidas: int = 0
     ultima_mensagem: Optional[ChatMensagemResponse] = None
+
+
+class ChatCanalPendenteItem(BaseModel):
+    canal_id: int
+    outro_envoxer_id: int
+    outro_envoxer_nome: str
+    outro_envoxer_foto: Optional[str] = None
+    qtd_pendente: int
+
+
+class ChatBloqueioResponse(BaseModel):
+    bloqueado: bool
+    canais: list[ChatCanalPendenteItem] = []

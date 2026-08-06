@@ -246,6 +246,7 @@ a:hover { text-decoration: underline; }
 .avatar.gray { background: var(--ink-3); }
 .avatar.md { width: 28px; height: 28px; font-size: 11px; }
 .avatar.sm { width: 22px; height: 22px; font-size: 10px; }
+.avatar.lg { width: 64px; height: 64px; font-size: 20px; }
 
 .sidebar-user-info {
   min-width: 0;
@@ -1217,6 +1218,28 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
   background: var(--bg-inset);
   border-top: 1px solid var(--line);
 }
+/* Form compacto dentro de um .comment-box (criar/editar registro pequeno,
+   fora do form multi-seção grande) — reaproveita .field/.form-row por dentro. */
+.comment-box-form { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.comment-box-form .form-row,
+.comment-box-form .field { margin-bottom: 0; }
+
+/* Input/select compacto usado dentro de célula de tabela pra edição inline
+   (ex.: trocar Serviço de um item já cadastrado) — mesma aparência de .field
+   input, sem precisar do wrapper column+label. */
+.table-edit-input, .table-edit-select {
+  padding: 7px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-elev);
+  outline: none;
+  font-size: 12px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.table-edit-input:focus, .table-edit-select:focus {
+  border-color: var(--envox);
+  box-shadow: 0 0 0 3px var(--envox-soft);
+}
 
 /* ============================================================
    ETAPAS DO PROCESSO — checklist estruturado dentro da Tarefa
@@ -1230,12 +1253,17 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 .etapa-item:last-child { border-bottom: none; }
 .etapa-checkbox { margin-top: 3px; width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
 .etapa-checkbox:disabled { cursor: not-allowed; opacity: .5; }
-.etapa-body { flex: 1; min-width: 0; }
+/* Corpo da etapa é uma coluna (linha principal + form de automação abaixo,
+   quando aberto). A linha principal (.etapa-row) tem 2 colunas: conteúdo
+   (título/responsável/como-fazer) à esquerda, prazo + ações empilhados à direita. */
+.etapa-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.etapa-row { display: flex; justify-content: space-between; gap: 12px; }
+.etapa-main { flex: 1; min-width: 0; }
+.etapa-side { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .etapa-head { display: flex; align-items: center; gap: 6px; }
 .etapa-titulo { font-size: 13px; font-weight: 600; }
 .etapa-titulo.concluida { text-decoration: line-through; color: var(--ink-4); font-weight: 400; }
 .etapa-icon { color: var(--ink-3); flex-shrink: 0; }
-.etapa-desc { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
 .etapa-meta {
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
   margin-top: 6px; font-size: 11px; color: var(--ink-3);
@@ -1248,9 +1276,63 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 .etapa-automacao-form {
   margin-top: 8px; padding: 10px;
   background: var(--bg-inset); border-radius: var(--r-md);
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; gap: 8px;
 }
-.etapa-automacao-form select { width: 100%; }
+.etapa-automacao-hint {
+  font-size: 11px; color: var(--ink-3); line-height: 1.4; margin: 0;
+}
+
+/* Badge de prazo, cor por urgência — verde (>7 dias), amarelo (essa semana),
+   vermelho (atrasado). Cinza quando a etapa não tem prazo definido. */
+.etapa-prazo-badge {
+  font-size: 11px; font-weight: 600; padding: 3px 9px;
+  border-radius: 999px; white-space: nowrap;
+}
+.etapa-prazo-badge.verde    { background: var(--farol-verde-bg);    color: var(--farol-verde); }
+.etapa-prazo-badge.amarelo  { background: var(--farol-amarelo-bg);  color: var(--farol-amarelo); }
+.etapa-prazo-badge.vermelho { background: var(--farol-vermelho-bg); color: var(--farol-vermelho); }
+.etapa-prazo-badge.neutro   { background: var(--bg-inset); color: var(--ink-4); }
+
+/* Ações da etapa (editar/config. automação/excluir) — ícone discreto, texto
+   só no title (tooltip nativo), fica junto do badge de prazo à direita. */
+.etapa-actions { display: flex; gap: 2px; }
+.etapa-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0;
+  border: none; border-radius: var(--r-md);
+  background: transparent; color: var(--ink-3); cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.etapa-icon-btn:hover { background: var(--bg-inset); color: var(--ink); }
+.etapa-icon-btn.danger:hover { background: var(--farol-vermelho-bg); color: var(--farol-vermelho); }
+
+/* Modal "Como fazer" — mais estreito, empilha por cima do modal do card/serviço
+   (mesmo padrão de z-index do .foco-finalizar-overlay). */
+.como-fazer-overlay { z-index: 60; }
+.etapa-automacao-form select,
+.etapa-automacao-form input,
+.etapa-automacao-form textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg-elev);
+  outline: none;
+  font: inherit;
+  font-size: 12px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.etapa-automacao-form textarea { resize: vertical; min-height: 50px; }
+.etapa-automacao-form select:focus,
+.etapa-automacao-form input:focus,
+.etapa-automacao-form textarea:focus {
+  border-color: var(--envox);
+  box-shadow: 0 0 0 3px var(--envox-soft);
+}
+.etapa-automacao-form label {
+  font-size: 11px; font-weight: 500; color: var(--ink-3);
+  margin-bottom: -4px;
+}
 
 /* ============================================================
    DASHBOARD DO DIA — F1
@@ -1301,6 +1383,78 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 .dash-item.atrasada .dash-item-meta { color: var(--farol-vermelho); font-weight: 600; }
 
 /* ============================================================
+   FOCO ATIVOS — status do time com sinalização verde (online) / vermelho
+   (offline), D-090 + refinamento D-092
+   ============================================================ */
+.foco-status-summary {
+  display: grid; gap: 1px;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.foco-status-summary .kpi { background: var(--bg-elev); padding: 18px 20px; }
+
+.foco-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.foco-status-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+.foco-status-card.online { border-left-color: var(--farol-verde); }
+.foco-status-card.offline { border-left-color: var(--farol-vermelho); }
+.foco-status-card.clickable { cursor: pointer; }
+.foco-status-card.clickable:hover { border-color: var(--envox); box-shadow: var(--shadow-1); transform: translateY(-1px); }
+
+.foco-status-avatar { position: relative; flex-shrink: 0; }
+.foco-status-dot {
+  position: absolute; bottom: -1px; right: -1px;
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--bg-elev);
+}
+.foco-status-dot.online { background: var(--farol-verde); }
+.foco-status-dot.online::after {
+  content: "";
+  position: absolute; inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--farol-verde);
+  animation: focoStatusRing 1.8s infinite ease-out;
+}
+.foco-status-dot.offline { background: var(--farol-vermelho); }
+@keyframes focoStatusRing {
+  0%   { opacity: 0.7; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.7); }
+}
+
+.foco-status-body { min-width: 0; flex: 1; }
+.foco-status-name {
+  font-weight: 600; font-size: 13px; margin-bottom: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.foco-status-detail {
+  font-size: 12px; color: var(--ink-3); margin-top: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.foco-status-detail.muted { font-style: italic; }
+.foco-status-timestamps {
+  display: flex; gap: 10px; margin-top: 4px;
+  font-size: 11px; color: var(--ink-4);
+}
+
+/* ============================================================
    FOCO — barra global persistente (faixa fixa no rodapé, cobre toda a largura)
    ============================================================ */
 .foco-bar {
@@ -1321,6 +1475,14 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 }
 .foco-bar.active { display: flex; }
 .foco-bar.paused { background: var(--ink-2); }
+/* left:0 cobria a sidebar inteira (inclusive "Meu Perfil" no rodapé — impossível
+   de clicar ali com a barra por cima). Só corrige em telas largas (desktop, onde
+   a sidebar é uma coluna fixa de verdade) — abaixo de 900px a sidebar vira gaveta
+   e a regra mobile (@media max-width:900px, mais abaixo) já cuida da largura. */
+@media (min-width: 901px) {
+  .foco-bar { left: 232px; }
+  .app.sidebar-collapsed .foco-bar { left: 64px; }
+}
 .foco-pulse {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--farol-verde);
@@ -3134,4 +3296,56 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   .modal-title { font-size: 22px; }
   .modal-head, .modal-main, .modal-side { padding-left: 20px; padding-right: 20px; }
 }
+
+/* ============================================================
+   RECORTE DE FOTO DE PERFIL — arrastar + zoom antes de enviar
+   (D-102: sem isso, foto vertical/horizontal cortava metade do
+   rosto da pessoa; agora quem envia escolhe o enquadramento).
+   ============================================================ */
+.avatar-crop-viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: #14161a;
+  touch-action: none;
+  cursor: grab;
+}
+.avatar-crop-viewport:active { cursor: grabbing; }
+.avatar-crop-mask {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border-radius: 50%;
+  box-shadow: 0 0 0 9999px rgba(10, 12, 16, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+.avatar-crop-zoom {
+  -webkit-appearance: none; appearance: none;
+  height: 3px; border-radius: 999px;
+  background: var(--line-2); outline: none;
+}
+.avatar-crop-zoom::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--envox); cursor: pointer;
+  border: 2px solid var(--bg-elev); box-shadow: 0 0 0 1px var(--line-2);
+}
+.avatar-crop-zoom::-moz-range-thumb {
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--envox); cursor: pointer; border: 2px solid var(--bg-elev);
+}
+
+/* ============================================================
+   BLOQUEIO POR DM NÃO LIDA — só o Chat fica acessível (D-10x)
+   ============================================================ */
+.app.app-bloqueado { grid-template-columns: 1fr; }
+.chat-bloqueio-banner {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 24px;
+  background: var(--farol-amarelo-bg);
+  border-bottom: 1px solid var(--farol-amarelo);
+}
+.chat-bloqueio-banner svg { flex-shrink: 0; color: var(--farol-amarelo); }
+.chat-bloqueio-texto { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-2); }
+.chat-bloqueio-texto strong { font-size: 13.5px; color: var(--ink); }
 

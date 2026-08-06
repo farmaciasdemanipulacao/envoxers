@@ -22,7 +22,9 @@ from app.models.chat_mensagem import ChatMensagem
 from app.models.cliente import Cliente
 from app.models.envoxer import Envoxer
 from app.models.alerta_config import AlertaConfig
-from app.schemas.chat import ChatCanalResponse, ChatMensagemCreate, ChatMensagemResponse
+from app.schemas.chat import (
+    ChatCanalResponse, ChatMensagemCreate, ChatMensagemResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
+)
 from app.services.chat_ws_manager import chat_ws_manager
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -152,6 +154,62 @@ async def listar_canais(
         )
 
     return canais_resp
+
+
+@router.get("/bloqueio", response_model=ChatBloqueioResponse)
+async def verificar_bloqueio(
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """DM não lida desde ANTES de hoje (passou da meia-noite sem a pessoa abrir)
+    bloqueia o app inteiro pra quem recebeu — só o Chat continua acessível, com
+    aviso, até ler. Calculado ao vivo a cada chamada (sem scheduler, mesmo padrão
+    do resto do projeto) — assim que a pessoa abre a conversa e a mensagem entra
+    dentro de `ChatLeitura.last_read_at`, a próxima checagem já destrava sozinha.
+    Admin nunca bloqueia (decisão do Gus)."""
+    if envoxer.permissao == "admin":
+        return ChatBloqueioResponse(bloqueado=False, canais=[])
+
+    hoje_00h = datetime.combine(datetime.now(timezone.utc).date(), datetime.min.time(), tzinfo=timezone.utc)
+
+    result = await db.execute(
+        select(ChatCanal).where(
+            ChatCanal.tipo == "dm",
+            or_(ChatCanal.dm_envoxer_a_id == envoxer.id, ChatCanal.dm_envoxer_b_id == envoxer.id),
+        )
+    )
+    canais_pendentes = []
+    for canal in result.scalars().all():
+        leitura_result = await db.execute(
+            select(ChatLeitura.last_read_at).where(
+                ChatLeitura.canal_id == canal.id, ChatLeitura.envoxer_id == envoxer.id
+            )
+        )
+        last_read_at = leitura_result.scalar_one_or_none() or EPOCH
+
+        qtd_result = await db.execute(
+            select(func.count()).select_from(ChatMensagem).where(
+                ChatMensagem.canal_id == canal.id,
+                ChatMensagem.created_at > last_read_at,
+                ChatMensagem.created_at < hoje_00h,
+                ChatMensagem.autor_envoxer_id != envoxer.id,
+            )
+        )
+        qtd_pendente = qtd_result.scalar_one()
+        if qtd_pendente > 0:
+            outro_id = canal.dm_envoxer_b_id if canal.dm_envoxer_a_id == envoxer.id else canal.dm_envoxer_a_id
+            outro = await db.get(Envoxer, outro_id)
+            canais_pendentes.append(
+                ChatCanalPendenteItem(
+                    canal_id=canal.id,
+                    outro_envoxer_id=outro_id,
+                    outro_envoxer_nome=outro.nome if outro else "—",
+                    outro_envoxer_foto=outro.foto_url if outro else None,
+                    qtd_pendente=qtd_pendente,
+                )
+            )
+
+    return ChatBloqueioResponse(bloqueado=len(canais_pendentes) > 0, canais=canais_pendentes)
 
 
 @router.post("/dm/{outro_envoxer_id}", response_model=ChatCanalResponse)

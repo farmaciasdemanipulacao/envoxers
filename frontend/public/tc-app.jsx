@@ -115,6 +115,19 @@ function AppShell() {
   const permissao = localStorage.getItem("envoxers_permissao") || "envoxer";
   const envoxerId = EnvoxersAPI.getEnvoxerId();
   const toast = EnvoxersShared.useToast();
+  const [fotoUrl, setFotoUrl] = useStateApp(() => localStorage.getItem("envoxers_foto_url") || "");
+  const atualizarFotoUrl = (novaUrl) => {
+    localStorage.setItem("envoxers_foto_url", novaUrl || "");
+    setFotoUrl(novaUrl || "");
+  };
+
+  // Telas 100% financeiras (D-090) — se alguém sem ser admin cair aqui (ex.: view
+  // presa de uma sessão anterior), volta pro Kanban em vez de bater no 403 da API.
+  useEffectApp(() => {
+    if ((view === "faturamento" || view === "relatorio") && permissao !== "admin") {
+      setView("kanban");
+    }
+  }, [view, permissao]);
 
   // Estado do menu (expandido/recolhido) persiste em localStorage — não em memória —
   // pra sobreviver a um reload de página, não só a troca de tela dentro da sessão.
@@ -222,14 +235,34 @@ function AppShell() {
     } catch (err) { /* silencioso — badge não é crítico */ }
   };
 
+  // Bloqueio "DM não lida desde antes de hoje" (pedido do Gus) — admin nunca
+  // bloqueia (checado aqui de novo, além do backend, só pra nunca nem tentar
+  // esconder a sidebar do próprio admin por engano).
+  const [bloqueioChat, setBloqueioChat] = useStateApp({ bloqueado: false, canais: [] });
+  const verificarBloqueioChat = async () => {
+    if (permissao === "admin") return;
+    try {
+      const data = await EnvoxersAPI.api("/chat/bloqueio");
+      setBloqueioChat(data);
+    } catch (err) { /* silencioso */ }
+  };
+
   // Pequeno debounce: várias mensagens chegando juntas não devem disparar uma rajada de GETs.
   // Também dá tempo da ChatScreen marcar como lido (se o canal estiver aberto) antes do recálculo.
   const agendarRecalculoBadge = () => {
     clearTimeout(chatBadgeTimeoutRef.current);
-    chatBadgeTimeoutRef.current = setTimeout(carregarChatBadge, 400);
+    chatBadgeTimeoutRef.current = setTimeout(() => { carregarChatBadge(); verificarBloqueioChat(); }, 400);
   };
 
-  useEffectApp(() => { carregarChatBadge(); }, []);
+  useEffectApp(() => { carregarChatBadge(); verificarBloqueioChat(); }, []);
+
+  // Confere de novo periodicamente — cobre o caso de a aba ficar aberta parada
+  // e a virada da meia-noite acontecer sem nenhum evento de WS novo pra disparar.
+  useEffectApp(() => {
+    if (permissao === "admin") return;
+    const intervalId = setInterval(verificarBloqueioChat, 5 * 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [permissao]);
 
   useEffectApp(() => {
     const token = EnvoxersAPI.getToken();
@@ -372,7 +405,39 @@ function AppShell() {
     churn: "ICP / Cancelamentos",
     chat: "Chat interno",
     "config-alertas": "Admin / Configuração de Alertas",
+    "foco-ativos": "Operação / Quem está em Foco",
+    "meu-perfil": "Meu Perfil",
   };
+
+  // Bloqueio de DM não lida desde antes de hoje — some com toda a navegação,
+  // só o Chat continua acessível, e Sair. Admin nunca cai aqui (checado no
+  // back e de novo em verificarBloqueioChat).
+  // Importante: NÃO abre a conversa pendente sozinho — abrir uma conversa já
+  // marca como lida (mesmo comportamento do chat normal), então auto-abrir
+  // destravaria instantaneamente, sem a pessoa realmente ter lido nada. Ela
+  // precisa clicar de propósito na conversa marcada abaixo pra destravar.
+  if (bloqueioChat.bloqueado && permissao !== "admin") {
+    const nomesPendentes = bloqueioChat.canais.map((c) => c.outro_envoxer_nome).join(", ");
+    return (
+      <div className="app app-bloqueado">
+        <main className="main main-chat" style={{ width: "100%" }}>
+          <div className="chat-bloqueio-banner">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l6 11H2z" /><path d="M8 6v3M8 11v.5" /></svg>
+            <div className="chat-bloqueio-texto">
+              <strong>Você tem mensagens importantes pra ler.</strong>
+              <span>De {nomesPendentes} — o resto do sistema fica bloqueado até você abrir a conversa no Chat abaixo.</span>
+            </div>
+            <button className="btn btn-sm" onClick={handleLogout}>Sair</button>
+          </div>
+          <ChatScreen
+            envoxersList={envoxersList}
+            wsEvent={chatWsEvent}
+            onLeituraAtualizada={agendarRecalculoBadge}
+          />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className={"app" + (sidebarCollapsed ? " sidebar-collapsed" : "")}>
@@ -381,6 +446,7 @@ function AppShell() {
         onNavigate={navegarEFecharMenu}
         nome={nome}
         permissao={permissao}
+        fotoUrl={fotoUrl}
         chatNaoLidas={chatBadgeTotal}
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapsed}
@@ -409,6 +475,7 @@ function AppShell() {
         {view === "kanban" && (
           <KanbanScreen
             permissao={permissao}
+            envoxerId={envoxerId}
             focoAtivo={focoAtivo}
             focoElapsed={focoElapsed}
             dataVersion={dataVersion}
@@ -420,6 +487,7 @@ function AppShell() {
         {view === "dashboard" && (
           <DashboardScreen
             permissao={permissao}
+            envoxerId={envoxerId}
             dataVersion={dataVersion}
             onAbrirTarefa={abrirTarefa}
             onNavigate={setView}
@@ -427,14 +495,18 @@ function AppShell() {
         )}
         {view === "solicitacoes" && <SolicitacoesScreen onAbrirTarefa={abrirTarefa} />}
         {view === "calendario" && <CalendarioScreen />}
-        {view === "relatorio" && <RelatorioScreen />}
-        {view === "farol" && <FarolScreen />}
-        {view === "alertas" && <AlertasScreen onAbrirCliente={abrirCliente} />}
+        {view === "relatorio" && permissao === "admin" && <RelatorioScreen />}
+        {view === "farol" && <FarolScreen permissao={permissao} />}
+        {view === "alertas" && <AlertasScreen permissao={permissao} onAbrirCliente={abrirCliente} />}
         {view === "entregaveis" && <EntregaveisScreen onAbrirCliente={abrirCliente} />}
-        {view === "icp" && <IcpScreen />}
-        {view === "faturamento" && <FaturamentoScreen />}
+        {view === "icp" && permissao !== "envoxer" && <IcpScreen />}
+        {view === "faturamento" && permissao === "admin" && <FaturamentoScreen />}
         {view === "churn" && <ChurnListaScreen />}
         {view === "config-alertas" && <ConfigAlertasScreen permissao={permissao} />}
+        {view === "foco-ativos" && <FocoAtivosScreen onAbrirTarefa={abrirTarefa} />}
+        {view === "meu-perfil" && (
+          <MeuPerfilScreen nome={nome} permissao={permissao} fotoUrl={fotoUrl} onFotoAtualizada={atualizarFotoUrl} />
+        )}
         {view === "chat" && (
           <ChatScreen envoxersList={envoxersList} wsEvent={chatWsEvent} onLeituraAtualizada={agendarRecalculoBadge} />
         )}
@@ -458,6 +530,12 @@ function AppShell() {
 
       {tarefaAberta !== null && (
         <TaskModal
+          // Força remontagem ao trocar de card (ex.: clicar na barra de Foco pra
+          // pular pro card ativo enquanto este modal já está aberto) — sem isso
+          // o componente só troca a prop `tarefaId` e o estado local (como a
+          // lista de Entregas) fica "preso" do card anterior por uma fração de
+          // segundo até o novo fetch terminar.
+          key={tarefaAberta.id || "nova"}
           tarefaId={tarefaAberta.id || null}
           statusInicial={novaStatusInicial}
           permissao={permissao}
