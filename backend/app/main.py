@@ -16,6 +16,7 @@ from app.models.envoxer import Envoxer
 from app.models.servico import Servico
 from app.models.motivo_churn import MotivoChurnCatalogo
 from app.models.chat_canal import ChatCanal
+from app.models.alerta_config import AlertaConfig
 from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth, item_escopo, documento_acordo, portal_documentos
 
 logger = structlog.get_logger()
@@ -28,6 +29,22 @@ SERVICOS_PADRAO = [
     ("SDR", "sdr", "Prospecção ativa e pré-venda"),
     ("Site", "site", "Landing pages e websites"),
     ("Atendimento", "atendimento", "Gestão de conta e relacionamento"),
+]
+
+# Mesmo seed original da migration 0016_alerta_config — precisou virar idempotente
+# aqui também porque migration só roda uma vez (marcada como aplicada no
+# alembic_version) e um TRUNCATE/wipe da tabela (ex.: D-108) não a refaz sozinha,
+# diferente de Servico/MotivoChurnCatalogo/ChatCanal, que já eram recriados aqui.
+ALERTAS_CONFIG_PADRAO = [
+    ("farol_geral", "Farol piorou (geral)", "farol", "Dispara quando a cor geral do Farol de um cliente piora.", True, ["admin", "gestor"]),
+    ("farol_sinal_entrega", "Sinal: Entrega no prazo", "farol", "Dispara quando o sinal de entrega piora, isoladamente.", False, ["admin", "gestor"]),
+    ("farol_sinal_atrasadas", "Sinal: Tarefas atrasadas", "farol", "Dispara quando o sinal de atrasadas piora, isoladamente.", False, ["admin", "gestor"]),
+    ("farol_sinal_alteracoes", "Sinal: Alterações acima do limite", "farol", "Dispara quando o sinal de alterações piora, isoladamente.", False, ["admin", "gestor"]),
+    ("farol_sinal_aprovacoes", "Sinal: Aprovações paradas", "farol", "Dispara quando o sinal de aprovações piora, isoladamente.", False, ["admin", "gestor"]),
+    ("farol_sinal_pulso", "Sinal: Pulso de satisfação", "farol", "Dispara quando o sinal de pulso piora, isoladamente.", False, ["admin", "gestor"]),
+    ("farol_sinal_margem", "Sinal: Margem", "farol", "Dispara quando o sinal de margem piora, isoladamente.", False, ["admin", "gestor"]),
+    ("farol_sinal_silencio", "Sinal: Silêncio do cliente", "farol", "Dispara quando o sinal de silêncio piora, isoladamente.", False, ["admin", "gestor"]),
+    ("chat_dm", "Mensagem direta no chat", "chat", "Dispara quando alguém manda uma DM pra um envoxer que não está com a aba visível.", True, None),
 ]
 
 MOTIVOS_CHURN_PADRAO = [
@@ -78,8 +95,13 @@ async def seed_dados_iniciais():
             await db.commit()
             logger.info("motivos_churn_seed_criado")
 
-        result = await db.execute(select(Envoxer).where(Envoxer.email == "admin@envox.com.br"))
-        if result.scalar_one_or_none() is None:
+        # Checa por QUALQUER admin ativo, não pelo e-mail exato "admin@envox.com.br" —
+        # se checasse só o e-mail, trocar o e-mail do admin real (ex.: pra
+        # gustavo@envox.com.br) faria o seed "não reconhecer" o admin existente e
+        # recriar um fantasma com senha padrão a cada restart/deploy (aconteceu de
+        # verdade em produção, ver demand_log D-113).
+        result = await db.execute(select(Envoxer).where(Envoxer.permissao == "admin", Envoxer.ativo.is_(True)))
+        if result.scalars().first() is None:
             db.add(
                 Envoxer(
                     nome="Admin Envoxers",
@@ -92,6 +114,13 @@ async def seed_dados_iniciais():
             )
             await db.commit()
             logger.info("admin_padrao_criado", email="admin@envox.com.br")
+
+        result = await db.execute(select(AlertaConfig))
+        if result.scalars().first() is None:
+            for chave, nome, grupo, descricao, ativo, papeis in ALERTAS_CONFIG_PADRAO:
+                db.add(AlertaConfig(chave=chave, nome=nome, grupo=grupo, descricao=descricao, ativo=ativo, papeis=papeis))
+            await db.commit()
+            logger.info("alertas_config_seed_criado")
 
         result = await db.execute(select(ChatCanal).where(ChatCanal.tipo == "geral"))
         if result.scalar_one_or_none() is None:
