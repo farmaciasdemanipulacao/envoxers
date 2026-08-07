@@ -245,7 +245,7 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
                 <td className="table-mobile-hide">
                   {c.responsavel_nome ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <EnvoxersShared.Avatar nome={c.responsavel_nome} fotoUrl={c.responsavel_foto} size="sm" />
+                      <EnvoxersShared.Avatar nome={c.responsavel_nome} fotoUrl={c.responsavel_foto} size="sm" envoxerId={c.responsavel_envoxer_id} />
                       <span>{c.responsavel_nome.split(" ")[0]}</span>
                     </div>
                   ) : "—"}

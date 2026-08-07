@@ -253,7 +253,7 @@ function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
         )}
         {t.responsavel_nome && (
           <span className="assignee" title={t.responsavel_nome}>
-            <EnvoxersShared.Avatar nome={t.responsavel_nome} fotoUrl={t.responsavel_foto} size="sm" className="gray" />
+            <EnvoxersShared.Avatar nome={t.responsavel_nome} fotoUrl={t.responsavel_foto} size="sm" className="gray" envoxerId={t.responsavel_envoxer_id} />
           </span>
         )}
       </div>
@@ -946,7 +946,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                                   <div className="etapa-meta">
                                     {etapa.responsavel_nome && (
                                       <span className="etapa-meta-item">
-                                        <EnvoxersShared.Avatar nome={etapa.responsavel_nome} fotoUrl={etapa.responsavel_foto} size="sm" className="gray" /> {etapa.responsavel_nome}
+                                        <EnvoxersShared.Avatar nome={etapa.responsavel_nome} fotoUrl={etapa.responsavel_foto} size="sm" className="gray" envoxerId={etapa.responsavel_id} /> {etapa.responsavel_nome}
                                       </span>
                                     )}
                                     {etapa.descricao && (
@@ -1184,7 +1184,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
               <div className="modal-side-block">
                 <div className="modal-side-label">Responsável</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <EnvoxersShared.Avatar nome={responsavel?.nome} fotoUrl={responsavel?.foto_url} size="sm" className="gray" />
+                  <EnvoxersShared.Avatar nome={responsavel?.nome} fotoUrl={responsavel?.foto_url} size="sm" className="gray" envoxerId={responsavel?.id} />
                   <select className="modal-side-select" value={responsavelId} disabled={bloqueado} onChange={(e) => setResponsavelId(e.target.value)}>
                     <option value="">—</option>
                     {envoxersList.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}

@@ -284,6 +284,15 @@ function AppShell() {
     return () => clearInterval(intervalId);
   }, [permissao]);
 
+  // Presença (ativo/ausente/offline) — snapshot inicial pra popular a bolinha do
+  // Avatar em qualquer tela assim que o app abre; dali em diante só os eventos
+  // "presenca" do WS abaixo mantêm isso atualizado (ver chat_ws_manager.py).
+  useEffectApp(() => {
+    EnvoxersAPI.api("/chat/presenca")
+      .then((mapa) => window.EnvoxersPresence.setAll(mapa))
+      .catch(() => {});
+  }, []);
+
   useEffectApp(() => {
     const token = EnvoxersAPI.getToken();
     if (!token) return;
@@ -306,6 +315,8 @@ function AppShell() {
         if (data.tipo === "mensagem_nova") {
           setChatWsEvent(data);
           agendarRecalculoBadge();
+        } else if (data.tipo === "presenca") {
+          window.EnvoxersPresence.set(data.envoxer_id, data.status);
         }
       } catch (err) { /* ignora frame que não é JSON */ }
     };
@@ -445,7 +456,7 @@ function AppShell() {
           <div className="chat-bloqueio-banner">
             <div className="chat-bloqueio-avatars">
               {bloqueioChat.canais.map((c) => (
-                <EnvoxersShared.Avatar key={c.canal_id} nome={c.outro_envoxer_nome} fotoUrl={c.outro_envoxer_foto} size="sm" />
+                <EnvoxersShared.Avatar key={c.canal_id} nome={c.outro_envoxer_nome} fotoUrl={c.outro_envoxer_foto} size="sm" envoxerId={c.outro_envoxer_id} />
               ))}
             </div>
             <div className="chat-bloqueio-texto">
@@ -472,6 +483,7 @@ function AppShell() {
         nome={nome}
         permissao={permissao}
         fotoUrl={fotoUrl}
+        envoxerId={envoxerId}
         chatNaoLidas={chatBadgeTotal}
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebarCollapsed}
@@ -531,7 +543,7 @@ function AppShell() {
         {view === "config-alertas" && <ConfigAlertasScreen permissao={permissao} />}
         {view === "foco-ativos" && <FocoAtivosScreen onAbrirTarefa={abrirTarefa} />}
         {view === "meu-perfil" && (
-          <MeuPerfilScreen nome={nome} permissao={permissao} fotoUrl={fotoUrl} onFotoAtualizada={atualizarFotoUrl} />
+          <MeuPerfilScreen nome={nome} permissao={permissao} fotoUrl={fotoUrl} envoxerId={envoxerId} onFotoAtualizada={atualizarFotoUrl} />
         )}
         {view === "chat" && (
           <ChatScreen envoxersList={envoxersList} wsEvent={chatWsEvent} onLeituraAtualizada={agendarRecalculoBadge} />

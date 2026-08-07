@@ -66,6 +66,7 @@ async def listar_clientes(
             valor_contrato=float(cliente.valor_contrato),
             valor_servicos_soma=float(soma or 0),
             meses_de_casa=_meses_de_casa(cliente.data_inicio_contrato),
+            responsavel_envoxer_id=cliente.responsavel_envoxer_id,
             responsavel_nome=resp_nome,
             responsavel_foto=resp_foto,
             ativo=cliente.ativo,

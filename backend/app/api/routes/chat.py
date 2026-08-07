@@ -156,6 +156,18 @@ async def listar_canais(
     return canais_resp
 
 
+@router.get("/presenca", response_model=dict[int, str])
+async def obter_presenca(
+    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    """Snapshot pra popular o status (ativo/ausente/off) de todo mundo assim que o
+    app abre — depois disso o front só recebe atualizações via WS (evento "presenca",
+    disparado por chat_ws_manager em toda conexão/desconexão/mudança de visibilidade).
+    Quem não aparece aqui nunca conectou nesta sessão do processo — o front trata
+    ausência de entrada como offline."""
+    return chat_ws_manager.snapshot_presenca()
+
+
 @router.get("/bloqueio", response_model=ChatBloqueioResponse)
 async def verificar_bloqueio(
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
@@ -355,8 +367,8 @@ async def chat_ws(websocket: WebSocket, token: str = Query(...)):
             except (json.JSONDecodeError, TypeError):
                 continue
             if msg.get("tipo") == "visibilidade":
-                chat_ws_manager.marcar_visibilidade(envoxer_id, websocket, bool(msg.get("visivel")))
+                await chat_ws_manager.marcar_visibilidade(envoxer_id, websocket, bool(msg.get("visivel")))
     except WebSocketDisconnect:
         pass
     finally:
-        chat_ws_manager.desconectar(envoxer_id, websocket)
+        await chat_ws_manager.desconectar(envoxer_id, websocket)

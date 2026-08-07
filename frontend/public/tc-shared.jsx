@@ -80,12 +80,58 @@ function initials(nome) {
 // Avatar com foto de verdade quando existe `fotoUrl` (D-090 — upload de imagem do
 // usuário), cai pras iniciais quando não há. `size`/`className` seguem o mesmo
 // padrão de classes já usado em todo o app ("avatar sm", "avatar md gray" etc.).
-function Avatar({ nome, fotoUrl, size = "", className = "" }) {
+// Presença (ativo/ausente/offline) — store global simples (pub/sub manual, sem
+// Context) porque o Avatar é chamado de telas muito distantes umas das outras
+// (Chat, Kanban, Envoxers, Serviços, Clientes...) e cada uma teria que receber
+// o mapa via prop só pra repassar pro Avatar. tc-app.jsx é o único que escreve
+// (snapshot inicial via GET /chat/presenca + eventos "presenca" do WS global);
+// aqui só se lê. Ver chat_ws_manager.py (backend) pra definição de cada status.
+window.EnvoxersPresence = {
+  _status: {},
+  _listeners: new Set(),
+  get(envoxerId) {
+    return this._status[envoxerId] || "offline";
+  },
+  setAll(mapa) {
+    this._status = { ...mapa };
+    this._listeners.forEach((fn) => fn());
+  },
+  set(envoxerId, status) {
+    this._status = { ...this._status, [envoxerId]: status };
+    this._listeners.forEach((fn) => fn());
+  },
+  subscribe(fn) {
+    this._listeners.add(fn);
+    return () => this._listeners.delete(fn);
+  },
+};
+
+function usePresenca(envoxerId) {
+  const [, forcarRerender] = useState(0);
+  useEffect(() => {
+    if (envoxerId == null) return undefined;
+    return window.EnvoxersPresence.subscribe(() => forcarRerender((n) => n + 1));
+  }, [envoxerId]);
+  return envoxerId == null ? null : window.EnvoxersPresence.get(envoxerId);
+}
+
+const PRESENCA_LABEL = { ativo: "Ativo agora", ausente: "Ausente — sem o app em primeiro plano", offline: "Offline" };
+
+// `envoxerId` é opcional — só passe quando `fotoUrl`/`nome` forem de um Envoxer
+// (pessoa da equipe) de verdade. Cliente (logo) não tem presença, não passar.
+function Avatar({ nome, fotoUrl, size = "", className = "", envoxerId = null }) {
+  const status = usePresenca(envoxerId);
   const classes = ["avatar", size, className].filter(Boolean).join(" ");
-  if (fotoUrl) {
-    return <img src={fotoUrl} alt={nome || ""} className={classes} style={{ objectFit: "cover" }} />;
-  }
-  return <div className={classes}>{initials(nome)}</div>;
+  const imagem = fotoUrl
+    ? <img src={fotoUrl} alt={nome || ""} className={classes} style={{ objectFit: "cover" }} />
+    : <div className={classes}>{initials(nome)}</div>;
+  if (envoxerId == null) return imagem;
+  return (
+    <span className={"avatar-wrap " + size}>
+      {imagem}
+      <span className={"avatar-status avatar-status-" + status} title={PRESENCA_LABEL[status]} />
+    </span>
+  );
 }
 
 // Ícones discretos reaproveitados nas ações de item de lista (Etapas do processo
@@ -304,7 +350,7 @@ function AvatarCropModal({ file, onCancel, onConfirm }) {
 }
 
 // ==================== SIDEBAR ====================
-function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, chatNaoLidas = 0, collapsed = false, onToggleCollapse, mobileOpen = false, isMobile = false, onCloseMobile }) {
+function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNaoLidas = 0, collapsed = false, onToggleCollapse, mobileOpen = false, isMobile = false, onCloseMobile }) {
 
   // title=label dá o tooltip nativo do navegador — é o que mostra o nome da seção
   // quando o menu está recolhido e o texto (.nav-label) some.
@@ -491,7 +537,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, chatNaoLidas = 0,
       )}
 
       <div className="sidebar-user" onClick={() => onNavigate("meu-perfil")} style={{ cursor: "pointer" }} title="Meu Perfil">
-        <Avatar nome={nome} fotoUrl={fotoUrl} />
+        <Avatar nome={nome} fotoUrl={fotoUrl} envoxerId={envoxerId} />
         <div className="sidebar-user-info">
           <div className="sidebar-user-name">{nome}</div>
           <div className="sidebar-user-role">{permissao}</div>

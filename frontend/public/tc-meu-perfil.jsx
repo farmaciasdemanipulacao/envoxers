@@ -2,7 +2,7 @@
 // verdade, não mais o campo de URL antigo que nunca aparecia em avatar nenhum).
 const { useState: useStateMeuPerfil, useRef: useRefMeuPerfil } = React;
 
-function MeuPerfilScreen({ nome, permissao, fotoUrl, onFotoAtualizada }) {
+function MeuPerfilScreen({ nome, permissao, fotoUrl, envoxerId, onFotoAtualizada }) {
   const toast = EnvoxersShared.useToast();
   const [enviando, setEnviando] = useStateMeuPerfil(false);
   const [arquivoParaRecortar, setArquivoParaRecortar] = useStateMeuPerfil(null);
@@ -36,7 +36,7 @@ function MeuPerfilScreen({ nome, permissao, fotoUrl, onFotoAtualizada }) {
       />
       <div className="form-section" style={{ maxWidth: 420 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18 }}>
-          <EnvoxersShared.Avatar nome={nome} fotoUrl={fotoUrl} size="lg" />
+          <EnvoxersShared.Avatar nome={nome} fotoUrl={fotoUrl} size="lg" envoxerId={envoxerId} />
           <div>
             <div style={{ fontWeight: 600, fontSize: 15 }}>{nome}</div>
             <div style={{ fontSize: 12, color: "var(--ink-3)", textTransform: "capitalize" }}>{permissao}</div>

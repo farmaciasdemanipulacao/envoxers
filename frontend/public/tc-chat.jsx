@@ -37,7 +37,7 @@ function lerAcordeaoSalvo(chave, padrao) {
 function ChatCanalItem({ canal, ativo, fotoUrl, onClick }) {
   return (
     <div className={"chat-canal-item" + (ativo ? " active" : "")} onClick={onClick}>
-      {canal.tipo === "dm" && <EnvoxersShared.Avatar nome={canal.nome} fotoUrl={fotoUrl} size="sm" />}
+      {canal.tipo === "dm" && <EnvoxersShared.Avatar nome={canal.nome} fotoUrl={fotoUrl} size="sm" envoxerId={canal.outro_envoxer_id} />}
       <span className="chat-canal-nome">{nomeCanalExibicao(canal)}</span>
       {canal.nao_lidas > 0 && <span className="chat-canal-badge">{canal.nao_lidas}</span>}
     </div>
@@ -224,7 +224,7 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
       <section className="chat-main">
         <div className="chat-header">
           {canalAtivo && canalAtivo.tipo === "dm" && (
-            <EnvoxersShared.Avatar nome={canalAtivo.nome} fotoUrl={fotoPorEnvoxerId[canalAtivo.outro_envoxer_id]} size="sm" />
+            <EnvoxersShared.Avatar nome={canalAtivo.nome} fotoUrl={fotoPorEnvoxerId[canalAtivo.outro_envoxer_id]} size="sm" envoxerId={canalAtivo.outro_envoxer_id} />
           )}
           <span>{canalAtivo ? nomeCanalExibicao(canalAtivo) : "Selecione um canal"}</span>
         </div>
@@ -233,7 +233,7 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
             const propria = m.autor_envoxer_id === meuId;
             return (
               <div className={"chat-msg" + (propria ? " own" : "")} key={m.id}>
-                {!propria && <EnvoxersShared.Avatar nome={m.autor_nome} fotoUrl={m.autor_foto} size="sm" />}
+                {!propria && <EnvoxersShared.Avatar nome={m.autor_nome} fotoUrl={m.autor_foto} size="sm" envoxerId={m.autor_envoxer_id} />}
                 <div className="chat-msg-body">
                   <div className="chat-msg-meta">
                     {!propria && <span className="chat-msg-autor">{m.autor_nome}</span>}
@@ -272,7 +272,7 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
             <div style={{ padding: "8px 0 20px" }}>
               {dmDisponiveis.map((e) => (
                 <div key={e.id} className="chat-canal-item" onClick={() => abrirDm(e.id)}>
-                  <EnvoxersShared.Avatar nome={e.nome} fotoUrl={e.foto_url} size="sm" />
+                  <EnvoxersShared.Avatar nome={e.nome} fotoUrl={e.foto_url} size="sm" envoxerId={e.id} />
                   <span className="chat-canal-nome">{e.nome}</span>
                 </div>
               ))}

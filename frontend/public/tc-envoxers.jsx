@@ -100,7 +100,7 @@ function EnvoxersScreen({ permissao }) {
               <tr key={e.id} onClick={() => isAdmin && setEditando(e)} style={{ cursor: isAdmin ? "pointer" : "default" }}>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <EnvoxersShared.Avatar nome={e.nome} fotoUrl={e.foto_url} size="md" className={e.permissao === "admin" ? "" : "gray"} />
+                    <EnvoxersShared.Avatar nome={e.nome} fotoUrl={e.foto_url} size="md" className={e.permissao === "admin" ? "" : "gray"} envoxerId={e.id} />
                     <span>{e.nome}{!e.ativo && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--ink-4)" }}>(inativo)</span>}</span>
                   </div>
                 </td>
@@ -233,7 +233,7 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
               <div className="field">
                 <label>Foto <span className="hint">opcional</span></label>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <EnvoxersShared.Avatar nome={nome} fotoUrl={fotoUrl} size="md" />
+                  <EnvoxersShared.Avatar nome={nome} fotoUrl={fotoUrl} size="md" envoxerId={envoxer?.id} />
                   {isEdit ? (
                     <label className="btn btn-sm" style={{ cursor: "pointer" }}>
                       {enviandoFoto ? "Enviando…" : "Trocar foto"}

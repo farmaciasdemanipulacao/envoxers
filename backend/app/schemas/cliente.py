@@ -92,6 +92,7 @@ class ClienteListItem(BaseModel):
     valor_contrato: Optional[float] = None
     valor_servicos_soma: Optional[float] = None
     meses_de_casa: Optional[int] = None
+    responsavel_envoxer_id: Optional[int] = None
     responsavel_nome: Optional[str] = None
     responsavel_foto: Optional[str] = None
     ativo: bool

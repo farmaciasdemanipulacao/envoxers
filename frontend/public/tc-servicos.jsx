@@ -224,7 +224,7 @@ function EtapasTemplateModal({ servico, onClose }) {
                           <div className="etapa-meta">
                             {template.responsavel_padrao_nome ? (
                               <span className="etapa-meta-item">
-                                <EnvoxersShared.Avatar nome={template.responsavel_padrao_nome} fotoUrl={template.responsavel_padrao_foto} size="sm" className="gray" /> {template.responsavel_padrao_nome}
+                                <EnvoxersShared.Avatar nome={template.responsavel_padrao_nome} fotoUrl={template.responsavel_padrao_foto} size="sm" className="gray" envoxerId={template.responsavel_padrao_envoxer_id} /> {template.responsavel_padrao_nome}
                               </span>
                             ) : (
                               <span className="etapa-meta-item" style={{ color: "var(--farol-amarelo)" }}>sem responsável</span>

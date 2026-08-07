@@ -248,6 +248,24 @@ a:hover { text-decoration: underline; }
 .avatar.sm { width: 22px; height: 22px; font-size: 10px; }
 .avatar.lg { width: 64px; height: 64px; font-size: 20px; }
 
+/* Bolinha de presença (ativo/ausente/offline) sobre o Avatar — ver
+   EnvoxersShared.Avatar/usePresenca. .avatar-wrap só existe quando o Avatar
+   recebe `envoxerId`; sem isso, o <img>/<div> do avatar renderiza sozinho,
+   sem wrapper nenhum (layout idêntico ao de antes da presença existir). */
+.avatar-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
+.avatar-status {
+  position: absolute;
+  right: -1px; bottom: -1px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bg-elev);
+}
+.avatar-wrap.sm .avatar-status { width: 7px; height: 7px; }
+.avatar-wrap.lg .avatar-status { width: 13px; height: 13px; border-width: 2px; }
+.avatar-status-ativo { background: var(--farol-verde); }
+.avatar-status-ausente { background: var(--farol-amarelo); }
+.avatar-status-offline { background: var(--ink-4); }
+
 .sidebar-user-info {
   min-width: 0;
   overflow: hidden;
