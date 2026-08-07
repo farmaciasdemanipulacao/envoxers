@@ -3090,6 +3090,9 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   min-height: 0;
 }
 .chat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 14px 24px;
   border-bottom: 1px solid var(--line);
   font-weight: 600;
@@ -3346,6 +3349,7 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   border-bottom: 1px solid var(--farol-amarelo);
 }
 .chat-bloqueio-banner svg { flex-shrink: 0; color: var(--farol-amarelo); }
+.chat-bloqueio-avatars { display: flex; gap: 4px; flex-shrink: 0; }
 .chat-bloqueio-texto { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-2); }
 .chat-bloqueio-texto strong { font-size: 13.5px; color: var(--ink); }
 

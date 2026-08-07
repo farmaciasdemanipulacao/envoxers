@@ -34,9 +34,10 @@ function lerAcordeaoSalvo(chave, padrao) {
   return v === null ? padrao : v === "1";
 }
 
-function ChatCanalItem({ canal, ativo, onClick }) {
+function ChatCanalItem({ canal, ativo, fotoUrl, onClick }) {
   return (
     <div className={"chat-canal-item" + (ativo ? " active" : "")} onClick={onClick}>
+      {canal.tipo === "dm" && <EnvoxersShared.Avatar nome={canal.nome} fotoUrl={fotoUrl} size="sm" />}
       <span className="chat-canal-nome">{nomeCanalExibicao(canal)}</span>
       {canal.nao_lidas > 0 && <span className="chat-canal-badge">{canal.nao_lidas}</span>}
     </div>
@@ -179,6 +180,10 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
   const dmDisponiveis = (envoxersList || []).filter(
     (e) => e.id !== meuId && !grupos.dms.some((d) => d.outro_envoxer_id === e.id)
   );
+  // Foto de quem está do outro lado de cada DM — envoxersList já traz foto_url
+  // (GET /envoxers), sem precisar de campo novo no back pra isso.
+  const fotoPorEnvoxerId = {};
+  (envoxersList || []).forEach((e) => { fotoPorEnvoxerId[e.id] = e.foto_url; });
 
   return (
     <div className="chat-shell">
@@ -196,7 +201,13 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
 
         <ChatAccordionSection titulo="Diretas" aberto={diretasAberto} onToggle={toggleDiretas}>
           {grupos.dms.map((c) => (
-            <ChatCanalItem key={c.id} canal={c} ativo={c.id === canalAtivoId} onClick={() => setCanalAtivoId(c.id)} />
+            <ChatCanalItem
+              key={c.id}
+              canal={c}
+              ativo={c.id === canalAtivoId}
+              fotoUrl={fotoPorEnvoxerId[c.outro_envoxer_id]}
+              onClick={() => setCanalAtivoId(c.id)}
+            />
           ))}
           <div className="chat-canal-item chat-canal-nova" onClick={() => setNovoDmAberto(true)}>
             <span className="chat-canal-nome">+ Nova conversa</span>
@@ -211,13 +222,18 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
       </aside>
 
       <section className="chat-main">
-        <div className="chat-header">{canalAtivo ? nomeCanalExibicao(canalAtivo) : "Selecione um canal"}</div>
+        <div className="chat-header">
+          {canalAtivo && canalAtivo.tipo === "dm" && (
+            <EnvoxersShared.Avatar nome={canalAtivo.nome} fotoUrl={fotoPorEnvoxerId[canalAtivo.outro_envoxer_id]} size="sm" />
+          )}
+          <span>{canalAtivo ? nomeCanalExibicao(canalAtivo) : "Selecione um canal"}</span>
+        </div>
         <div className="chat-messages" ref={mensagensRef}>
           {mensagens.map((m) => {
             const propria = m.autor_envoxer_id === meuId;
             return (
               <div className={"chat-msg" + (propria ? " own" : "")} key={m.id}>
-                {!propria && <div className="avatar sm">{EnvoxersShared.initials(m.autor_nome)}</div>}
+                {!propria && <EnvoxersShared.Avatar nome={m.autor_nome} fotoUrl={m.autor_foto} size="sm" />}
                 <div className="chat-msg-body">
                   <div className="chat-msg-meta">
                     {!propria && <span className="chat-msg-autor">{m.autor_nome}</span>}
@@ -256,6 +272,7 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
             <div style={{ padding: "8px 0 20px" }}>
               {dmDisponiveis.map((e) => (
                 <div key={e.id} className="chat-canal-item" onClick={() => abrirDm(e.id)}>
+                  <EnvoxersShared.Avatar nome={e.nome} fotoUrl={e.foto_url} size="sm" />
                   <span className="chat-canal-nome">{e.nome}</span>
                 </div>
               ))}

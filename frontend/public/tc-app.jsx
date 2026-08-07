@@ -443,7 +443,11 @@ function AppShell() {
         <main className="main main-chat" style={{ width: "100%" }}>
           {impersonando && <ImpersonandoBar nomeAtual={nome} nomeAdmin={nomeAdminReal} onVoltar={handleVoltarImpersonacao} />}
           <div className="chat-bloqueio-banner">
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l6 11H2z" /><path d="M8 6v3M8 11v.5" /></svg>
+            <div className="chat-bloqueio-avatars">
+              {bloqueioChat.canais.map((c) => (
+                <EnvoxersShared.Avatar key={c.canal_id} nome={c.outro_envoxer_nome} fotoUrl={c.outro_envoxer_foto} size="sm" />
+              ))}
+            </div>
             <div className="chat-bloqueio-texto">
               <strong>Você tem mensagens importantes pra ler.</strong>
               <span>De {nomesPendentes} — o resto do sistema fica bloqueado até você abrir a conversa no Chat abaixo.</span>
