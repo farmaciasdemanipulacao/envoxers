@@ -270,8 +270,8 @@ function ClientesScreen({ permissao, abrirClienteId, onClienteAberto }) {
 
 function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
   const isEdit = !!clienteId;
-  // Reforma de RBAC: valor de contrato/ticket/serviços é admin+gestor (leitura
-  // E escrita) — só envoxer não vê/edita dinheiro (core/valores.py::redigir_gestor).
+  // D-106: valor de contrato/ticket/valor_mensal de serviço voltou a ser só admin
+  // (leitura E escrita) — gestor vê tudo redigido (null), exceto em Cancelamentos.
   const isAdminValores = permissao === "admin";
   // Envoxer só visualiza cliente — não edita nada (pedido de RBAC). O formulário
   // inteiro (todas as seções) fica inerte via pointer-events, só navegação entre
@@ -1054,7 +1054,7 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
           <div className="form-section">
             <div className="form-section-title">04 · Serviços contratados <EnvoxersShared.HelpIcon helpKey="form_cli_servicos" /></div>
             <div className="form-section-hint">
-              {isAdminValores ? "Marque o que este cliente contratou e o valor por serviço." : "🔒 Seleção e valor por serviço são restritos ao admin — mostrando só o que já está contratado."}
+              {isAdminValores ? "Marque o que este cliente contratou e o valor por serviço." : "Marque o que este cliente contratou. 🔒 O valor por serviço é restrito ao admin, que completa depois."}
             </div>
             <div className="service-grid">
               {servicosList.map((s) => {
@@ -1063,12 +1063,12 @@ function ClienteForm({ clienteId, permissao, onCancel, onSaved }) {
                   <div
                     key={s.id}
                     className={`service-card${sel ? " checked" : ""}`}
-                    onClick={isAdminValores ? () => toggleServico(s.id) : undefined}
+                    onClick={!readOnly ? () => toggleServico(s.id) : undefined}
                     role="checkbox"
                     aria-checked={!!sel}
-                    tabIndex={isAdminValores ? 0 : -1}
-                    style={isAdminValores ? undefined : { cursor: "default" }}
-                    onKeyDown={isAdminValores ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleServico(s.id); } } : undefined}
+                    tabIndex={!readOnly ? 0 : -1}
+                    style={!readOnly ? undefined : { cursor: "default" }}
+                    onKeyDown={!readOnly ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleServico(s.id); } } : undefined}
                   >
                     <div className="service-card-head">
                       <span className="service-card-name">{s.nome}</span>

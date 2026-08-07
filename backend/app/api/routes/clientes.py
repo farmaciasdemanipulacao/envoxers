@@ -145,9 +145,14 @@ async def criar_cliente(
     db.add(cliente)
     await db.flush()
 
-    if eh_admin(envoxer):
-        for item in payload.servicos:
-            db.add(ClienteServico(cliente_id=cliente.id, **item.model_dump()))
+    for item in payload.servicos:
+        dados_item = item.model_dump()
+        if not eh_admin(envoxer):
+            # Gestor pode marcar quais serviços o cliente contratou (estrutura),
+            # mas não define o valor — cliente nasce sem serviço nenhum aqui, então
+            # não tem valor prévio pra preservar, admin completa depois.
+            dados_item["valor_mensal"] = 0
+        db.add(ClienteServico(cliente_id=cliente.id, **dados_item))
 
     if payload.escopo:
         db.add(Escopo(cliente_id=cliente.id, **payload.escopo.model_dump()))
@@ -183,14 +188,33 @@ async def atualizar_cliente(
     for field, value in updates.items():
         setattr(cliente, field, value)
 
-    if payload.servicos is not None and eh_admin(envoxer):
-        # Mesma razão acima: `servicos[].valor_mensal` também é dinheiro — gestor não
-        # mexe (a seleção de serviços contratados fica com o admin).
-        await db.execute(
-            ClienteServico.__table__.delete().where(ClienteServico.cliente_id == cliente_id)
-        )
-        for item in payload.servicos:
-            db.add(ClienteServico(cliente_id=cliente_id, **item.model_dump()))
+    if payload.servicos is not None:
+        if eh_admin(envoxer):
+            await db.execute(
+                ClienteServico.__table__.delete().where(ClienteServico.cliente_id == cliente_id)
+            )
+            for item in payload.servicos:
+                db.add(ClienteServico(cliente_id=cliente_id, **item.model_dump()))
+        else:
+            # Gestor pode marcar/desmarcar QUAIS serviços o cliente contratou, mas
+            # `valor_mensal` continua só do admin. Como a leitura vem redigida (null)
+            # pra gestor, o payload dele nunca tem o valor real — por isso não dá pra
+            # confiar no valor_mensal submetido: serviço que já existia preserva o
+            # valor gravado no banco (ignora o resto do payload pra ele), serviço novo
+            # nasce com 0 pro admin completar depois.
+            existentes_result = await db.execute(
+                select(ClienteServico).where(ClienteServico.cliente_id == cliente_id)
+            )
+            existentes = {cs.servico_id: cs for cs in existentes_result.scalars().all()}
+            desejados = {item.servico_id for item in payload.servicos}
+
+            for servico_id, cs in existentes.items():
+                if servico_id not in desejados:
+                    await db.delete(cs)
+
+            for item in payload.servicos:
+                if item.servico_id not in existentes:
+                    db.add(ClienteServico(cliente_id=cliente_id, servico_id=item.servico_id, valor_mensal=0, observacao=item.observacao))
 
     if payload.escopo is not None:
         existente = await db.execute(select(Escopo).where(Escopo.cliente_id == cliente_id))
