@@ -109,12 +109,32 @@ function InstallBanner({ onDismiss, ios }) {
   );
 }
 
+// Faixa fixa sempre visível enquanto o admin está "vendo como" outra pessoa
+// (ver EnvoxersScreen::handleAcessarComo) — sem ela não teria como voltar pra
+// própria conta sem relogar. Fica no topo de todo `<main>`, antes até do
+// bloqueio de chat, pra nunca ficar inacessível.
+function ImpersonandoBar({ nomeAtual, nomeAdmin, onVoltar }) {
+  return (
+    <div className="impersonando-banner">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M8 1.5a3 3 0 013 3v1h.5A1.5 1.5 0 0113 7v5.5A1.5 1.5 0 0111.5 14h-7A1.5 1.5 0 013 12.5V7a1.5 1.5 0 011.5-1.5H5v-1a3 3 0 013-3zM6.5 5.5h3v-1a1.5 1.5 0 00-3 0v1z" /></svg>
+      <span>Você (<strong>{nomeAdmin}</strong>) está vendo o Envoxers como <strong>{nomeAtual}</strong>.</span>
+      <button type="button" className="btn btn-sm" onClick={onVoltar}>Voltar para minha conta</button>
+    </div>
+  );
+}
+
 function AppShell() {
   const [view, setView] = useStateApp("clientes");
   const nome = localStorage.getItem("envoxers_nome") || "";
   const permissao = localStorage.getItem("envoxers_permissao") || "envoxer";
   const envoxerId = EnvoxersAPI.getEnvoxerId();
   const toast = EnvoxersShared.useToast();
+  const impersonando = EnvoxersAPI.estaImpersonando();
+  const nomeAdminReal = localStorage.getItem("envoxers_admin_nome") || "";
+  const handleVoltarImpersonacao = () => {
+    EnvoxersAPI.encerrarImpersonacao();
+    window.location.reload();
+  };
   const [fotoUrl, setFotoUrl] = useStateApp(() => localStorage.getItem("envoxers_foto_url") || "");
   const atualizarFotoUrl = (novaUrl) => {
     localStorage.setItem("envoxers_foto_url", novaUrl || "");
@@ -421,6 +441,7 @@ function AppShell() {
     return (
       <div className="app app-bloqueado">
         <main className="main main-chat" style={{ width: "100%" }}>
+          {impersonando && <ImpersonandoBar nomeAtual={nome} nomeAdmin={nomeAdminReal} onVoltar={handleVoltarImpersonacao} />}
           <div className="chat-bloqueio-banner">
             <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l6 11H2z" /><path d="M8 6v3M8 11v.5" /></svg>
             <div className="chat-bloqueio-texto">
@@ -462,6 +483,7 @@ function AppShell() {
         className={"main" + (view === "chat" ? " main-chat" : "")}
         style={focoAtivo ? { paddingBottom: 60 } : undefined}
       >
+        {impersonando && <ImpersonandoBar nomeAtual={nome} nomeAdmin={nomeAdminReal} onVoltar={handleVoltarImpersonacao} />}
         <EnvoxersShared.Topbar crumb={crumbs[view]} onLogout={handleLogout} onMenuClick={() => setMobileMenuOpen(true)} />
         {view === "clientes" && (
           <ClientesScreen

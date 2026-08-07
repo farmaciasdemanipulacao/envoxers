@@ -8,6 +8,22 @@ function EnvoxersScreen({ permissao }) {
   const toast = EnvoxersShared.useToast();
   const isAdmin = permissao === "admin";
 
+  const [acessandoComoId, setAcessandoComoId] = useStateEnv(null);
+
+  const handleAcessarComo = async (e, alvo) => {
+    e.stopPropagation();
+    if (!window.confirm(`Acessar a conta de ${alvo.nome} como se fosse ele(a)? Você pode voltar pra sua conta a qualquer momento pelo aviso no topo da tela.`)) return;
+    setAcessandoComoId(alvo.id);
+    try {
+      const resp = await EnvoxersAPI.api(`/envoxers/${alvo.id}/impersonar`, { method: "POST" });
+      EnvoxersAPI.iniciarImpersonacao(resp.access_token, resp.nome, resp.permissao, resp.id, resp.foto_url);
+      window.location.reload();
+    } catch (err) {
+      toast(err.message, "error");
+      setAcessandoComoId(null);
+    }
+  };
+
   const carregar = async () => {
     setLoading(true);
     try {
@@ -74,11 +90,12 @@ function EnvoxersScreen({ permissao }) {
               <th className="table-mobile-hide">E-mail</th>
               {isAdmin && <th className="table-mobile-hide" style={{ textAlign: "right" }}>Custo/hora</th>}
               <th style={{ width: 110 }}>Permissão</th>
+              {isAdmin && <th style={{ width: 140 }}></th>}
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan="5">Carregando…</td></tr>}
-            {!loading && filtrados.length === 0 && <tr><td colSpan="5">Nenhum envoxer neste filtro.</td></tr>}
+            {loading && <tr><td colSpan="6">Carregando…</td></tr>}
+            {!loading && filtrados.length === 0 && <tr><td colSpan="6">Nenhum envoxer neste filtro.</td></tr>}
             {filtrados.map((e) => (
               <tr key={e.id} onClick={() => isAdmin && setEditando(e)} style={{ cursor: isAdmin ? "pointer" : "default" }}>
                 <td>
@@ -91,6 +108,20 @@ function EnvoxersScreen({ permissao }) {
                 <td className="table-mobile-hide">{e.email}</td>
                 {isAdmin && <td className="table-mobile-hide mono" style={{ textAlign: "right" }}>{e.custo_hora != null ? EnvoxersShared.formatMoney(e.custo_hora) : "—"}</td>}
                 <td>{e.permissao}</td>
+                {isAdmin && (
+                  <td>
+                    {e.permissao !== "admin" && e.ativo && (
+                      <button
+                        className="btn btn-sm"
+                        onClick={(ev) => handleAcessarComo(ev, e)}
+                        disabled={acessandoComoId === e.id}
+                        title={`Ver o app como ${e.nome}`}
+                      >
+                        {acessandoComoId === e.id ? "Acessando…" : "Acessar como"}
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

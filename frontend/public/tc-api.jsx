@@ -19,11 +19,52 @@ function clearSession() {
   localStorage.removeItem("envoxers_permissao");
   localStorage.removeItem("envoxers_id");
   localStorage.removeItem("envoxers_foto_url");
+  _limparBackupAdmin();
 }
 
 function getEnvoxerId() {
   const id = localStorage.getItem("envoxers_id");
   return id ? Number(id) : null;
+}
+
+function _limparBackupAdmin() {
+  localStorage.removeItem("envoxers_admin_token");
+  localStorage.removeItem("envoxers_admin_nome");
+  localStorage.removeItem("envoxers_admin_permissao");
+  localStorage.removeItem("envoxers_admin_id");
+  localStorage.removeItem("envoxers_admin_foto_url");
+}
+
+// "Acessar como" (admin): guarda a sessão real do admin pra poder voltar sem
+// relogar, e assume a sessão da conta acessada. `token`/`nome`/`permissao`/`id`/
+// `fotoUrl` vêm da resposta de POST /envoxers/{id}/impersonar.
+function iniciarImpersonacao(token, nome, permissao, id, fotoUrl) {
+  localStorage.setItem("envoxers_admin_token", getToken());
+  localStorage.setItem("envoxers_admin_nome", localStorage.getItem("envoxers_nome") || "");
+  localStorage.setItem("envoxers_admin_permissao", localStorage.getItem("envoxers_permissao") || "");
+  localStorage.setItem("envoxers_admin_id", localStorage.getItem("envoxers_id") || "");
+  localStorage.setItem("envoxers_admin_foto_url", localStorage.getItem("envoxers_foto_url") || "");
+  setSession(token, nome, permissao, id, fotoUrl);
+}
+
+function estaImpersonando() {
+  return !!localStorage.getItem("envoxers_admin_token");
+}
+
+// Volta pra sessão real do admin usando o token guardado — sem precisar logar de novo.
+function encerrarImpersonacao() {
+  const token = localStorage.getItem("envoxers_admin_token");
+  if (!token) return false;
+  const id = localStorage.getItem("envoxers_admin_id");
+  setSession(
+    token,
+    localStorage.getItem("envoxers_admin_nome") || "",
+    localStorage.getItem("envoxers_admin_permissao") || "admin",
+    id ? Number(id) : null,
+    localStorage.getItem("envoxers_admin_foto_url") || ""
+  );
+  _limparBackupAdmin();
+  return true;
 }
 
 async function api(path, options = {}) {
@@ -83,4 +124,7 @@ async function upload(path, file, nomeArquivo) {
   return res.json();
 }
 
-window.EnvoxersAPI = { api, upload, getToken, setSession, clearSession, getEnvoxerId };
+window.EnvoxersAPI = {
+  api, upload, getToken, setSession, clearSession, getEnvoxerId,
+  iniciarImpersonacao, estaImpersonando, encerrarImpersonacao,
+};

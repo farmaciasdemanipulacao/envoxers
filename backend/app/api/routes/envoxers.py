@@ -1,16 +1,18 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, get_current_envoxer
-from app.core.security import hash_password
+from app.api.deps import get_current_admin, get_current_envoxer, oauth2_scheme
+from app.core.security import create_access_token, decode_access_token, hash_password
 from app.core.uploads import salvar_foto_avatar
 from app.core.valores import redigir
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
+from app.models.impersonacao_log import ImpersonacaoLog
+from app.schemas.auth import Token
 from app.schemas.envoxer import EnvoxerCreate, EnvoxerUpdate, EnvoxerResponse
 
 router = APIRouter(prefix="/envoxers", tags=["envoxers"])
@@ -92,6 +94,49 @@ async def atualizar_envoxer(
     await db.flush()
     await db.refresh(envoxer)
     return envoxer
+
+
+@router.post("/{envoxer_id}/impersonar", response_model=Token)
+async def impersonar_envoxer(
+    envoxer_id: int,
+    request: Request,
+    token_atual: Annotated[str, Depends(oauth2_scheme)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    admin: Annotated[Envoxer, Depends(get_current_admin)],
+):
+    """"Acessar como" — admin passa a usar um token da conta de outro envoxer,
+    sem senha, pra ver/navegar o app do ponto de vista dele. Pedido explícito do
+    Gus: nunca sair da própria conta, nunca logar na do outro. `imp_by` no JWT
+    guarda o admin real (bloqueia encadear impersonação em cima de impersonação)
+    e cada acesso grava um `ImpersonacaoLog` — visualizar não é passar batido,
+    é auditável."""
+    payload_atual = decode_access_token(token_atual) or {}
+    if payload_atual.get("imp_by") is not None:
+        raise HTTPException(status_code=403, detail="Volte para sua própria conta antes de acessar outra")
+
+    if envoxer_id == admin.id:
+        raise HTTPException(status_code=400, detail="Você já está na sua própria conta")
+
+    result = await db.execute(select(Envoxer).where(Envoxer.id == envoxer_id, Envoxer.deleted_at.is_(None)))
+    alvo = result.scalar_one_or_none()
+    if alvo is None:
+        raise HTTPException(status_code=404, detail="Envoxer não encontrado")
+    if not alvo.ativo:
+        raise HTTPException(status_code=400, detail="Envoxer inativo")
+    if alvo.permissao == "admin":
+        raise HTTPException(status_code=403, detail="Não é possível acessar a conta de outro admin")
+
+    access_token = create_access_token({"sub": str(alvo.id), "tipo": "envoxer", "imp_by": admin.id})
+
+    db.add(ImpersonacaoLog(
+        admin_id=admin.id,
+        envoxer_id=alvo.id,
+        ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    ))
+    await db.flush()
+
+    return Token(access_token=access_token, id=alvo.id, nome=alvo.nome, permissao=alvo.permissao, foto_url=alvo.foto_url)
 
 
 @router.post("/me/foto", response_model=EnvoxerResponse)
