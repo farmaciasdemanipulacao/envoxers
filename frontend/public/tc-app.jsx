@@ -109,6 +109,184 @@ function InstallBanner({ onDismiss, ios }) {
   );
 }
 
+// Tela cheia bloqueante (D-114) — gestor/envoxer só passam pro app depois de
+// instalar de verdade (abrir pelo ícone instalado, não pela aba do navegador —
+// detectado via display-mode:standalone) e habilitar notificações. Sem opção
+// de pular (decisão do Gus). Live-checado via API do navegador a cada foco/
+// intervalo, não confia só no flag do banco (esse só existe pro histórico do
+// admin, ver POST /envoxers/me/status-instalacao).
+function checarOnboarding() {
+  return {
+    instalado: !!(window._isStandalone && window._isStandalone()),
+    notificacoes: !!(window.Notification && Notification.permission === "granted"),
+    promptDisponivel: !!window._installPrompt,
+  };
+}
+
+function OnboardingGate({ onCompleto, onLogout }) {
+  const toast = EnvoxersShared.useToast();
+  const ph = window.pushHelpers;
+  const suportaPush = !!(ph && ph.isSupported());
+  const ios = !!(window._isIOS && window._isIOS());
+
+  const [status, setStatus] = useStateApp(checarOnboarding);
+  const [instalando, setInstalando] = useStateApp(false);
+  const [ativando, setAtivando] = useStateApp(false);
+  const marcadoRef = useRefApp(false);
+
+  useEffectApp(() => {
+    const revisar = () => setStatus(checarOnboarding());
+    document.addEventListener("visibilitychange", revisar);
+    window.addEventListener("focus", revisar);
+    const intervalId = setInterval(revisar, 1500);
+    return () => {
+      document.removeEventListener("visibilitychange", revisar);
+      window.removeEventListener("focus", revisar);
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffectApp(() => {
+    if (status.instalado && !marcadoRef.current) {
+      marcadoRef.current = true;
+      EnvoxersAPI.api("/envoxers/me/status-instalacao", { method: "POST" }).catch(() => {});
+    }
+    if (status.instalado && status.notificacoes) onCompleto();
+  }, [status.instalado, status.notificacoes]);
+
+  const handleInstalar = async () => {
+    const prompt = window._installPrompt;
+    if (!prompt) return;
+    setInstalando(true);
+    prompt.prompt();
+    await prompt.userChoice;
+    window._installPrompt = null;
+    setInstalando(false);
+    setStatus(checarOnboarding());
+  };
+
+  const handleAtivarNotificacoes = async () => {
+    setAtivando(true);
+    try {
+      const resultado = await ph.subscribe();
+      if (!resultado) toast("Permissão negada. Habilite nas configurações do site e clique em \"Já habilitei\".", "warning");
+    } catch (err) {
+      toast("Erro ao ativar notificações.", "error");
+    } finally {
+      setAtivando(false);
+      setStatus(checarOnboarding());
+    }
+  };
+
+  const permissaoNegada = suportaPush && window.Notification && Notification.permission === "denied";
+
+  return (
+    <div className="onboarding-gate">
+      <div className="onboarding-card">
+        <div className="onboarding-header">
+          <div className="brand" style={{ justifyContent: "center" }}>
+            <span className="brand-mark">envox<span className="brand-dot"></span></span>
+          </div>
+          <div className="onboarding-title">Antes de continuar</div>
+          <div className="onboarding-subtitle">
+            Pra garantir que você não perca prazo, alerta de farol ou mensagem importante,
+            o Envoxers exige instalar o app e habilitar notificações no primeiro acesso.
+          </div>
+        </div>
+
+        <div className="onboarding-steps">
+          <div className={"onboarding-step" + (status.instalado ? " done" : "")}>
+            <div className="onboarding-step-icon">
+              {status.instalado
+                ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8l3.5 3.5L13 5" /></svg>
+                : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2v7M5 6l3 3 3-3" /><path d="M3 12h10" /></svg>}
+            </div>
+            <div className="onboarding-step-body">
+              <div className="onboarding-step-title">
+                1. Instalar o app
+                <span className={status.instalado ? "onboarding-badge-ok" : "onboarding-badge-pendente"}>
+                  {status.instalado ? "Concluído" : "Pendente"}
+                </span>
+              </div>
+              {!status.instalado && (
+                <>
+                  <div className="onboarding-step-desc">
+                    {ios
+                      ? <>Toque no ícone de <strong>Compartilhar</strong> do Safari e depois em <strong>"Adicionar à Tela de Início"</strong>. Depois, abra o Envoxers pelo ícone novo.</>
+                      : status.promptDisponivel
+                        ? "Adicione o Envoxers à tela inicial/área de trabalho pra usar como app de verdade."
+                        : "Seu navegador não permite instalar automaticamente."}
+                  </div>
+                  {!ios && status.promptDisponivel && (
+                    <div className="onboarding-step-action">
+                      <button type="button" className="btn btn-primary btn-sm" onClick={handleInstalar} disabled={instalando}>
+                        {instalando ? "..." : "Instalar agora"}
+                      </button>
+                    </div>
+                  )}
+                  {!ios && !status.promptDisponivel && (
+                    <div className="onboarding-warning">
+                      Abra o Envoxers pelo Chrome ou Edge (computador) ou pelo navegador do seu celular pra poder instalar.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className={"onboarding-step" + (status.notificacoes ? " done" : "")}>
+            <div className="onboarding-step-icon">
+              {status.notificacoes
+                ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8l3.5 3.5L13 5" /></svg>
+                : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2a3 3 0 0 0-3 3v1.5c0 1.6-.5 2.6-1.5 3.5h9c-1-.9-1.5-1.9-1.5-3.5V5a3 3 0 0 0-3-3z" /><path d="M6.3 12.3a1.8 1.8 0 0 0 3.4 0" /></svg>}
+            </div>
+            <div className="onboarding-step-body">
+              <div className="onboarding-step-title">
+                2. Habilitar notificações
+                <span className={status.notificacoes ? "onboarding-badge-ok" : "onboarding-badge-pendente"}>
+                  {status.notificacoes ? "Concluído" : "Pendente"}
+                </span>
+              </div>
+              {!status.notificacoes && (
+                <>
+                  <div className="onboarding-step-desc">
+                    Você recebe alerta de farol em risco e mensagem de chat mesmo com o app fechado.
+                  </div>
+                  {!suportaPush && (
+                    <div className="onboarding-warning">Seu navegador não suporta notificações push.</div>
+                  )}
+                  {suportaPush && !permissaoNegada && (
+                    <div className="onboarding-step-action">
+                      <button type="button" className="btn btn-primary btn-sm" onClick={handleAtivarNotificacoes} disabled={ativando}>
+                        {ativando ? "..." : "Habilitar notificações"}
+                      </button>
+                    </div>
+                  )}
+                  {permissaoNegada && (
+                    <>
+                      <div className="onboarding-warning">
+                        Você negou as notificações antes. Habilite manualmente no ícone de cadeado/informações
+                        ao lado do endereço do site e depois clique em "Já habilitei".
+                      </div>
+                      <div className="onboarding-step-action">
+                        <button type="button" className="btn btn-sm" onClick={() => setStatus(checarOnboarding())}>Já habilitei, verificar</button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="onboarding-footer">
+          <button type="button" className="btn" onClick={onLogout}>Sair</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Faixa fixa sempre visível enquanto o admin está "vendo como" outra pessoa
 // (ver EnvoxersScreen::handleAcessarComo) — sem ela não teria como voltar pra
 // própria conta sem relogar. Fica no topo de todo `<main>`, antes até do
@@ -140,6 +318,15 @@ function AppShell() {
     localStorage.setItem("envoxers_foto_url", novaUrl || "");
     setFotoUrl(novaUrl || "");
   };
+
+  // Onboarding obrigatório (D-114) — só gestor/envoxer, e nunca durante "Acessar
+  // como" (senão o admin ficaria travado explorando a conta de outra pessoa no
+  // próprio dispositivo, que não é o instalado da pessoa impersonada).
+  const [onboardingOk, setOnboardingOk] = useStateApp(() => {
+    if (permissao === "admin" || impersonando) return true;
+    const s = checarOnboarding();
+    return s.instalado && s.notificacoes;
+  });
 
   // Telas 100% financeiras (D-090) — se alguém sem ser admin cair aqui (ex.: view
   // presa de uma sessão anterior), volta pro Kanban em vez de bater no 403 da API.
@@ -439,6 +626,18 @@ function AppShell() {
     "foco-ativos": "Operação / Quem está em Foco",
     "meu-perfil": "Meu Perfil",
   };
+
+  // Onboarding obrigatório (D-114) vem antes de qualquer outra coisa — inclusive
+  // do bloqueio de chat abaixo, já que instalar+notificar é pré-requisito pra
+  // receber esse tipo de alerta em primeiro lugar.
+  if (!onboardingOk) {
+    return (
+      <OnboardingGate
+        onCompleto={() => setOnboardingOk(true)}
+        onLogout={handleLogout}
+      />
+    );
+  }
 
   // Bloqueio de DM não lida desde antes de hoje — some com toda a navegação,
   // só o Chat continua acessível, e Sair. Admin nunca cai aqui (checado no

@@ -38,3 +38,9 @@ class Envoxer(Base, TimestampMixin):
     tenant_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=1)
 
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Onboarding obrigatório (D-114): marcado quando o frontend detecta a app rodando
+    # em display-mode:standalone pela 1ª vez (POST /envoxers/me/status-instalacao).
+    # Permanente — uma vez satisfeito, não volta a bloquear mesmo que desinstale depois.
+    app_instalado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    app_instalado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

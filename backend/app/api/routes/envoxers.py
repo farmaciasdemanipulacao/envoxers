@@ -96,6 +96,24 @@ async def atualizar_envoxer(
     return envoxer
 
 
+@router.post("/me/status-instalacao", response_model=EnvoxerResponse)
+async def marcar_app_instalado(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    """Self-service (D-114) — o frontend chama isso assim que detecta a app rodando
+    em display-mode:standalone pela 1ª vez (ver OnboardingGate em tc-app.jsx).
+    Idempotente e permanente: uma vez marcado, não desmarca sozinho."""
+    if not envoxer.app_instalado:
+        envoxer.app_instalado = True
+        envoxer.app_instalado_em = datetime.now(timezone.utc)
+        await db.flush()
+        await db.refresh(envoxer)
+    resp = EnvoxerResponse.model_validate(envoxer)
+    redigir(resp, ["salario_mensal", "custo_hora"], envoxer)
+    return resp
+
+
 @router.post("/{envoxer_id}/impersonar", response_model=Token)
 async def impersonar_envoxer(
     envoxer_id: int,

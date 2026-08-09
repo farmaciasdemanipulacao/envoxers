@@ -1,10 +1,16 @@
 const { useState: useStateEnv, useEffect: useEffectEnv } = React;
 
+function formatarDataHoraEnv(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 function EnvoxersScreen({ permissao }) {
   const [envoxers, setEnvoxers] = useStateEnv([]);
   const [loading, setLoading] = useStateEnv(true);
   const [editando, setEditando] = useStateEnv(null); // null = lista, {} = novo, {...} = editar
   const [filtroPermissao, setFiltroPermissao] = useStateEnv("todos");
+  const [aba, setAba] = useStateEnv("lista"); // "lista" | "acessos" — aba só existe pro admin
   const toast = EnvoxersShared.useToast();
   const isAdmin = permissao === "admin";
 
@@ -71,6 +77,19 @@ function EnvoxersScreen({ permissao }) {
         )}
       />
 
+      {isAdmin && (
+        <div className="toolbar">
+          <div className="filter-group">
+            <button className={"chip" + (aba === "lista" ? " active" : "")} onClick={() => setAba("lista")}>Envoxers</button>
+            <button className={"chip" + (aba === "acessos" ? " active" : "")} onClick={() => setAba("acessos")}>Acessos</button>
+          </div>
+        </div>
+      )}
+
+      {aba === "acessos" && isAdmin ? (
+        <AcessosPainel envoxers={envoxers} />
+      ) : (
+      <>
       <div className="toolbar">
         <div className="filter-group">
           {opcoesFiltro.map(([valor, label, qtd]) => (
@@ -134,7 +153,124 @@ function EnvoxersScreen({ permissao }) {
           Use <strong>salário + encargos</strong> (multiplicador ~1,5–1,8×) no campo <em>custo/hora</em>.
         </div>
       </div>
+      </>
+      )}
     </div>
+  );
+}
+
+// Painel do admin (D-114): status de instalação/notificação por pessoa + histórico
+// de acessos (login = acesso, independente do timer de Foco — ver acesso_log.py).
+function AcessosPainel({ envoxers }) {
+  const [statusList, setStatusList] = useStateEnv([]);
+  const [acessos, setAcessos] = useStateEnv([]);
+  const [loading, setLoading] = useStateEnv(true);
+  const [filtroEnvoxer, setFiltroEnvoxer] = useStateEnv("todos");
+  const toast = EnvoxersShared.useToast();
+
+  const carregar = async (envoxerId) => {
+    setLoading(true);
+    try {
+      const params = envoxerId && envoxerId !== "todos" ? `?envoxer_id=${envoxerId}` : "";
+      const [status, log] = await Promise.all([
+        EnvoxersAPI.api("/admin/status-dispositivos"),
+        EnvoxersAPI.api(`/admin/acessos${params}`),
+      ]);
+      setStatusList(status);
+      setAcessos(log);
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffectEnv(() => { carregar(filtroEnvoxer); }, [filtroEnvoxer]);
+
+  return (
+    <>
+      <div style={{ marginTop: 8, marginBottom: 28 }}>
+        <div className="form-section-title" style={{ marginBottom: 10 }}>Status de instalação e notificações</div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th style={{ width: 110 }}>Permissão</th>
+                <th style={{ width: 160 }}>App instalado</th>
+                <th style={{ width: 170 }}>Notificações</th>
+                <th style={{ width: 160 }}>Último acesso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan="5">Carregando…</td></tr>}
+              {!loading && statusList.length === 0 && <tr><td colSpan="5">Nenhum envoxer.</td></tr>}
+              {statusList.map((s) => (
+                <tr key={s.envoxer_id}>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <EnvoxersShared.Avatar nome={s.nome} fotoUrl={s.foto_url} size="sm" envoxerId={s.envoxer_id} />
+                      <span>{s.nome}{!s.ativo && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--ink-4)" }}>(inativo)</span>}</span>
+                    </div>
+                  </td>
+                  <td>{s.permissao}</td>
+                  <td>
+                    {s.app_instalado
+                      ? <span style={{ color: "var(--farol-verde)", fontWeight: 600 }}>Sim · {formatarDataHoraEnv(s.app_instalado_em)}</span>
+                      : (s.permissao === "admin" ? <span style={{ color: "var(--ink-4)" }}>— (não exigido)</span> : <span style={{ color: "var(--farol-vermelho)", fontWeight: 600 }}>Não</span>)}
+                  </td>
+                  <td>
+                    {s.notificacoes_ativas
+                      ? <span style={{ color: "var(--farol-verde)", fontWeight: 600 }}>Ativas ({s.qtd_dispositivos} dispositivo{s.qtd_dispositivos !== 1 ? "s" : ""})</span>
+                      : (s.permissao === "admin" ? <span style={{ color: "var(--ink-4)" }}>— (não exigido)</span> : <span style={{ color: "var(--farol-vermelho)", fontWeight: 600 }}>Inativas</span>)}
+                  </td>
+                  <td>{formatarDataHoraEnv(s.ultimo_acesso)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+          <div className="form-section-title" style={{ marginBottom: 0 }}>Histórico de acessos</div>
+          <select value={filtroEnvoxer} onChange={(e) => setFiltroEnvoxer(e.target.value)} style={{ maxWidth: 220 }}>
+            <option value="todos">Todas as pessoas</option>
+            {envoxers.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+          </select>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th style={{ width: 170 }}>Data/hora</th>
+                <th className="table-mobile-hide" style={{ width: 130 }}>IP</th>
+                <th className="table-mobile-hide">Navegador</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan="4">Carregando…</td></tr>}
+              {!loading && acessos.length === 0 && <tr><td colSpan="4">Nenhum acesso registrado.</td></tr>}
+              {acessos.map((a) => (
+                <tr key={a.id}>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <EnvoxersShared.Avatar nome={a.envoxer_nome || "?"} fotoUrl={a.envoxer_foto} size="sm" envoxerId={a.envoxer_id} />
+                      <span>{a.envoxer_nome || "(removido)"}</span>
+                    </div>
+                  </td>
+                  <td>{formatarDataHoraEnv(a.criado_em)}</td>
+                  <td className="table-mobile-hide mono">{a.ip || "—"}</td>
+                  <td className="table-mobile-hide" style={{ fontSize: 12, color: "var(--ink-3)" }}>{a.user_agent || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   );
 }
 
