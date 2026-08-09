@@ -325,6 +325,23 @@ async def enviar_mensagem(
         ids_ativos = [row[0] for row in result.all()]
         await chat_ws_manager.broadcast_geral_ou_cliente(ids_ativos, payload_ws)
 
+        # Push pro canal geral/cliente (D-115) — mesmo padrão da DM: só quem não
+        # está com a aba visível, e respeitando o toggle "chat_geral" do admin.
+        config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_geral"))
+        config_geral = config_result.scalar_one_or_none()
+        if config_geral is None or config_geral.ativo:
+            from app.services.push import broadcast_push
+            titulo = f"{envoxer.nome} · geral" if canal.tipo == "geral" else f"{envoxer.nome} · cliente"
+            for destinatario_id in ids_ativos:
+                if destinatario_id == envoxer.id or chat_ws_manager.esta_visivel(destinatario_id):
+                    continue
+                await broadcast_push(
+                    db, destinatario_id,
+                    title=titulo,
+                    body=(texto or "Enviou um anexo")[:180],
+                    tag="envoxers-chat",
+                )
+
     return resposta
 
 

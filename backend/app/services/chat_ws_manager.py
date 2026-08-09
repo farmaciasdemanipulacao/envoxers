@@ -56,9 +56,10 @@ class ChatConnectionManager:
         await self._broadcast_presenca(envoxer_id)
 
     def esta_visivel(self, envoxer_id: int) -> bool:
-        """Usado pra decidir quem recebe push de mensagem nova — quem está com alguma
-        aba em primeiro plano não precisa de notificação, só quem está com o app
-        fechado/minimizado/em outra aba."""
+        """Usado pra decidir quem recebe push de mensagem nova (DM e canal geral/cliente,
+        ver chat.py::enviar_mensagem) — quem está com alguma aba em primeiro plano E com
+        foco do sistema operacional não precisa de notificação (D-115: o frontend só manda
+        `visivel=true` quando as duas coisas são verdade, não só a tab estar visível)."""
         return bool(self._visiveis.get(envoxer_id))
 
     async def desconectar(self, envoxer_id: int, ws: WebSocket):

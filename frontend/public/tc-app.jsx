@@ -486,15 +486,23 @@ function AppShell() {
     const protocolo = window.location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${protocolo}://${window.location.host}/api/v1/chat/ws?token=${encodeURIComponent(token)}`);
 
-    // Avisa o servidor se a aba está em primeiro plano — é isso que decide se
-    // uma mensagem nova de chat vira push (ver chat_ws_manager.py::esta_visivel).
+    // Avisa o servidor se a pessoa está REALMENTE prestando atenção no app —
+    // é isso que decide se uma mensagem nova de chat vira push (ver
+    // chat_ws_manager.py::esta_visivel). Só checar visibilityState não bastava
+    // (D-115): com o Envoxers aberto numa aba do Windows mas o foco em outro
+    // programa (ex.: Excel), a aba continua "visible" pra Page Visibility API,
+    // então também escuta focus/blur da janela — só conta como "visível" quando
+    // a aba está em primeiro plano E a janela tem foco do sistema operacional.
     const enviarVisibilidade = () => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ tipo: "visibilidade", visivel: document.visibilityState === "visible" }));
+        const visivel = document.visibilityState === "visible" && document.hasFocus();
+        ws.send(JSON.stringify({ tipo: "visibilidade", visivel }));
       }
     };
     ws.onopen = enviarVisibilidade;
     document.addEventListener("visibilitychange", enviarVisibilidade);
+    window.addEventListener("focus", enviarVisibilidade);
+    window.addEventListener("blur", enviarVisibilidade);
 
     ws.onmessage = (evt) => {
       try {
@@ -509,9 +517,35 @@ function AppShell() {
     };
     return () => {
       document.removeEventListener("visibilitychange", enviarVisibilidade);
+      window.removeEventListener("focus", enviarVisibilidade);
+      window.removeEventListener("blur", enviarVisibilidade);
       ws.close();
     };
   }, []);
+
+  // Título da aba pisca "(N) Envoxers" com mensagem não lida enquanto a janela
+  // não tem foco (D-115) — reforço visual pra quem está de olho na barra de
+  // tarefas/aba do Windows mesmo sem notificação do sistema (permissão negada,
+  // por exemplo). Volta ao título original assim que a pessoa volta o foco.
+  const tituloOriginalRef = useRefApp(typeof document !== "undefined" ? document.title : "Envoxers");
+  useEffectApp(() => {
+    const atualizarTitulo = () => {
+      if (chatBadgeTotal > 0 && !document.hasFocus()) {
+        document.title = `(${chatBadgeTotal}) ${tituloOriginalRef.current}`;
+      } else {
+        document.title = tituloOriginalRef.current;
+      }
+    };
+    atualizarTitulo();
+    // Precisa dos dois: "focus" volta o título ao normal, "blur" é o que liga o
+    // pisca-pisca (perder o foco é o próprio gatilho, não só ganhar de volta).
+    window.addEventListener("focus", atualizarTitulo);
+    window.addEventListener("blur", atualizarTitulo);
+    return () => {
+      window.removeEventListener("focus", atualizarTitulo);
+      window.removeEventListener("blur", atualizarTitulo);
+    };
+  }, [chatBadgeTotal]);
 
   const carregarListasBase = async () => {
     try {

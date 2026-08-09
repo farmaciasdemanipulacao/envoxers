@@ -45,6 +45,7 @@ ALERTAS_CONFIG_PADRAO = [
     ("farol_sinal_margem", "Sinal: Margem", "farol", "Dispara quando o sinal de margem piora, isoladamente.", False, ["admin", "gestor"]),
     ("farol_sinal_silencio", "Sinal: Silêncio do cliente", "farol", "Dispara quando o sinal de silêncio piora, isoladamente.", False, ["admin", "gestor"]),
     ("chat_dm", "Mensagem direta no chat", "chat", "Dispara quando alguém manda uma DM pra um envoxer que não está com a aba visível.", True, None),
+    ("chat_geral", "Mensagem no chat (geral/cliente)", "chat", "Dispara quando alguém manda mensagem no canal geral ou de um cliente, pra quem não está com a aba visível.", True, None),
 ]
 
 MOTIVOS_CHURN_PADRAO = [
@@ -115,12 +116,18 @@ async def seed_dados_iniciais():
             await db.commit()
             logger.info("admin_padrao_criado", email="admin@envox.com.br")
 
-        result = await db.execute(select(AlertaConfig))
-        if result.scalars().first() is None:
-            for chave, nome, grupo, descricao, ativo, papeis in ALERTAS_CONFIG_PADRAO:
+        # Por chave, não "tabela vazia" (D-115) — senão um tipo novo adicionado ao
+        # catálogo (ex.: chat_geral) nunca nasceria numa produção que já rodou o
+        # seed antes (a tabela não está mais vazia, então o `first() is None` de
+        # baixo nunca mais seria True pra fazer o catálogo crescer sozinho).
+        result = await db.execute(select(AlertaConfig.chave))
+        chaves_existentes = {row[0] for row in result.all()}
+        novas = [item for item in ALERTAS_CONFIG_PADRAO if item[0] not in chaves_existentes]
+        if novas:
+            for chave, nome, grupo, descricao, ativo, papeis in novas:
                 db.add(AlertaConfig(chave=chave, nome=nome, grupo=grupo, descricao=descricao, ativo=ativo, papeis=papeis))
             await db.commit()
-            logger.info("alertas_config_seed_criado")
+            logger.info("alertas_config_seed_criado", novas=[n[0] for n in novas])
 
         result = await db.execute(select(ChatCanal).where(ChatCanal.tipo == "geral"))
         if result.scalar_one_or_none() is None:
