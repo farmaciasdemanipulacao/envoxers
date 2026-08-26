@@ -41,6 +41,14 @@ class PortalTarefaOut(BaseModel):
     prazo: Optional[date] = None
     etiqueta: Optional[str] = None
     etiqueta_cor: Optional[str] = None
+    ano_mes: Optional[str] = None
+    cadencia: Optional[str] = None
+    item_tipo: Optional[str] = None
+    item_descricao: Optional[str] = None
+    quantidade_contratada: Optional[int] = None
+    quantidade_entregue: int = 0
+    campanha_id: Optional[int] = None
+    campanha_nome: Optional[str] = None
     comentarios: list = []
     anexos: list = []
     qtd_alteracoes: int = 0
@@ -50,7 +58,12 @@ class PortalTarefaOut(BaseModel):
 
 
 class PortalCampanhaOut(BaseModel):
+    id: int
     nome: str
+    descricao: Optional[str] = None
+    status: str
+    data_inicio: Optional[date] = None
+    data_fim: Optional[date] = None
     total: int
     em_andamento: int
     aprovacao: int

@@ -46,3 +46,5 @@ from app.models.avaliacao_180 import Avaliacao180  # noqa: F401
 from app.models.feedback_1a1 import Feedback1a1  # noqa: F401
 from app.models.pergunta_clima import PerguntaClima  # noqa: F401
 from app.models.resposta_clima import RespostaClima  # noqa: F401
+
+from app.models.campanha import Campanha  # noqa: F401

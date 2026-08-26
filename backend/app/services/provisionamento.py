@@ -136,12 +136,22 @@ async def _completar_checks(db, tarefa_id: int, quantidade: int) -> None:
         await db.rollback()
 
 
-async def garantir_cards_do_mes(db) -> None:
+async def garantir_cards_do_mes(db, cliente_id: Optional[int] = None) -> None:
+    """Garante os cards automáticos do ciclo.
+
+    `cliente_id` é opcional para permitir que o Portal do Cliente provisione
+    somente o próprio escopo, sem causar side-effect em outros clientes. Os
+    callers internos existentes continuam passando None e preservam o
+    comportamento global anterior.
+    """
     for cadencia, ano_mes in (("mensal", ano_mes_atual()), ("pontual", "pontual")):
+        filtros = [
+            ItemEscopo.ativo.is_(True), ItemEscopo.cadencia == cadencia, ItemEscopo.quantidade > 0,
+        ]
+        if cliente_id is not None:
+            filtros.append(ItemEscopo.cliente_id == cliente_id)
         itens = (await db.execute(
-            select(ItemEscopo).where(
-                ItemEscopo.ativo.is_(True), ItemEscopo.cadencia == cadencia, ItemEscopo.quantidade > 0,
-            )
+            select(ItemEscopo).where(*filtros)
         )).scalars().all()
         # Extrai os valores já aqui, em Python puro — depois de qualquer rollback
         # (recuperação de corrida em outro item deste mesmo loop), todos os

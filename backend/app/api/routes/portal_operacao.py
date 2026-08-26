@@ -15,7 +15,10 @@ from app.db.session import get_db
 from app.models.alteracao import Alteracao
 from app.models.aprovacao import Aprovacao
 from app.models.cliente_contato import ClienteContato
+from app.models.campanha import Campanha
+from app.models.entrega_check import EntregaCheck
 from app.models.etapa import Etapa
+from app.models.item_escopo import ItemEscopo
 from app.models.solicitacao import Solicitacao, TIPO_SOLICITACAO_VALUES
 from app.models.tarefa import Tarefa
 from app.schemas.portal_operacao import (
@@ -29,6 +32,7 @@ from app.schemas.portal_operacao import (
     PortalTarefaOut,
 )
 from app.services.dias_uteis import proximo_dia_util
+from app.services.provisionamento import garantir_cards_do_mes
 from app.services.realtime import notificar_tarefa_atualizada
 
 router = APIRouter(prefix="/portal", tags=["portal-operacao"])
@@ -41,21 +45,64 @@ def _solicitacao_out(s: Solicitacao) -> PortalSolicitacaoOut:
     return PortalSolicitacaoOut.model_validate(s)
 
 
-def _tarefa_out(t: Tarefa) -> PortalTarefaOut:
-    return PortalTarefaOut(
-        id=t.id,
-        titulo=t.titulo,
-        status=t.status,
-        prazo=t.prazo,
-        etiqueta=t.etiqueta,
-        etiqueta_cor=t.etiqueta_cor,
-        comentarios=list(t.comentarios or []),
-        anexos=list(t.anexos or []),
-        qtd_alteracoes=t.qtd_alteracoes or 0,
-        aprovada_cliente=bool(t.aprovada_cliente),
-        created_at=t.created_at,
-        updated_at=t.updated_at,
-    )
+async def _tarefas_out(db: AsyncSession, tarefas: list[Tarefa]) -> list[PortalTarefaOut]:
+    if not tarefas:
+        return []
+
+    item_ids = {t.item_escopo_id for t in tarefas if t.item_escopo_id}
+    campanha_ids = {t.campanha_id for t in tarefas if getattr(t, "campanha_id", None)}
+    tarefa_ids = [t.id for t in tarefas]
+
+    itens = {}
+    if item_ids:
+        rows = (await db.execute(select(ItemEscopo).where(ItemEscopo.id.in_(item_ids)))).scalars().all()
+        itens = {i.id: i for i in rows}
+
+    campanhas = {}
+    if campanha_ids:
+        rows = (await db.execute(select(Campanha).where(Campanha.id.in_(campanha_ids)))).scalars().all()
+        campanhas = {c.id: c for c in rows}
+
+    entregues = {}
+    if tarefa_ids:
+        rows = (await db.execute(
+            select(EntregaCheck.tarefa_id, func.count(EntregaCheck.id))
+            .where(EntregaCheck.tarefa_id.in_(tarefa_ids), EntregaCheck.entregue.is_(True))
+            .group_by(EntregaCheck.tarefa_id)
+        )).all()
+        entregues = {tid: int(qtd) for tid, qtd in rows}
+
+    saida = []
+    for t in tarefas:
+        item = itens.get(t.item_escopo_id)
+        campanha = campanhas.get(getattr(t, "campanha_id", None))
+        saida.append(PortalTarefaOut(
+            id=t.id,
+            titulo=t.titulo,
+            status=t.status,
+            prazo=t.prazo,
+            etiqueta=t.etiqueta,
+            etiqueta_cor=t.etiqueta_cor,
+            ano_mes=t.ano_mes,
+            cadencia=item.cadencia if item else None,
+            item_tipo=item.tipo if item else None,
+            item_descricao=item.descricao if item else None,
+            quantidade_contratada=item.quantidade if item else None,
+            quantidade_entregue=entregues.get(t.id, 0),
+            campanha_id=campanha.id if campanha else None,
+            campanha_nome=campanha.nome if campanha else None,
+            comentarios=list(t.comentarios or []),
+            anexos=list(t.anexos or []),
+            qtd_alteracoes=t.qtd_alteracoes or 0,
+            aprovada_cliente=bool(t.aprovada_cliente),
+            created_at=t.created_at,
+            updated_at=t.updated_at,
+        ))
+    return saida
+
+
+async def _tarefa_out(db: AsyncSession, tarefa: Tarefa) -> PortalTarefaOut:
+    return (await _tarefas_out(db, [tarefa]))[0]
 
 
 async def _tarefa_do_cliente(db: AsyncSession, contato: ClienteContato, tarefa_id: int) -> Tarefa:
@@ -77,6 +124,7 @@ async def dashboard(
     contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    await garantir_cards_do_mes(db, contato.cliente_id)
     solicitacoes = list((await db.execute(
         select(Solicitacao)
         .where(Solicitacao.cliente_id == contato.cliente_id)
@@ -94,7 +142,7 @@ async def dashboard(
         aprovacoes_pendentes=sum(1 for t in tarefas if t.status == "aprovacao_cliente"),
         finalizados=sum(1 for t in tarefas if t.status == "finalizado"),
         solicitacoes_recentes=[_solicitacao_out(s) for s in solicitacoes[:4]],
-        tarefas_recentes=[_tarefa_out(t) for t in tarefas[:6]],
+        tarefas_recentes=await _tarefas_out(db, tarefas[:6]),
     )
 
 
@@ -139,11 +187,12 @@ async def listar_tarefas(
     db: Annotated[AsyncSession, Depends(get_db)],
     status: Optional[str] = None,
 ):
+    await garantir_cards_do_mes(db, contato.cliente_id)
     stmt = select(Tarefa).where(Tarefa.cliente_id == contato.cliente_id, Tarefa.deleted_at.is_(None))
     if status:
         stmt = stmt.where(Tarefa.status == status)
     rows = (await db.execute(stmt.order_by(Tarefa.updated_at.desc()))).scalars().all()
-    return [_tarefa_out(t) for t in rows]
+    return await _tarefas_out(db, list(rows))
 
 
 @router.get("/tarefas/{tarefa_id}", response_model=PortalTarefaOut)
@@ -152,7 +201,7 @@ async def obter_tarefa(
     contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return _tarefa_out(await _tarefa_do_cliente(db, contato, tarefa_id))
+    return await _tarefa_out(db, await _tarefa_do_cliente(db, contato, tarefa_id))
 
 
 @router.get("/aprovacoes", response_model=list[PortalTarefaOut])
@@ -160,6 +209,7 @@ async def listar_aprovacoes_pendentes(
     contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    await garantir_cards_do_mes(db, contato.cliente_id)
     rows = (await db.execute(
         select(Tarefa)
         .where(
@@ -169,7 +219,7 @@ async def listar_aprovacoes_pendentes(
         )
         .order_by(Tarefa.prazo.asc().nulls_last(), Tarefa.updated_at.desc())
     )).scalars().all()
-    return [_tarefa_out(t) for t in rows]
+    return await _tarefas_out(db, list(rows))
 
 
 @router.post("/tarefas/{tarefa_id}/aprovar", response_model=PortalTarefaOut)
@@ -194,7 +244,7 @@ async def aprovar_tarefa(
     await db.flush()
     await db.refresh(tarefa)
     await notificar_tarefa_atualizada(db, tarefa.id)
-    return _tarefa_out(tarefa)
+    return await _tarefa_out(db, tarefa)
 
 
 @router.post("/tarefas/{tarefa_id}/ajuste", response_model=PortalTarefaOut)
@@ -250,7 +300,7 @@ async def pedir_ajuste(
     await db.flush()
     await db.refresh(tarefa)
     await notificar_tarefa_atualizada(db, tarefa.id)
-    return _tarefa_out(tarefa)
+    return await _tarefa_out(db, tarefa)
 
 
 @router.post("/tarefas/{tarefa_id}/comentar", response_model=PortalTarefaOut)
@@ -273,7 +323,7 @@ async def comentar_tarefa(
     await db.flush()
     await db.refresh(tarefa)
     await notificar_tarefa_atualizada(db, tarefa.id)
-    return _tarefa_out(tarefa)
+    return await _tarefa_out(db, tarefa)
 
 
 @router.get("/campanhas", response_model=list[PortalCampanhaOut])
@@ -281,27 +331,41 @@ async def listar_campanhas(
     contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    rows = (await db.execute(
+    campanhas = (await db.execute(
+        select(Campanha)
+        .where(Campanha.cliente_id == contato.cliente_id)
+        .order_by(Campanha.data_inicio.desc().nulls_last(), Campanha.created_at.desc())
+    )).scalars().all()
+    if not campanhas:
+        return []
+
+    ids = [c.id for c in campanhas]
+    tarefas = (await db.execute(
         select(Tarefa).where(
             Tarefa.cliente_id == contato.cliente_id,
+            Tarefa.campanha_id.in_(ids),
             Tarefa.deleted_at.is_(None),
-            Tarefa.etiqueta.is_not(None),
         )
     )).scalars().all()
-    grupos: dict[str, list[Tarefa]] = {}
-    for tarefa in rows:
-        nome = (tarefa.etiqueta or "Sem campanha").strip()
-        grupos.setdefault(nome, []).append(tarefa)
+    por_campanha: dict[int, list[Tarefa]] = {c.id: [] for c in campanhas}
+    for tarefa in tarefas:
+        por_campanha.setdefault(tarefa.campanha_id, []).append(tarefa)
 
     saida = []
-    for nome, tarefas in sorted(grupos.items(), key=lambda kv: kv[0].lower()):
-        total = len(tarefas)
-        finalizados = sum(1 for t in tarefas if t.status == "finalizado")
-        aprovacoes = sum(1 for t in tarefas if t.status == "aprovacao_cliente")
-        em_andamento = total - finalizados
+    for campanha in campanhas:
+        jobs = por_campanha.get(campanha.id, [])
+        total = len(jobs)
+        finalizados = sum(1 for t in jobs if t.status == "finalizado")
+        aprovacoes = sum(1 for t in jobs if t.status == "aprovacao_cliente")
+        em_andamento = sum(1 for t in jobs if t.status in STATUS_EM_ANDAMENTO)
         progresso = round((finalizados / total) * 100) if total else 0
         saida.append(PortalCampanhaOut(
-            nome=nome,
+            id=campanha.id,
+            nome=campanha.nome,
+            descricao=campanha.descricao,
+            status=campanha.status,
+            data_inicio=campanha.data_inicio,
+            data_fim=campanha.data_fim,
             total=total,
             em_andamento=em_andamento,
             aprovacao=aprovacoes,
@@ -316,6 +380,7 @@ async def listar_biblioteca(
     contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    await garantir_cards_do_mes(db, contato.cliente_id)
     rows = (await db.execute(
         select(Tarefa)
         .where(
@@ -325,10 +390,12 @@ async def listar_biblioteca(
         )
         .order_by(Tarefa.finalizada_em.desc().nulls_last(), Tarefa.updated_at.desc())
     )).scalars().all()
+    enriched = await _tarefas_out(db, list(rows))
+    by_id = {item.id: item for item in enriched}
     return [PortalBibliotecaItem(
         tarefa_id=t.id,
         titulo=t.titulo,
-        campanha=t.etiqueta,
+        campanha=by_id[t.id].campanha_nome,
         finalizada_em=t.finalizada_em,
         anexos=list(t.anexos or []),
     ) for t in rows]
