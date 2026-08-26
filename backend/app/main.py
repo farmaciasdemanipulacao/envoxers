@@ -18,7 +18,7 @@ from app.models.motivo_churn import MotivoChurnCatalogo
 from app.models.chat_canal import ChatCanal
 from app.models.alerta_config import AlertaConfig
 from app.models.competencia_catalogo import CompetenciaCatalogo
-from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth, item_escopo, documento_acordo, portal_documentos, acessos, pdi, ciclos, avaliacao_360, avaliacao_180, feedback_1a1, clima
+from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth, item_escopo, documento_acordo, portal_documentos, portal_operacao, acessos, pdi, ciclos, avaliacao_360, avaliacao_180, feedback_1a1, clima
 
 logger = structlog.get_logger()
 
@@ -192,6 +192,7 @@ app.include_router(portal_auth.router, prefix=API_PREFIX)
 app.include_router(item_escopo.router, prefix=API_PREFIX)
 app.include_router(documento_acordo.router, prefix=API_PREFIX)
 app.include_router(portal_documentos.router, prefix=API_PREFIX)
+app.include_router(portal_operacao.router, prefix=API_PREFIX)
 app.include_router(acessos.router, prefix=API_PREFIX)
 app.include_router(pdi.router, prefix=API_PREFIX)
 app.include_router(ciclos.router, prefix=API_PREFIX)

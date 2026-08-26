@@ -1,227 +1,75 @@
-const { useState: usePortal } = React;
+const { useState: usePortal, useEffect: usePortalEffect } = React;
 
-function PortalDefinirSenhaScreen({ token, onDefinida }) {
-  const toast = EnvoxersShared.useToast();
-  const [senha, setSenha] = usePortal("");
-  const [confirmacao, setConfirmacao] = usePortal("");
-  const [loading, setLoading] = usePortal(false);
+const PORTAL_STATUS = {
+  nova:["Recebida","blue"], em_analise:["Em análise","amber"], virou_demanda:["Em andamento","green"], recusada:["Não aprovada","red"],
+  planejamento:["Planejamento","blue"], producao:["Produção","blue"], revisao_interna:["Revisão Envox","amber"], aprovacao_cliente:["Sua aprovação","amber"], ajustes:["Em ajustes","amber"], programado:["Programado","green"], finalizado:["Finalizado","green"]
+};
+const REQUEST_TYPES = { novo_post:"Novo post", alteracao:"Alteração", material_extra:"Material extra", campanha:"Campanha", evento:"Evento" };
+const NAV = [
+  ["home","Início","home"], ["solicitacoes","Solicitações","request"], ["andamento","Em andamento","progress"],
+  ["aprovacoes","Aprovações","approval"], ["campanhas","Campanhas","campaign"], ["biblioteca","Biblioteca","library"], ["acordos","Acordos","doc"]
+];
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (senha.length < 8) { toast("A senha precisa ter pelo menos 8 caracteres", "error"); return; }
-    if (senha !== confirmacao) { toast("As senhas não coincidem", "error"); return; }
-    setLoading(true);
-    try {
-      await PortalAPI.api("/portal/auth/definir-senha", { method: "POST", body: JSON.stringify({ token, senha }) });
-      toast("Senha definida! Faça login.", "success");
-      onDefinida();
-    } catch (err) {
-      toast(err.message || "Falha ao definir senha", "error");
-    } finally {
-      setLoading(false);
-    }
+function PortalIcon({ name }) {
+  const paths = {
+    home:<><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="12" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/></>,
+    request:<><path d="M2 3h12v9H6l-4 3z"/><path d="M5 6h6M5 9h4"/></>,
+    progress:<><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></>, approval:<><path d="M3 8l3 3 7-7"/><rect x="2" y="2" width="12" height="12" rx="2"/></>,
+    campaign:<><path d="M2 12V5l8-3v12l-8-2z"/><path d="M10 6h3a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-3"/></>,
+    library:<><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 2v12M8 5h3M8 8h3"/></>, doc:<><path d="M4 2h6l3 3v9H4z"/><path d="M10 2v4h4M6 9h5M6 12h4"/></>
   };
-
-  return (
-    <div className="login-screen">
-      <div className="login-box">
-        <div className="brand" style={{ paddingBottom: 20, justifyContent: "center" }}>
-          <span className="brand-mark">envox<span className="brand-dot"></span></span>
-          <span className="brand-sub">Portal do Cliente</span>
-        </div>
-        <div style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 16 }}>Defina sua senha de acesso.</div>
-        <form onSubmit={handleSubmit}>
-          <div className="field">
-            <label>Nova senha</label>
-            <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Mínimo 8 caracteres" required autoFocus />
-          </div>
-          <div className="field" style={{ marginTop: 12 }}>
-            <label>Confirmar senha</label>
-            <input type="password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} placeholder="Repita a senha" required />
-          </div>
-          <button className="btn btn-envox" type="submit" disabled={loading} style={{ width: "100%", marginTop: 16, justifyContent: "center" }}>
-            {loading ? "Salvando…" : "Definir senha"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
+  return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">{paths[name]}</svg>;
 }
+function Pill({ status }) { const [label,tone]=PORTAL_STATUS[status]||[status,"blue"]; return <span className={`portal-pill ${tone}`}>{label}</span>; }
+function formatDate(v){ if(!v) return "Sem prazo"; const d=new Date(v.includes?.("T")?v:`${v}T12:00:00`); return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"short"}); }
+function initials(name){ return (name||"EN").split(" ").filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase(); }
 
 function PortalLoginScreen({ onLoggedIn }) {
-  const toast = EnvoxersShared.useToast();
-  const [email, setEmail] = usePortal("");
-  const [senha, setSenha] = usePortal("");
-  const [loading, setLoading] = usePortal(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const data = await PortalAPI.api("/portal/auth/login", { method: "POST", body: JSON.stringify({ email, senha }) });
-      PortalAPI.setSession(data.access_token, data.id, data.nome, data.cliente_id, data.cliente_nome);
-      onLoggedIn();
-    } catch (err) {
-      toast(err.message || "Falha no login", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="login-screen">
-      <div className="login-box">
-        <div className="brand" style={{ paddingBottom: 20, justifyContent: "center" }}>
-          <span className="brand-mark">envox<span className="brand-dot"></span></span>
-          <span className="brand-sub">Portal do Cliente</span>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div className="field">
-            <label>E-mail</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@suaempresa.com.br" required autoFocus />
-          </div>
-          <div className="field" style={{ marginTop: 12 }}>
-            <label>Senha</label>
-            <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="••••••••" required />
-          </div>
-          <button className="btn btn-envox" type="submit" disabled={loading} style={{ width: "100%", marginTop: 16, justifyContent: "center" }}>
-            {loading ? "Entrando…" : "Entrar"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
+  const toast=EnvoxersShared.useToast(); const [email,setEmail]=usePortal(""); const [senha,setSenha]=usePortal(""); const [loading,setLoading]=usePortal(false);
+  const submit=async(e)=>{e.preventDefault();setLoading(true);try{const d=await PortalAPI.api("/portal/auth/login",{method:"POST",body:JSON.stringify({email,senha})});PortalAPI.setSession(d.access_token,d.id,d.nome,d.cliente_id,d.cliente_nome);onLoggedIn();}catch(err){toast(err.message||"Falha no login","error");}finally{setLoading(false)}};
+  return <div className="portal-login"><section className="portal-login-brand"><div className="portal-login-mark"><i/>Envox <span style={{color:"#AEB7CC"}}>Portal</span></div><div className="portal-login-copy"><h1>Comunicação em um único fluxo.</h1><p>Solicite, acompanhe e aprove materiais com contexto, histórico e decisão centralizados.</p></div><div style={{fontSize:11,color:"#AEB7CC",letterSpacing:'.1em',textTransform:'uppercase'}}>Envox · Humanize. Relacione. Venda.</div></section><section className="portal-login-panel"><form className="portal-login-box" onSubmit={submit}><span className="portal-dev-badge">Ambiente de homologação</span><h2>Portal do cliente</h2><div className="sub">Entre com seu acesso para continuar.</div><div className="portal-field"><label>E-mail</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoFocus/></div><div className="portal-field"><label>Senha</label><input type="password" value={senha} onChange={e=>setSenha(e.target.value)} required/></div><button className="portal-btn primary" style={{width:'100%'}} disabled={loading}>{loading?'Entrando…':'Entrar'}</button></form></section></div>;
 }
 
-const STATUS_DOC_PORTAL_LABELS = { aguardando_confirmacoes: "Aguardando confirmações", vigente: "Vigente", cancelado: "Cancelado" };
-const STATUS_DOC_PORTAL_CORES = { aguardando_confirmacoes: "var(--farol-amarelo)", vigente: "var(--farol-verde)", cancelado: "var(--ink-4)" };
-
-function PortalShell() {
-  const toast = EnvoxersShared.useToast();
-  const nome = localStorage.getItem("portal_nome") || "";
-  const clienteNome = localStorage.getItem("portal_cliente_nome") || "";
-  const meuContatoId = Number(localStorage.getItem("portal_contato_id"));
-  const [documentos, setDocumentos] = usePortal([]);
-  const [loading, setLoading] = usePortal(true);
-  const [confirmandoId, setConfirmandoId] = usePortal(null);
-
-  const carregar = async () => {
-    setLoading(true);
-    try {
-      const data = await PortalAPI.api("/portal/documentos");
-      setDocumentos(data);
-    } catch (err) {
-      toast(err.message || "Erro ao carregar documentos", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  React.useEffect(() => { carregar(); }, []);
-
-  const handleConfirmar = async (doc) => {
-    setConfirmandoId(doc.id);
-    try {
-      await PortalAPI.api(`/portal/documentos/${doc.id}/confirmar`, { method: "POST" });
-      toast("Confirmado! Obrigado.", "success");
-      await carregar();
-    } catch (err) {
-      toast(err.message || "Erro ao confirmar", "error");
-    } finally {
-      setConfirmandoId(null);
-    }
-  };
-
-  const handleLogout = () => {
-    PortalAPI.clearSession();
-    window.location.reload();
-  };
-
-  const pendentes = documentos.filter((d) => d.status === "aguardando_confirmacoes" && d.confirmacoes.some((c) => c.cliente_contato_id === meuContatoId && !c.confirmado_em));
-
-  return (
-    <div className="page">
-      <div className="page-header">
-        <div className="page-title-block">
-          <div style={{ fontSize: 11, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 4 }}>
-            Portal do Cliente · {clienteNome}
-          </div>
-          <h1>Olá, {nome.split(" ")[0]}</h1>
-          <div className="page-sub">Documentos de acordo pra confirmar e histórico de alterações de escopo.</div>
-        </div>
-        <button className="btn btn-sm" onClick={handleLogout}>Sair</button>
-      </div>
-
-      {loading && <div className="empty">Carregando…</div>}
-
-      {!loading && pendentes.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Aguardando sua confirmação</div>
-          {pendentes.map((doc) => (
-            <div key={doc.id} style={{ padding: "12px 14px", background: "var(--bg-inset)", borderRadius: "var(--r-md)", marginBottom: 8 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>{doc.motivo}</div>
-              <div style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 8 }}>
-                {doc.itens_alterados.map((i) => `${i.tipo}${i.descricao ? ` (${i.descricao})` : ""}: ${i.quantidade_anterior} → ${i.quantidade_nova}`).join(" · ")}
-              </div>
-              <button className="btn btn-envox btn-sm" onClick={() => handleConfirmar(doc)} disabled={confirmandoId === doc.id}>
-                {confirmandoId === doc.id ? "Confirmando…" : "Confirmar"}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!loading && (
-        <>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Todos os documentos</div>
-          {documentos.length === 0 && (
-            <div style={{ padding: "10px 12px", background: "var(--bg-inset)", borderRadius: "var(--r-md)", fontSize: 13, color: "var(--ink-3)" }}>
-              Nenhum documento de acordo ainda.
-            </div>
-          )}
-          {documentos.map((doc) => (
-            <div key={doc.id} style={{ padding: "10px 12px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div>{doc.motivo}</div>
-                <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{doc.itens_alterados.map((i) => `${i.tipo}: ${i.quantidade_anterior}→${i.quantidade_nova}`).join(", ")}</div>
-              </div>
-              <span className="pill" style={{ color: STATUS_DOC_PORTAL_CORES[doc.status] }}>{STATUS_DOC_PORTAL_LABELS[doc.status] || doc.status}</span>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
+function PortalDefinirSenhaScreen({token,onDefinida}){
+  const toast=EnvoxersShared.useToast();const [senha,setSenha]=usePortal("");const [confirmacao,setConfirmacao]=usePortal("");const [loading,setLoading]=usePortal(false);
+  const submit=async(e)=>{e.preventDefault();if(senha.length<8){toast("A senha precisa ter pelo menos 8 caracteres","error");return}if(senha!==confirmacao){toast("As senhas não coincidem","error");return}setLoading(true);try{await PortalAPI.api("/portal/auth/definir-senha",{method:"POST",body:JSON.stringify({token,senha})});toast("Senha definida! Faça login.","success");onDefinida();}catch(err){toast(err.message||"Falha ao definir senha","error")}finally{setLoading(false)}};
+  return <div className="portal-login"><section className="portal-login-brand"><div className="portal-login-mark"><i/>Envox <span style={{color:"#AEB7CC"}}>Portal</span></div><div className="portal-login-copy"><h1>Seu acesso começa aqui.</h1><p>Defina uma senha para acompanhar solicitações, materiais e aprovações.</p></div></section><section className="portal-login-panel"><form className="portal-login-box" onSubmit={submit}><h2>Definir senha</h2><div className="sub">Use pelo menos 8 caracteres.</div><div className="portal-field"><label>Nova senha</label><input type="password" value={senha} onChange={e=>setSenha(e.target.value)} required autoFocus/></div><div className="portal-field"><label>Confirmar</label><input type="password" value={confirmacao} onChange={e=>setConfirmacao(e.target.value)} required/></div><button className="portal-btn primary" style={{width:'100%'}} disabled={loading}>{loading?'Salvando…':'Definir senha'}</button></form></section></div>;
 }
 
-function PortalRoot() {
-  const params = new URLSearchParams(window.location.search);
-  const tokenDefinicao = params.get("token");
-  const [definiuSenha, setDefiniuSenha] = usePortal(false);
-  const [logged, setLogged] = usePortal(!!PortalAPI.getToken());
+function PageHead({title,sub,action}){return <div className="portal-page-head"><div><h1>{title}</h1><p>{sub}</p></div>{action}</div>}
+function Loading(){return <div className="portal-empty">Carregando…</div>}
 
-  if (tokenDefinicao && !definiuSenha) {
-    return (
-      <EnvoxersShared.ToastProvider>
-        <PortalDefinirSenhaScreen token={tokenDefinicao} onDefinida={() => { window.history.replaceState({}, "", window.location.pathname); setDefiniuSenha(true); }} />
-      </EnvoxersShared.ToastProvider>
-    );
-  }
-
-  if (!logged) {
-    return (
-      <EnvoxersShared.ToastProvider>
-        <PortalLoginScreen onLoggedIn={() => setLogged(true)} />
-      </EnvoxersShared.ToastProvider>
-    );
-  }
-
-  return (
-    <EnvoxersShared.ToastProvider>
-      <PortalShell />
-    </EnvoxersShared.ToastProvider>
-  );
+function HomePage({go}){
+  const [data,setData]=usePortal(null);const [campaigns,setCampaigns]=usePortal([]);
+  usePortalEffect(()=>{Promise.all([PortalAPI.api('/portal/dashboard'),PortalAPI.api('/portal/campanhas')]).then(([d,c])=>{setData(d);setCampaigns(c)}).catch(()=>setData({solicitacoes_abertas:0,em_andamento:0,aprovacoes_pendentes:0,finalizados:0,solicitacoes_recentes:[],tarefas_recentes:[]}))},[]);
+  if(!data)return <Loading/>;
+  const stats=[["Solicitações abertas",data.solicitacoes_abertas],["Em andamento",data.em_andamento],["Aguardando você",data.aprovacoes_pendentes],["Finalizados",data.finalizados]];
+  return <><PageHead title="Visão geral" sub="O que precisa da sua atenção e o que está avançando com a Envox." action={<button className="portal-btn primary" onClick={()=>go('solicitacoes',true)}>Nova solicitação</button>}/><div className="portal-stats">{stats.map(([l,n])=><div className="portal-stat" key={l}><div className="label">{l}</div><div className="number">{n}</div></div>)}</div><div className="portal-grid"><div className="portal-card"><div className="portal-card-head"><strong>Em movimento</strong><button onClick={()=>go('andamento')}>ver tudo</button></div>{data.tarefas_recentes.length?data.tarefas_recentes.map(t=><div className="portal-list-row" key={t.id}><div className="portal-list-id">#{t.id}</div><div className="portal-list-main"><div className="portal-list-title">{t.titulo}</div><div className="portal-list-meta">{t.etiqueta||'Demanda'} · {formatDate(t.prazo)}</div></div><Pill status={t.status}/></div>):<div className="portal-empty">Nenhuma demanda em andamento ainda.</div>}</div><div style={{display:'flex',flexDirection:'column',gap:20}}><div className="portal-card"><div className="portal-card-head"><strong>Aguardando sua decisão</strong><button onClick={()=>go('aprovacoes')}>abrir</button></div><div className="portal-card-pad"><div style={{fontSize:38,fontWeight:650,color:'var(--portal-navy)',letterSpacing:'-.05em'}}>{data.aprovacoes_pendentes}</div><div style={{fontSize:12.5,color:'#888B91',marginTop:5}}>materiais disponíveis para aprovação</div></div></div><div className="portal-card"><div className="portal-card-head"><strong>Campanhas</strong><button onClick={()=>go('campanhas')}>ver todas</button></div>{campaigns.slice(0,3).map(c=><div className="portal-list-row" key={c.nome}><div className="portal-list-main"><div className="portal-list-title">{c.nome}</div><div className="portal-list-meta">{c.finalizados}/{c.total} finalizados</div></div><span className="portal-pill blue">{c.progresso}%</span></div>)}{!campaigns.length&&<div className="portal-empty">Campanhas aparecerão aqui conforme as demandas forem organizadas.</div>}</div></div></div></>;
 }
 
-const portalRoot = ReactDOM.createRoot(document.getElementById("root"));
-portalRoot.render(<PortalRoot />);
+function RequestModal({onClose,onCreated}){
+  const toast=EnvoxersShared.useToast();const [tipo,setTipo]=usePortal('novo_post');const [titulo,setTitulo]=usePortal('');const [descricao,setDescricao]=usePortal('');const [loading,setLoading]=usePortal(false);
+  const submit=async()=>{setLoading(true);try{await PortalAPI.api('/portal/solicitacoes',{method:'POST',body:JSON.stringify({tipo,titulo,descricao})});toast('Solicitação enviada para a Envox.','success');onCreated();onClose()}catch(e){toast(e.message||'Erro ao enviar','error')}finally{setLoading(false)}};
+  return <div className="portal-modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="portal-modal"><div className="portal-modal-head"><h2>Nova solicitação</h2><button className="portal-close" onClick={onClose}>×</button></div><div className="portal-modal-body"><div className="portal-field"><label>Tipo</label><select value={tipo} onChange={e=>setTipo(e.target.value)}>{Object.entries(REQUEST_TYPES).map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></div><div className="portal-field"><label>Título</label><input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Ex: divulgar palestra de setembro"/></div><div className="portal-field"><label>Contexto</label><textarea value={descricao} onChange={e=>setDescricao(e.target.value)} placeholder="Explique o objetivo, prazo, público e qualquer informação que a Envox precisa considerar."/></div></div><div className="portal-modal-actions"><button className="portal-btn" onClick={onClose}>Cancelar</button><button className="portal-btn primary" onClick={submit} disabled={loading||titulo.trim().length<3}>{loading?'Enviando…':'Enviar solicitação'}</button></div></div></div>;
+}
+function RequestsPage({openOnLoad=false}){const [rows,setRows]=usePortal([]);const [loading,setLoading]=usePortal(true);const [open,setOpen]=usePortal(openOnLoad);const load=()=>{setLoading(true);PortalAPI.api('/portal/solicitacoes').then(setRows).finally(()=>setLoading(false))};usePortalEffect(load,[]);return <><PageHead title="Solicitações" sub="Pedidos enviados para a Envox, com status e histórico centralizados." action={<button className="portal-btn primary" onClick={()=>setOpen(true)}>Nova solicitação</button>}/><div className="portal-card">{loading?<Loading/>:rows.length?rows.map(r=><div className="portal-list-row" key={r.id}><div className="portal-list-id">SOL-{r.id}</div><div className="portal-list-main"><div className="portal-list-title">{r.titulo}</div><div className="portal-list-meta">{REQUEST_TYPES[r.tipo]||r.tipo} · enviada por {r.solicitante_nome||'cliente'}</div>{r.descricao&&<div className="portal-list-meta" style={{marginTop:7,color:'#55585F'}}>{r.descricao}</div>}</div><Pill status={r.status}/></div>):<div className="portal-empty">Nenhuma solicitação enviada ainda.</div>}</div>{open&&<RequestModal onClose={()=>setOpen(false)} onCreated={load}/>}</>}
+
+function ProgressPage(){const [rows,setRows]=usePortal(null);usePortalEffect(()=>{PortalAPI.api('/portal/tarefas').then(d=>setRows(d.filter(t=>t.status!=='finalizado')))},[]);return <><PageHead title="Em andamento" sub="Tudo que a Envox está planejando, produzindo, revisando ou programando para você."/>{!rows?<Loading/>:<div className="portal-card">{rows.length?rows.map(t=><div className="portal-list-row" key={t.id}><div className="portal-list-id">#{t.id}</div><div className="portal-list-main"><div className="portal-list-title">{t.titulo}</div><div className="portal-list-meta">{t.etiqueta||'Demanda'} · prazo {formatDate(t.prazo)}</div></div><Pill status={t.status}/></div>):<div className="portal-empty">Nenhuma demanda em andamento.</div>}</div>}</>}
+
+function ApprovalCard({t,onChanged}){
+  const toast=EnvoxersShared.useToast();const [mode,setMode]=usePortal(null);const [kind,setKind]=usePortal('texto');const [text,setText]=usePortal('');const [busy,setBusy]=usePortal(false);
+  const approve=async()=>{if(!confirm('Aprovar este material?'))return;setBusy(true);try{await PortalAPI.api(`/portal/tarefas/${t.id}/aprovar`,{method:'POST'});toast('Material aprovado.','success');onChanged()}catch(e){toast(e.message,'error')}finally{setBusy(false)}};
+  const adjust=async()=>{if(text.trim().length<3)return;setBusy(true);try{await PortalAPI.api(`/portal/tarefas/${t.id}/ajuste`,{method:'POST',body:JSON.stringify({tipo:kind,descricao:text})});toast('Ajuste enviado para a Envox.','success');onChanged()}catch(e){toast(e.message,'error')}finally{setBusy(false)}};
+  const comment=async()=>{if(text.trim().length<1)return;setBusy(true);try{await PortalAPI.api(`/portal/tarefas/${t.id}/comentar`,{method:'POST',body:JSON.stringify({texto:text})});toast('Comentário enviado.','success');setText('');setMode(null);onChanged()}catch(e){toast(e.message,'error')}finally{setBusy(false)}};
+  return <div className="portal-approval"><div className="portal-card"><div className="portal-card-head"><div><strong>{t.titulo}</strong><div className="portal-list-meta">{t.etiqueta||'Material'} · prazo {formatDate(t.prazo)}</div></div><Pill status={t.status}/></div><div className="portal-preview"><div className="portal-preview-box"><div className="mini">Material para aprovação · #{t.id}</div><div className="title">{t.titulo}</div><div className="mini">Visual definitivo entra pelos anexos da demanda</div></div></div>{t.comentarios?.length>0&&<div className="portal-comments"><div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'.08em',fontWeight:700,color:'#888B91',marginBottom:10}}>Contexto e comentários</div>{t.comentarios.slice(-3).map((c,i)=><div className="portal-comment" key={i}><div className="who">{c.envoxer_nome}</div><div className="text">{c.texto}</div></div>)}</div>}</div><div className="portal-card"><div className="portal-card-head"><strong>Sua decisão</strong></div><div className="portal-decision"><button className="portal-btn primary" onClick={approve} disabled={busy}>Aprovar peça</button><button className="portal-btn" onClick={()=>{setMode(mode==='adjust'?null:'adjust');setText('')}}>Solicitar ajuste</button><button className="portal-btn" onClick={()=>{setMode(mode==='comment'?null:'comment');setText('')}}>Apenas comentar</button>{mode==='adjust'&&<div style={{borderTop:'1px solid #EFEFEB',paddingTop:14}}><div className="portal-adjust-types">{['texto','imagem','layout','informacao','outro'].map(k=><button key={k} className={kind===k?'active':''} onClick={()=>setKind(k)}>{k==='informacao'?'informação':k}</button>)}</div><div className="portal-field" style={{marginBottom:9}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Descreva exatamente o que precisa mudar."/></div><button className="portal-btn danger" onClick={adjust} disabled={busy||text.trim().length<3}>Enviar ajuste</button></div>}{mode==='comment'&&<div style={{borderTop:'1px solid #EFEFEB',paddingTop:14}}><div className="portal-field" style={{marginBottom:9}}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Deixe um comentário para a equipe Envox."/></div><button className="portal-btn primary" onClick={comment} disabled={busy||!text.trim()}>Enviar comentário</button></div>}</div></div></div>;
+}
+function ApprovalsPage(){const [rows,setRows]=usePortal(null);const load=()=>PortalAPI.api('/portal/aprovacoes').then(setRows);usePortalEffect(load,[]);return <><PageHead title="Aprovações" sub="Materiais que precisam da sua decisão antes de seguirem no fluxo."/>{!rows?<Loading/>:rows.length?rows.map(t=><ApprovalCard key={t.id} t={t} onChanged={load}/>):<div className="portal-card"><div className="portal-empty">Tudo certo por aqui. Nenhum material aguardando sua aprovação.</div></div>}</>}
+
+function CampaignsPage(){const [rows,setRows]=usePortal(null);usePortalEffect(()=>{PortalAPI.api('/portal/campanhas').then(setRows)},[]);return <><PageHead title="Campanhas" sub="Visão consolidada das frentes de comunicação em andamento."/>{!rows?<Loading/>:rows.length?<div className="portal-campaigns">{rows.map(c=><div className="portal-campaign" key={c.nome}><h3>{c.nome}</h3><div className="portal-campaign-meta"><span>{c.em_andamento} em andamento</span><span>{c.aprovacao} aguardando você</span></div><div className="portal-progress"><span style={{width:`${c.progresso}%`}}/></div><div className="portal-campaign-meta"><span>{c.finalizados}/{c.total} finalizados</span><strong>{c.progresso}%</strong></div></div>)}</div>:<div className="portal-card"><div className="portal-empty">As campanhas aparecerão aqui conforme as demandas receberem uma identificação de campanha.</div></div>}</>}
+function LibraryPage(){const [rows,setRows]=usePortal(null);usePortalEffect(()=>PortalAPI.api('/portal/biblioteca').then(setRows),[]);return <><PageHead title="Biblioteca" sub="Materiais finalizados e entregáveis disponíveis para consulta."/>{!rows?<Loading/>:<div className="portal-card">{rows.length?rows.map(r=><div className="portal-list-row" key={r.tarefa_id}><div className="portal-list-id">#{r.tarefa_id}</div><div className="portal-list-main"><div className="portal-list-title">{r.titulo}</div><div className="portal-list-meta">{r.campanha||'Material finalizado'} · {r.anexos.length} arquivo(s)</div></div><span className="portal-pill green">disponível</span></div>):<div className="portal-empty">Ainda não há materiais finalizados com arquivos disponíveis.</div>}</div>}</>}
+function AgreementsPage(){const toast=EnvoxersShared.useToast();const meu=Number(localStorage.getItem('portal_contato_id'));const [docs,setDocs]=usePortal(null);const [busy,setBusy]=usePortal(null);const load=()=>PortalAPI.api('/portal/documentos').then(setDocs);usePortalEffect(load,[]);const confirmDoc=async(d)=>{setBusy(d.id);try{await PortalAPI.api(`/portal/documentos/${d.id}/confirmar`,{method:'POST'});toast('Acordo confirmado.','success');load()}catch(e){toast(e.message,'error')}finally{setBusy(null)}};return <><PageHead title="Acordos" sub="Alterações de escopo e documentos que precisam da confirmação dos responsáveis."/>{!docs?<Loading/>:<div className="portal-card">{docs.length?docs.map(d=>{const pending=d.status==='aguardando_confirmacoes'&&d.confirmacoes.some(c=>c.cliente_contato_id===meu&&!c.confirmado_em);return <div className="portal-doc" key={d.id}><div className="portal-list-main"><div className="portal-list-title">{d.motivo}</div><div className="portal-list-meta">{d.itens_alterados.map(i=>`${i.tipo}: ${i.quantidade_anterior} → ${i.quantidade_nova}`).join(' · ')}</div></div><span className={`portal-pill ${d.status==='vigente'?'green':'amber'}`}>{d.status==='vigente'?'vigente':'aguardando'}</span>{pending&&<button className="portal-btn primary small" onClick={()=>confirmDoc(d)} disabled={busy===d.id}>{busy===d.id?'Confirmando…':'Confirmar'}</button>}</div>}):<div className="portal-empty">Nenhum acordo ou alteração de escopo registrado.</div>}</div>}</>}
+
+function PortalShell(){const nome=localStorage.getItem('portal_nome')||'';const cliente=localStorage.getItem('portal_cliente_nome')||'';const [route,setRoute]=usePortal('home');const [requestOpen,setRequestOpen]=usePortal(false);const [mobile,setMobile]=usePortal(false);const go=(r,newReq=false)=>{setRoute(r);setRequestOpen(newReq);setMobile(false)};const logout=()=>{PortalAPI.clearSession();window.location.reload()};const labels={home:'Início',solicitacoes:'Solicitações',andamento:'Em andamento',aprovacoes:'Aprovações',campanhas:'Campanhas',biblioteca:'Biblioteca',acordos:'Acordos'};return <div className="portal-app"><aside className={`portal-sidebar ${mobile?'open':''}`}><div className="portal-brand"><div className="portal-brand-mark"/><div><div className="portal-brand-title">{cliente||'Cliente'}</div><div className="portal-brand-sub">Portal Envox</div></div></div><div className="portal-nav-title">Comunicação</div><nav className="portal-nav">{NAV.slice(0,6).map(([r,l,i])=><button key={r} className={route===r?'active':''} onClick={()=>go(r)}><PortalIcon name={i}/>{l}</button>)}</nav><div className="portal-nav-title" style={{marginTop:14}}>Conta</div><nav className="portal-nav">{NAV.slice(6).map(([r,l,i])=><button key={r} className={route===r?'active':''} onClick={()=>go(r)}><PortalIcon name={i}/>{l}</button>)}</nav><div className="portal-sidebar-foot"><div className="portal-client">{nome}</div><div className="portal-user">{cliente}</div><button className="portal-logout" onClick={logout}>Sair do portal</button></div></aside><main className="portal-main"><header className="portal-topbar"><div style={{display:'flex',alignItems:'center',gap:10}}><button className="portal-mobile-menu" onClick={()=>setMobile(!mobile)}><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button><div className="portal-crumb">{cliente} / {labels[route]}</div></div><div className="portal-context"><span>{nome.split(' ')[0]}</span><div className="portal-avatar">{initials(nome)}</div></div></header><div className="portal-content">{route==='home'&&<HomePage go={go}/>} {route==='solicitacoes'&&<RequestsPage openOnLoad={requestOpen}/>} {route==='andamento'&&<ProgressPage/>} {route==='aprovacoes'&&<ApprovalsPage/>} {route==='campanhas'&&<CampaignsPage/>} {route==='biblioteca'&&<LibraryPage/>} {route==='acordos'&&<AgreementsPage/>}</div></main></div>}
+
+function PortalRoot(){const params=new URLSearchParams(window.location.search);const token=params.get('token');const [defined,setDefined]=usePortal(false);const [logged,setLogged]=usePortal(!!PortalAPI.getToken());if(token&&!defined)return <EnvoxersShared.ToastProvider><PortalDefinirSenhaScreen token={token} onDefinida={()=>{window.history.replaceState({},'',window.location.pathname);setDefined(true)}}/></EnvoxersShared.ToastProvider>;if(!logged)return <EnvoxersShared.ToastProvider><PortalLoginScreen onLoggedIn={()=>setLogged(true)}/></EnvoxersShared.ToastProvider>;return <EnvoxersShared.ToastProvider><PortalShell/></EnvoxersShared.ToastProvider>}
+const portalRoot=ReactDOM.createRoot(document.getElementById('root'));portalRoot.render(<PortalRoot/>);
