@@ -1,0 +1,27 @@
+services:
+  skills-preview:
+    image: nginx:alpine
+    container_name: envox-skills-preview
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18188:80"
+    volumes:
+      - ./frontend/public:/usr/share/nginx/html:ro
+    networks:
+      - skills-staging
+
+  skills-core:
+    build:
+      context: ./skills_core
+      dockerfile: Dockerfile
+    container_name: envox-skills-core-staging
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18189:8080"
+    networks:
+      - skills-staging
+
+networks:
+  skills-staging:
+    name: envox-skills-staging_internal
+    driver: bridge

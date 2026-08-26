@@ -1,0 +1,70 @@
+services:
+  client-dev-postgres:
+    image: postgres:15-alpine
+    container_name: envox-client-dev-postgres
+    restart: unless-stopped
+    env_file:
+      - .env.client-dev
+    environment:
+      POSTGRES_DB: ${CLIENT_DEV_DB_NAME}
+      POSTGRES_USER: ${CLIENT_DEV_DB_USER}
+      POSTGRES_PASSWORD: ${CLIENT_DEV_DB_PASSWORD}
+    volumes:
+      - envox-client-dev-postgres-data:/var/lib/postgresql/data
+    networks:
+      - client-dev-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CLIENT_DEV_DB_USER} -d ${CLIENT_DEV_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  client-dev-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: envox-client-dev-backend
+    restart: unless-stopped
+    env_file:
+      - .env.client-dev
+    depends_on:
+      client-dev-postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18191:8000"
+    volumes:
+      - envox-client-dev-uploads:/app/uploads
+    networks:
+      - client-dev-internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  client-dev-frontend:
+    image: nginx:alpine
+    container_name: envox-client-dev-frontend
+    restart: unless-stopped
+    depends_on:
+      client-dev-backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18190:80"
+    volumes:
+      - ./frontend/public:/usr/share/nginx/html:ro
+      - ./infra/nginx/client-dev.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - client-dev-internal
+
+networks:
+  client-dev-internal:
+    name: envox-client-dev_internal
+    driver: bridge
+
+volumes:
+  envox-client-dev-postgres-data:
+    name: envox-client-dev_postgres_data
+  envox-client-dev-uploads:
+    name: envox-client-dev_uploads

@@ -31,3 +31,6 @@ build/
 # Local operational artifacts
 backups/
 CREDENCIAIS_TESTER.md
+
+# Local staging credentials
+.client-dev-demo

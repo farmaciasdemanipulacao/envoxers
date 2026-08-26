@@ -30,6 +30,9 @@ class Tarefa(Base, TimestampMixin):
     servico_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("servico.id", ondelete="SET NULL"), nullable=True
     )
+    campanha_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("campanha.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     # Controle de entregáveis — quando a tarefa é finalizada, conta como entrega
     # deste item no mês (reconciliação contratado × entregue).
     item_escopo_id: Mapped[Optional[int]] = mapped_column(

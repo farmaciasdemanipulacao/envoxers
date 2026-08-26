@@ -707,6 +707,7 @@ function AppShell() {
     "config-alertas": "Admin / Configuração de Alertas",
     "foco-ativos": "Operação / Quem está em Foco",
     f4: "Desenvolvimento / PDI, 360, 180, 1:1 e Clima",
+    skills: "Envox Skills / SECOVI-PR",
   };
 
   // Onboarding obrigatório (D-114) vem antes de qualquer outra coisa — inclusive
@@ -815,6 +816,7 @@ function AppShell() {
         {view === "config-alertas" && <ConfigAlertasScreen permissao={permissao} />}
         {view === "foco-ativos" && <FocoAtivosScreen onAbrirTarefa={abrirTarefa} />}
         {view === "f4" && <F4Screen permissao={permissao} envoxerId={envoxerId} />}
+        {view === "skills" && <EnvoxSkillsScreen permissao={permissao} />}
         {view === "configuracoes" && (
           <ConfiguracoesScreen
             item={configItem}

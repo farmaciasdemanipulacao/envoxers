@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Envox Skills · Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="envox-tokens.css" />
+  <link rel="stylesheet" href="envox-skills.css" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>body{background:#F7F7F4}.skills-preview-top{height:44px;background:#fff;border-bottom:1px solid #e7e5df;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:11px;color:#777}.skills-preview-top b{color:#162743}.skills-preview-tag{font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;background:#FBF3E6;color:#8A5A12;padding:4px 7px;border-radius:99px}</style>
+</head>
+<body>
+  <div class="skills-preview-top"><div><b>Envox Skills</b> · preview isolado</div><span class="skills-preview-tag">sem backend real</span></div>
+  <div id="root"></div>
+  <script type="text/babel" src="tc-skills.jsx"></script>
+  <script type="text/babel">
+    ReactDOM.createRoot(document.getElementById('root')).render(<EnvoxSkillsScreen permissao="admin" />);
+  </script>
+</body>
+</html>
