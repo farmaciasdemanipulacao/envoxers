@@ -38,6 +38,12 @@ class EtapaTemplateUpdate(BaseModel):
     responsavel_padrao_envoxer_id: Optional[int] = None
 
 
+class EtapaTemplateReordenar(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ids_em_ordem: list[int]
+
+
 class EtapaTemplateResponse(BaseModel):
     id: int
     servico_id: int

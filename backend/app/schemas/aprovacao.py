@@ -10,6 +10,9 @@ class AprovacaoDecisaoCreate(BaseModel):
     comentario: Optional[str] = None
     # Nome de quem decidiu do lado do cliente — só faz sentido quando etapa=cliente.
     decidido_por_cliente_nome: Optional[str] = None
+    # Obrigatório quando decisao=pediu_ajuste — 1 Etapa "Ajustar" é criada por
+    # responsável (ver app/api/routes/aprovacoes.py::_criar_etapas_ajuste).
+    responsaveis_ajuste: list[int] = []
 
 
 class AprovacaoResponse(BaseModel):
@@ -28,6 +31,8 @@ class AprovacaoResponse(BaseModel):
 class AlteracaoCreate(BaseModel):
     descricao: str
     solicitante_cliente_nome: Optional[str] = None
+    # Obrigatório — mesmo esquema de _criar_etapas_ajuste da aprovação interna.
+    responsaveis_ajuste: list[int] = []
 
 
 class AlteracaoUpdate(BaseModel):

@@ -19,6 +19,21 @@ const SINAL_HLP = {
   pulso: "sig_pulso", margem: "sig_margem", silencio: "sig_silencio", whatsapp: "sig_whatsapp",
 };
 
+// Espelha 1:1 os pesos/faixas de services/farol.py — qualquer mudança de
+// critério lá precisa ser replicada aqui também (mesmo padrão de duplicação
+// intencional já usado nos tooltips sig_*, pra não acoplar o texto explicativo
+// ao HTML interno do tooltip de hover).
+const CRITERIOS_FAROL = [
+  { sinal: "entrega", label: "Entrega no prazo", peso: 15, regra: "% de tarefas finalizadas no prazo, últimos 90 dias", verde: "≥ 80%", amarelo: "50–79%", vermelho: "< 50%" },
+  { sinal: "atrasadas", label: "Tarefas atrasadas", peso: 15, regra: "tarefas com prazo vencido e ainda não finalizadas, agora", verde: "0", amarelo: "1–2", vermelho: "3 ou mais" },
+  { sinal: "alteracoes", label: "Alterações acima do limite", peso: 10, regra: "tarefas com mais alterações que o limite do escopo do cliente, últimos 90 dias", verde: "nenhuma", amarelo: "1", vermelho: "2 ou mais" },
+  { sinal: "aprovacoes", label: "Aprovações paradas", peso: 10, regra: "tarefas paradas há mais de 5 dias em Revisão interna ou Aprovação cliente", verde: "0", amarelo: "1", vermelho: "2 ou mais" },
+  { sinal: "pulso", label: "Pulso de satisfação", peso: 25, regra: "nota mensal 0–10 dada pelo cliente", verde: "≥ 8", amarelo: "6–7", vermelho: "≤ 5" },
+  { sinal: "margem", label: "Margem", peso: 15, regra: "(contrato − custo em horas de Foco) ÷ contrato, últimos 30 dias", verde: "≥ 40%", amarelo: "20–39%", vermelho: "< 20%" },
+  { sinal: "silencio", label: "Silêncio do cliente", peso: 10, regra: "dias desde o último check-in registrado", verde: "≤ 15 dias", amarelo: "16–30 dias", vermelho: "mais de 30 dias" },
+  { sinal: "whatsapp", label: "Termômetro WhatsApp", peso: 0, regra: "viria de integração com WhatsApp — ainda não existe no Envoxers", verde: "—", amarelo: "—", vermelho: "sempre \"sem dado\" (peso 0, não entra na conta)" },
+];
+
 function FarolDot({ cor, sem_dado }) {
   if (sem_dado) {
     return <span className="farol-dot" style={{ width: 7, height: 7, borderRadius: "50%", display: "inline-block", background: "var(--ink-4)", boxShadow: "none" }}></span>;
@@ -34,6 +49,7 @@ function FarolScreen({ permissao }) {
   const [filtro, setFiltro] = useStateFarol("todos");
   const [detalhe, setDetalhe] = useStateFarol(null);
   const [scoreDelta, setScoreDelta] = useStateFarol(null);
+  const [criteriosAbertos, setCriteriosAbertos] = useStateFarol(false);
 
   const carregar = async () => {
     setLoading(true);
@@ -110,6 +126,51 @@ function FarolScreen({ permissao }) {
           <div className="kpi-value" style={{ color: "var(--farol-verde)" }}>{kpis.verdes}</div>
           <div className="kpi-hint">saudáveis · foco: manter</div>
         </div>
+      </div>
+
+      <div className="note-bar" style={{ cursor: "pointer" }} onClick={() => setCriteriosAbertos((v) => !v)}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div>
+            <strong>Como o Farol é calculado.</strong> 8 sinais ponderados viram um health score de 0–100 — <strong>2+ sinais vermelhos força o farol geral pra vermelho</strong>, mesmo que o score isolado desse amarelo.
+          </div>
+          <span style={{ fontSize: 11, color: "var(--ink-3)", whiteSpace: "nowrap", flexShrink: 0 }}>{criteriosAbertos ? "recolher ▲" : "ver os 8 critérios ▼"}</span>
+        </div>
+        {criteriosAbertos && (
+          <div onClick={(e) => e.stopPropagation()} style={{ cursor: "default", marginTop: 12 }}>
+            <div style={{ marginBottom: 10 }}>
+              Faixas do farol geral, a partir do health score e da quantidade de sinais vermelhos:
+              {" "}<strong style={{ color: "var(--farol-verde)" }}>verde</strong> — score ≥ 75 e nenhum sinal vermelho;
+              {" "}<strong style={{ color: "var(--farol-amarelo)" }}>amarelo</strong> — score 50–74, ou 1 sinal vermelho mesmo com score alto;
+              {" "}<strong style={{ color: "var(--farol-vermelho)" }}>vermelho</strong> — score &lt; 50, ou 2+ sinais vermelhos mesmo com score alto.
+            </div>
+            <div className="table-wrap">
+              <table style={{ fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th>Sinal</th>
+                    <th style={{ width: 50, textAlign: "right" }}>Peso</th>
+                    <th>Como é medido</th>
+                    <th style={{ color: "var(--farol-verde)" }}>Verde</th>
+                    <th style={{ color: "var(--farol-amarelo)" }}>Amarelo</th>
+                    <th style={{ color: "var(--farol-vermelho)" }}>Vermelho</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {CRITERIOS_FAROL.map((c) => (
+                    <tr key={c.sinal}>
+                      <td className="td-primary">{c.label}</td>
+                      <td className="td-num" style={{ textAlign: "right" }}>{c.peso}</td>
+                      <td>{c.regra}</td>
+                      <td>{c.verde}</td>
+                      <td>{c.amarelo}</td>
+                      <td>{c.vermelho}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="toolbar">

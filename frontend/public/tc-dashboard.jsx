@@ -30,6 +30,89 @@ function fmtPrazoDash(prazo) {
 const FAROL_LABELS_DASH = { verde: "Verde", amarelo: "Amarelo", vermelho: "Vermelho" };
 const FAROL_CORES_DASH = { verde: "var(--farol-verde)", amarelo: "var(--farol-amarelo)", vermelho: "var(--farol-vermelho)" };
 
+// Lista reorganizável (drag-and-drop) das "prioridades de hoje" — usada tanto
+// pro bloco de Cards quanto pro de Tarefas/Etapas. Ordem local é otimista
+// (arrastar já reflete na hora); o PATCH persiste a ordem final no drop, mesmo
+// padrão de tc-servicos.jsx::EtapasTemplateModal (reordenar etapas-modelo).
+function PrioridadeListaDash({ tipo, itensBase, ownerId, podeArrastar, onAbrir, toast }) {
+  const [itens, setItens] = useStateDash(itensBase);
+  const [dragId, setDragId] = useStateDash(null);
+  const [salvando, setSalvando] = useStateDash(false);
+
+  useEffectDash(() => { setItens(itensBase); }, [itensBase]);
+
+  const handleDragStart = (e, item) => {
+    if (!podeArrastar || salvando) return;
+    setDragId(item.id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(item.id));
+  };
+
+  const handleDragOverItem = (e, item) => {
+    if (!podeArrastar) return;
+    e.preventDefault();
+    if (dragId === null || dragId === item.id) return;
+    setItens((prev) => {
+      const fromIdx = prev.findIndex((i) => i.id === dragId);
+      const toIdx = prev.findIndex((i) => i.id === item.id);
+      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
+      const next = prev.slice();
+      const [movido] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, movido);
+      return next;
+    });
+  };
+
+  const handleDragEnd = async () => {
+    if (!podeArrastar) return;
+    setDragId(null);
+    setSalvando(true);
+    try {
+      await EnvoxersAPI.api("/tarefas/prioridades-dia", {
+        method: "PATCH",
+        body: JSON.stringify({ tipo, envoxer_id: Number(ownerId), ids_em_ordem: itens.map((i) => i.id) }),
+      });
+    } catch (err) {
+      toast(err.message, "error");
+      setItens(itensBase);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (itens.length === 0) {
+    return <div className="dash-item" style={{ cursor: "default", color: "var(--ink-4)" }}>— nada urgente por aqui —</div>;
+  }
+
+  return (
+    <div className="dash-priority-list">
+      {itens.map((item) => (
+        <div
+          key={item.id}
+          className={"dash-priority-item" + (item.cliente_farol ? " farol-" + item.cliente_farol : "") + (item.atrasada ? " atrasada" : "") + (dragId === item.id ? " dragging" : "")}
+          draggable={podeArrastar}
+          onDragStart={(e) => handleDragStart(e, item)}
+          onDragOver={(e) => handleDragOverItem(e, item)}
+          onDrop={(e) => e.preventDefault()}
+          onDragEnd={handleDragEnd}
+          onClick={() => onAbrir(item)}
+        >
+          {podeArrastar && (
+            <span className="dash-priority-drag-handle" title="Arrastar para reordenar" onClick={(e) => e.stopPropagation()}>
+              <EnvoxersShared.IconArrastar />
+            </span>
+          )}
+          <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, background: item.cliente_farol ? FAROL_CORES_DASH[item.cliente_farol] : "var(--ink-4)" }}></span>
+          <div className="dash-item-title">
+            {item.cliente_nome} — {tipo === "etapa" ? `${item.tarefa_titulo} · ${item.titulo}` : item.titulo}
+          </div>
+          <span className="dash-item-meta">{fmtPrazoDash(item.prazo)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onNavigate }) {
   const [loading, setLoading] = useStateDash(true);
   const [dados, setDados] = useStateDash(null);
@@ -39,12 +122,15 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
   const [relatorioRapido, setRelatorioRapido] = useStateDash([]);
   const [pendencias, setPendencias] = useStateDash([]);
   const [envoxersList, setEnvoxersList] = useStateDash([]);
-  // Colaborador abre o Dashboard já filtrado nele mesmo (mesmo padrão do Kanban),
-  // continua vendo tudo, só troca quem quiser ver outra pessoa.
-  const [filtroResponsavel, setFiltroResponsavel] = useStateDash(permissao === "envoxer" && envoxerId ? String(envoxerId) : "");
+  // Todo mundo abre o Dashboard já filtrado em si mesmo (colaborador, gestor ou
+  // admin — é a tela inicial do sistema), continua vendo tudo, só troca quem quiser
+  // ver outra pessoa. Esse mesmo filtro é quem define DE QUEM é a lista de
+  // prioridades sendo reorganizada.
+  const [filtroResponsavel, setFiltroResponsavel] = useStateDash(envoxerId ? String(envoxerId) : "");
   const toast = EnvoxersShared.useToast();
   const isAdmin = permissao === "admin";
   const podeVerValores = permissao === "admin";
+  const ehGestorOuAdmin = permissao === "gestor" || permissao === "admin";
 
   const carregar = async () => {
     setLoading(true);
@@ -96,13 +182,13 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
   const hoje = new Date();
   const dataHoje = hoje.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
 
-  const renderLista = (itens, { atrasada } = {}) => {
+  const renderLista = (itens, { atrasada, aoAbrir } = {}) => {
     if (!itens || itens.length === 0) {
       return <div className="dash-item" style={{ cursor: "default", color: "var(--ink-4)" }}>— nada por aqui —</div>;
     }
     return itens.map((item) => (
-      <div key={item.id} className={"dash-item" + (atrasada ? " atrasada" : "")} onClick={() => onAbrirTarefa(item.id)}>
-        <div className="dash-item-title">{item.cliente_nome} — {item.titulo}</div>
+      <div key={item.id} className={"dash-item" + (atrasada ? " atrasada" : "")} onClick={() => (aoAbrir ? aoAbrir(item) : onAbrirTarefa(item.id))}>
+        <div className="dash-item-title">{item.cliente_nome} — {item.tarefa_titulo ? `${item.tarefa_titulo} · ${item.titulo}` : item.titulo}</div>
         <span className="dash-item-meta">{fmtPrazoDash(item.prazo)}</span>
       </div>
     ));
@@ -118,12 +204,22 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
 
   const filtrar = (lista) => (filtroResponsavel ? lista.filter((t) => String(t.responsavel_envoxer_id) === filtroResponsavel) : lista);
 
+  // Reordenar só faz sentido com UMA pessoa selecionada (a lista mistura donos
+  // diferentes em "Todos") — envoxer só reorganiza a própria, gestor/admin
+  // reorganizam a de qualquer um (basta escolher no filtro acima).
+  const temPessoaSelecionada = !!filtroResponsavel;
+  const podeArrastar = temPessoaSelecionada && (ehGestorOuAdmin || filtroResponsavel === String(envoxerId));
+  const cardsPrioridades = filtrar(dados.cards.prioridades_hoje);
+  const etapasPrioridades = filtrar(dados.etapas.prioridades_hoje);
+  const qtdAtrasadasCards = cardsPrioridades.filter((i) => i.atrasada).length;
+  const qtdAtrasadasEtapas = etapasPrioridades.filter((i) => i.atrasada).length;
+
   return (
     <div className="page">
       <div className="page-header">
         <div className="page-title-block">
           <h1>Dashboard do dia</h1>
-          <div className="page-sub">O que precisa acontecer hoje — atrasos, aprovações e o que vence nos próximos 3 dias.</div>
+          <div className="page-sub">O que precisa acontecer hoje — separado entre prazo de card e prazo de tarefa/etapa, ordenado por prioridade.</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <select className="chip" value={filtroResponsavel} onChange={(e) => setFiltroResponsavel(e.target.value)}>
@@ -137,28 +233,46 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
       </div>
 
       <div className="dash-grid">
-        <div className="dash-card">
+        <div className="dash-card dash-priority-card">
           <div className="dash-card-head">
-            <div className="dash-card-title">Em andamento <EnvoxersShared.HelpIcon helpKey="dash_progress" /></div>
-            <div className="dash-card-count">{filtrar(dados.em_andamento).length}</div>
+            <div className="dash-card-title">📅 Prioridades de hoje — Cards <EnvoxersShared.HelpIcon helpKey="dash_prioridades_cards" /></div>
+            <div className="dash-card-count" style={{ color: qtdAtrasadasCards > 0 ? "var(--farol-vermelho)" : "var(--ink)" }}>{cardsPrioridades.length}</div>
           </div>
-          <div className="dash-list">{renderLista(filtrar(dados.em_andamento))}</div>
+          {!podeArrastar && (
+            <div style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 8, fontStyle: "italic" }}>
+              {temPessoaSelecionada ? "Você só reorganiza as suas próprias prioridades." : "Selecione uma pessoa no filtro acima pra reorganizar a ordem."}
+            </div>
+          )}
+          <PrioridadeListaDash tipo="card" itensBase={cardsPrioridades} ownerId={filtroResponsavel} podeArrastar={podeArrastar} onAbrir={(item) => onAbrirTarefa(item.id)} toast={toast} />
+        </div>
+
+        <div className="dash-card dash-priority-card">
+          <div className="dash-card-head">
+            <div className="dash-card-title">☑️ Prioridades de hoje — Tarefas/Etapas <EnvoxersShared.HelpIcon helpKey="dash_prioridades_etapas" /></div>
+            <div className="dash-card-count" style={{ color: qtdAtrasadasEtapas > 0 ? "var(--farol-vermelho)" : "var(--ink)" }}>{etapasPrioridades.length}</div>
+          </div>
+          {!podeArrastar && (
+            <div style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 8, fontStyle: "italic" }}>
+              {temPessoaSelecionada ? "Você só reorganiza as suas próprias prioridades." : "Selecione uma pessoa no filtro acima pra reorganizar a ordem."}
+            </div>
+          )}
+          <PrioridadeListaDash tipo="etapa" itensBase={etapasPrioridades} ownerId={filtroResponsavel} podeArrastar={podeArrastar} onAbrir={(item) => onAbrirTarefa(item.tarefa_id)} toast={toast} />
         </div>
 
         <div className="dash-card">
           <div className="dash-card-head">
-            <div className="dash-card-title" style={{ color: "var(--farol-vermelho)" }}>Atrasadas <EnvoxersShared.HelpIcon helpKey="dash_late" /></div>
-            <div className="dash-card-count" style={{ color: "var(--farol-vermelho)" }}>{filtrar(dados.atrasadas).length}</div>
+            <div className="dash-card-title">Em andamento <EnvoxersShared.HelpIcon helpKey="dash_progress" /></div>
+            <div className="dash-card-count">{filtrar(dados.cards.em_andamento).length}</div>
           </div>
-          <div className="dash-list">{renderLista(filtrar(dados.atrasadas), { atrasada: true })}</div>
+          <div className="dash-list">{renderLista(filtrar(dados.cards.em_andamento))}</div>
         </div>
 
         <div className="dash-card">
           <div className="dash-card-head">
             <div className="dash-card-title" style={{ color: "var(--farol-amarelo)" }}>Aprovações pendentes <EnvoxersShared.HelpIcon helpKey="dash_approvals" /></div>
-            <div className="dash-card-count" style={{ color: "var(--farol-amarelo)" }}>{filtrar(dados.aprovacoes_pendentes).length}</div>
+            <div className="dash-card-count" style={{ color: "var(--farol-amarelo)" }}>{filtrar(dados.cards.aprovacoes_pendentes).length}</div>
           </div>
-          <div className="dash-list">{renderLista(filtrar(dados.aprovacoes_pendentes))}</div>
+          <div className="dash-list">{renderLista(filtrar(dados.cards.aprovacoes_pendentes))}</div>
         </div>
 
         <div className="dash-card">
@@ -237,10 +351,18 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
 
         <div className="dash-card wide">
           <div className="dash-card-head">
-            <div className="dash-card-title">Vencem nos próximos 3 dias <EnvoxersShared.HelpIcon helpKey="dash_next3" /></div>
-            <div className="dash-card-count">{filtrar(dados.proximas_entregas).length}</div>
+            <div className="dash-card-title">Cards vencendo nos próximos 3 dias <EnvoxersShared.HelpIcon helpKey="dash_next3" /></div>
+            <div className="dash-card-count">{filtrar(dados.cards.proximas_entregas).length}</div>
           </div>
-          <div className="dash-list">{renderLista(filtrar(dados.proximas_entregas))}</div>
+          <div className="dash-list">{renderLista(filtrar(dados.cards.proximas_entregas))}</div>
+        </div>
+
+        <div className="dash-card wide">
+          <div className="dash-card-head">
+            <div className="dash-card-title">Tarefas/Etapas vencendo nos próximos 3 dias <EnvoxersShared.HelpIcon helpKey="dash_next3_etapas" /></div>
+            <div className="dash-card-count">{filtrar(dados.etapas.proximos_3_dias).length}</div>
+          </div>
+          <div className="dash-list">{renderLista(filtrar(dados.etapas.proximos_3_dias), { aoAbrir: (item) => onAbrirTarefa(item.tarefa_id) })}</div>
         </div>
 
         <div className="dash-card wide">

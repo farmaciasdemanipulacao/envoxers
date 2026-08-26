@@ -302,10 +302,23 @@ function ImpersonandoBar({ nomeAtual, nomeAdmin, onVoltar }) {
 }
 
 function AppShell() {
-  const [view, setView] = useStateApp("clientes");
   const nome = localStorage.getItem("envoxers_nome") || "";
   const permissao = localStorage.getItem("envoxers_permissao") || "envoxer";
   const envoxerId = EnvoxersAPI.getEnvoxerId();
+
+  // Tela atual persiste em sessionStorage (não localStorage) por envoxer: um F5 na
+  // mesma aba mantém a pessoa onde estava, mas uma aba/sessão de navegador nova
+  // (login novo, ou outra pessoa no mesmo dispositivo) sempre começa no Dashboard
+  // do dia — sessionStorage soma isso de graça (sobrevive a reload, não a fechar a aba).
+  const viewStorageKey = envoxerId ? `envoxers_view_${envoxerId}` : null;
+  const [view, setView] = useStateApp(() => {
+    const salva = viewStorageKey ? sessionStorage.getItem(viewStorageKey) : null;
+    return salva || "dashboard";
+  });
+  useEffectApp(() => {
+    if (viewStorageKey) sessionStorage.setItem(viewStorageKey, view);
+  }, [view, viewStorageKey]);
+
   const toast = EnvoxersShared.useToast();
   const impersonando = EnvoxersAPI.estaImpersonando();
   const nomeAdminReal = localStorage.getItem("envoxers_admin_nome") || "";
@@ -426,7 +439,16 @@ function AppShell() {
   // "Abrir ficha" do Farol/Alertas navega pra tela Clientes já com o form aberto
   // (não existe view-cliente-ficha separada — decisão já tomada no D-063).
   const [clienteParaAbrir, setClienteParaAbrir] = useStateApp(null);
-  const abrirCliente = (id) => { setClienteParaAbrir(id); setView("clientes"); };
+  // "Cadastros" (Clientes/Envoxers/Serviços) + "Meu Perfil" viraram destinos
+  // dentro de "Configurações" (D-123/D-124) — abrir a ficha de um cliente a
+  // partir de Farol/Alertas/Entregáveis precisa navegar pra lá E já deixar o
+  // destino certo selecionado.
+  const [configItem, setConfigItem] = useStateApp("clientes");
+  const abrirCliente = (id) => {
+    setClienteParaAbrir(id);
+    setConfigItem("clientes");
+    setView("configuracoes");
+  };
 
   // Chat interno — WS vive na raiz pra badge de não lidas funcionar em qualquer tela,
   // não só dentro da tela de Chat. Envio de mensagem continua sendo POST REST (ver tc-chat.jsx);
@@ -484,7 +506,10 @@ function AppShell() {
     const token = EnvoxersAPI.getToken();
     if (!token) return;
     const protocolo = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${protocolo}://${window.location.host}/api/v1/chat/ws?token=${encodeURIComponent(token)}`);
+
+    let ws = null;
+    let reconectarTimeout = null;
+    let desmontado = false;
 
     // Avisa o servidor se a pessoa está REALMENTE prestando atenção no app —
     // é isso que decide se uma mensagem nova de chat vira push (ver
@@ -494,32 +519,56 @@ function AppShell() {
     // então também escuta focus/blur da janela — só conta como "visível" quando
     // a aba está em primeiro plano E a janela tem foco do sistema operacional.
     const enviarVisibilidade = () => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
         const visivel = document.visibilityState === "visible" && document.hasFocus();
         ws.send(JSON.stringify({ tipo: "visibilidade", visivel }));
       }
     };
-    ws.onopen = enviarVisibilidade;
+
+    const conectar = () => {
+      ws = new WebSocket(`${protocolo}://${window.location.host}/api/v1/chat/ws?token=${encodeURIComponent(token)}`);
+      ws.onopen = enviarVisibilidade;
+
+      ws.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          if (data.tipo === "mensagem_nova") {
+            setChatWsEvent(data);
+            agendarRecalculoBadge();
+          } else if (data.tipo === "presenca") {
+            window.EnvoxersPresence.set(data.envoxer_id, data.status);
+          } else if (data.tipo === "tarefa_atualizada") {
+            // Uma Tarefa mudou (própria ação, ação de outro envoxer, ou automação
+            // disparada por uma etapa concluída) — recarrega Kanban/Dashboard sem
+            // precisar de F5. Mesmo gatilho de refetch que já existia só pro botão
+            // de salvar (ver dataVersion), agora também alimentado pelo WS.
+            setDataVersion((v) => v + 1);
+          }
+        } catch (err) { /* ignora frame que não é JSON */ }
+      };
+
+      // Reconecta sozinho depois de qualquer queda (deploy do backend, wifi
+      // instável, notebook saindo de suspensão) — sem isso o realtime pararia
+      // de funcionar silenciosamente até um F5, voltando ao problema que esse
+      // WS existe pra resolver.
+      ws.onclose = () => {
+        if (desmontado) return;
+        reconectarTimeout = setTimeout(conectar, 3000);
+      };
+    };
+    conectar();
+
     document.addEventListener("visibilitychange", enviarVisibilidade);
     window.addEventListener("focus", enviarVisibilidade);
     window.addEventListener("blur", enviarVisibilidade);
 
-    ws.onmessage = (evt) => {
-      try {
-        const data = JSON.parse(evt.data);
-        if (data.tipo === "mensagem_nova") {
-          setChatWsEvent(data);
-          agendarRecalculoBadge();
-        } else if (data.tipo === "presenca") {
-          window.EnvoxersPresence.set(data.envoxer_id, data.status);
-        }
-      } catch (err) { /* ignora frame que não é JSON */ }
-    };
     return () => {
+      desmontado = true;
+      clearTimeout(reconectarTimeout);
       document.removeEventListener("visibilitychange", enviarVisibilidade);
       window.removeEventListener("focus", enviarVisibilidade);
       window.removeEventListener("blur", enviarVisibilidade);
-      ws.close();
+      if (ws) { ws.onclose = null; ws.close(); }
     };
   }, []);
 
@@ -640,10 +689,9 @@ function AppShell() {
   // push (ver mensagem NAVIGATE em index.html / notificationclick em sw.js).
   window.envoxersNavigate = (view) => { if (view) setView(view); };
 
+  const configLabel = { clientes: "Cadastros / Clientes", envoxers: "Cadastros / Envoxers", servicos: "Cadastros / Serviços", perfil: "Meu Perfil" }[configItem];
   const crumbs = {
-    clientes: "Cadastros / Clientes",
-    envoxers: "Cadastros / Envoxers",
-    servicos: "Cadastros / Serviços",
+    configuracoes: `Configurações / ${configLabel}`,
     kanban: "Operação / Kanban",
     dashboard: "Operação / Dashboard do dia",
     calendario: "Operação / Calendário",
@@ -658,7 +706,7 @@ function AppShell() {
     chat: "Chat interno",
     "config-alertas": "Admin / Configuração de Alertas",
     "foco-ativos": "Operação / Quem está em Foco",
-    "meu-perfil": "Meu Perfil",
+    f4: "Desenvolvimento / PDI, 360, 180, 1:1 e Clima",
   };
 
   // Onboarding obrigatório (D-114) vem antes de qualquer outra coisa — inclusive
@@ -734,15 +782,6 @@ function AppShell() {
       >
         {impersonando && <ImpersonandoBar nomeAtual={nome} nomeAdmin={nomeAdminReal} onVoltar={handleVoltarImpersonacao} />}
         <EnvoxersShared.Topbar crumb={crumbs[view]} onLogout={handleLogout} onMenuClick={() => setMobileMenuOpen(true)} />
-        {view === "clientes" && (
-          <ClientesScreen
-            permissao={permissao}
-            abrirClienteId={clienteParaAbrir}
-            onClienteAberto={() => setClienteParaAbrir(null)}
-          />
-        )}
-        {view === "envoxers" && <EnvoxersScreen permissao={permissao} />}
-        {view === "servicos" && <ServicosScreen permissao={permissao} />}
         {view === "kanban" && (
           <KanbanScreen
             permissao={permissao}
@@ -775,8 +814,19 @@ function AppShell() {
         {view === "churn" && <ChurnListaScreen />}
         {view === "config-alertas" && <ConfigAlertasScreen permissao={permissao} />}
         {view === "foco-ativos" && <FocoAtivosScreen onAbrirTarefa={abrirTarefa} />}
-        {view === "meu-perfil" && (
-          <MeuPerfilScreen nome={nome} permissao={permissao} fotoUrl={fotoUrl} envoxerId={envoxerId} onFotoAtualizada={atualizarFotoUrl} />
+        {view === "f4" && <F4Screen permissao={permissao} envoxerId={envoxerId} />}
+        {view === "configuracoes" && (
+          <ConfiguracoesScreen
+            item={configItem}
+            onItemChange={setConfigItem}
+            permissao={permissao}
+            nome={nome}
+            fotoUrl={fotoUrl}
+            envoxerId={envoxerId}
+            onFotoAtualizada={atualizarFotoUrl}
+            clienteParaAbrir={clienteParaAbrir}
+            onClienteAberto={() => setClienteParaAbrir(null)}
+          />
         )}
         {view === "chat" && (
           <ChatScreen envoxersList={envoxersList} wsEvent={chatWsEvent} onLeituraAtualizada={agendarRecalculoBadge} />

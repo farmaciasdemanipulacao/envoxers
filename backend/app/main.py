@@ -17,7 +17,8 @@ from app.models.servico import Servico
 from app.models.motivo_churn import MotivoChurnCatalogo
 from app.models.chat_canal import ChatCanal
 from app.models.alerta_config import AlertaConfig
-from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth, item_escopo, documento_acordo, portal_documentos, acessos
+from app.models.competencia_catalogo import CompetenciaCatalogo
+from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth, item_escopo, documento_acordo, portal_documentos, acessos, pdi, ciclos, avaliacao_360, avaliacao_180, feedback_1a1, clima
 
 logger = structlog.get_logger()
 
@@ -46,6 +47,16 @@ ALERTAS_CONFIG_PADRAO = [
     ("farol_sinal_silencio", "Sinal: Silêncio do cliente", "farol", "Dispara quando o sinal de silêncio piora, isoladamente.", False, ["admin", "gestor"]),
     ("chat_dm", "Mensagem direta no chat", "chat", "Dispara quando alguém manda uma DM pra um envoxer que não está com a aba visível.", True, None),
     ("chat_geral", "Mensagem no chat (geral/cliente)", "chat", "Dispara quando alguém manda mensagem no canal geral ou de um cliente, pra quem não está com a aba visível.", True, None),
+]
+
+# F4 (D-121) — catálogo inicial de competências do Feedback 360°, editável depois pelo admin.
+COMPETENCIAS_360_PADRAO = [
+    ("Comunicação", "Clareza e frequência ao se comunicar com o time e com clientes.", 10),
+    ("Qualidade técnica", "Domínio técnico e capricho na entrega do próprio trabalho.", 20),
+    ("Colaboração", "Disposição pra ajudar, dar e receber feedback, trabalhar em equipe.", 30),
+    ("Proatividade", "Antecipa problemas e propõe solução sem esperar ser cobrado.", 40),
+    ("Cumprimento de prazos", "Entrega no prazo combinado, avisa cedo quando não vai dar.", 50),
+    ("Organização", "Prioriza bem, mantém tarefas/etapas em dia, não deixa solto.", 60),
 ]
 
 MOTIVOS_CHURN_PADRAO = [
@@ -129,6 +140,13 @@ async def seed_dados_iniciais():
             await db.commit()
             logger.info("alertas_config_seed_criado", novas=[n[0] for n in novas])
 
+        result = await db.execute(select(CompetenciaCatalogo))
+        if result.scalars().first() is None:
+            for nome, descricao, ordem in COMPETENCIAS_360_PADRAO:
+                db.add(CompetenciaCatalogo(nome=nome, descricao=descricao, ordem=ordem))
+            await db.commit()
+            logger.info("competencias_360_seed_criado")
+
         result = await db.execute(select(ChatCanal).where(ChatCanal.tipo == "geral"))
         if result.scalar_one_or_none() is None:
             db.add(ChatCanal(tipo="geral"))
@@ -175,6 +193,12 @@ app.include_router(item_escopo.router, prefix=API_PREFIX)
 app.include_router(documento_acordo.router, prefix=API_PREFIX)
 app.include_router(portal_documentos.router, prefix=API_PREFIX)
 app.include_router(acessos.router, prefix=API_PREFIX)
+app.include_router(pdi.router, prefix=API_PREFIX)
+app.include_router(ciclos.router, prefix=API_PREFIX)
+app.include_router(avaliacao_360.router, prefix=API_PREFIX)
+app.include_router(avaliacao_180.router, prefix=API_PREFIX)
+app.include_router(feedback_1a1.router, prefix=API_PREFIX)
+app.include_router(clima.router, prefix=API_PREFIX)
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount(f"{API_PREFIX}/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")

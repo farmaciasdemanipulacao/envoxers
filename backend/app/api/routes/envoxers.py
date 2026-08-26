@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, get_current_envoxer, oauth2_scheme
+from app.api.deps import get_current_admin, get_current_envoxer, get_current_gestor_ou_admin, oauth2_scheme
 from app.core.security import create_access_token, decode_access_token, hash_password
 from app.core.uploads import salvar_foto_avatar
 from app.core.valores import redigir
@@ -13,7 +13,14 @@ from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.impersonacao_log import ImpersonacaoLog
 from app.schemas.auth import Token
-from app.schemas.envoxer import EnvoxerCreate, EnvoxerUpdate, EnvoxerResponse
+from app.schemas.envoxer import (
+    EnvoxerCreate,
+    EnvoxerUpdate,
+    EnvoxerResponse,
+    EnvoxerDesativarRequest,
+    TransferenciaResumo,
+)
+from app.services.transferencia_envoxer import transferir_pendencias
 
 router = APIRouter(prefix="/envoxers", tags=["envoxers"])
 
@@ -73,17 +80,11 @@ async def atualizar_envoxer(
     if envoxer is None:
         raise HTTPException(status_code=404, detail="Envoxer não encontrado")
 
-    estava_ativo = envoxer.ativo
-
     updates = payload.model_dump(exclude_unset=True, exclude={"senha"})
     for field, value in updates.items():
         setattr(envoxer, field, value)
     if payload.senha:
         envoxer.senha_hash = hash_password(payload.senha)
-
-    # Fluxo real de "exclusão" no frontend é este PATCH (radio Ativo: Sim/Não), não o DELETE abaixo.
-    if estava_ativo and envoxer.ativo is False:
-        _liberar_email(envoxer)
 
     if "salario_mensal" in updates or "horas_mes" in updates:
         if envoxer.salario_mensal is not None:
@@ -192,18 +193,54 @@ async def upload_foto_de(
     return alvo
 
 
-@router.delete("/{envoxer_id}", status_code=204)
-async def desativar_envoxer(
+@router.post("/{envoxer_id}/ativar", response_model=EnvoxerResponse)
+async def ativar_envoxer(
     envoxer_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
-    """Soft delete — envoxer não some, só some das seleções (ativo=False); e-mail liberado para reuso."""
     result = await db.execute(select(Envoxer).where(Envoxer.id == envoxer_id))
     envoxer = result.scalar_one_or_none()
     if envoxer is None:
         raise HTTPException(status_code=404, detail="Envoxer não encontrado")
-    if envoxer.ativo:
-        _liberar_email(envoxer)
+    envoxer.ativo = True
+    await db.flush()
+    await db.refresh(envoxer)
+    return envoxer
+
+
+@router.post("/{envoxer_id}/desativar", response_model=TransferenciaResumo)
+async def desativar_envoxer(
+    envoxer_id: int,
+    payload: EnvoxerDesativarRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    quem_desativa: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+):
+    """Troca de pessoa: desativar exige escolher um substituto ativo, que recebe as
+    etapas abertas/atrasadas, as etapas-modelo padrão e a ordem manual de prioridade
+    dessa pessoa. Etapas já concluídas mantêm o nome de quem saiu (histórico intacto)."""
+    if envoxer_id == quem_desativa.id:
+        raise HTTPException(status_code=400, detail="Você não pode desativar sua própria conta")
+    if envoxer_id == payload.substituto_id:
+        raise HTTPException(status_code=400, detail="O substituto não pode ser a própria pessoa desativada")
+
+    result = await db.execute(select(Envoxer).where(Envoxer.id == envoxer_id))
+    envoxer = result.scalar_one_or_none()
+    if envoxer is None:
+        raise HTTPException(status_code=404, detail="Envoxer não encontrado")
+    if not envoxer.ativo:
+        raise HTTPException(status_code=400, detail="Envoxer já está inativo")
+
+    substituto = (
+        await db.execute(select(Envoxer).where(Envoxer.id == payload.substituto_id))
+    ).scalar_one_or_none()
+    if substituto is None or not substituto.ativo:
+        raise HTTPException(status_code=400, detail="Substituto inválido — precisa ser um envoxer ativo")
+
+    resumo = await transferir_pendencias(db, envoxer_id, payload.substituto_id)
+
+    _liberar_email(envoxer)
     envoxer.ativo = False
     await db.flush()
+
+    return TransferenciaResumo(substituto_nome=substituto.nome, **resumo)

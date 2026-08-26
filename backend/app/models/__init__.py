@@ -36,3 +36,13 @@ from app.models.etapa_template import EtapaTemplate  # noqa: F401
 from app.models.automacao_etapa_template import AutomacaoEtapaTemplate  # noqa: F401
 from app.models.impersonacao_log import ImpersonacaoLog  # noqa: F401
 from app.models.acesso_log import AcessoLog  # noqa: F401
+from app.models.prioridade_manual import PrioridadeManual  # noqa: F401
+from app.models.pdi_acao import PdiAcao  # noqa: F401
+from app.models.pdi_acao_comentario import PdiAcaoComentario  # noqa: F401
+from app.models.ciclo_avaliacao import CicloAvaliacao  # noqa: F401
+from app.models.competencia_catalogo import CompetenciaCatalogo  # noqa: F401
+from app.models.avaliacao_360 import Avaliacao360  # noqa: F401
+from app.models.avaliacao_180 import Avaliacao180  # noqa: F401
+from app.models.feedback_1a1 import Feedback1a1  # noqa: F401
+from app.models.pergunta_clima import PerguntaClima  # noqa: F401
+from app.models.resposta_clima import RespostaClima  # noqa: F401

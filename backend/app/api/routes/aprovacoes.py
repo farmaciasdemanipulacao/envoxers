@@ -1,9 +1,9 @@
 """F2 Módulo 1 — Aprovações (interna + cliente) e Alterações contabilizadas."""
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_envoxer
@@ -11,6 +11,7 @@ from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.tarefa import Tarefa
 from app.models.escopo import Escopo
+from app.models.etapa import Etapa
 from app.models.aprovacao import Aprovacao
 from app.models.alteracao import Alteracao
 from app.schemas.aprovacao import (
@@ -20,6 +21,8 @@ from app.schemas.aprovacao import (
     AlteracaoUpdate,
     AlteracaoResponse,
 )
+from app.services.dias_uteis import proximo_dia_util
+from app.services.realtime import notificar_tarefa_atualizada
 
 router = APIRouter(tags=["aprovacoes"])
 
@@ -32,6 +35,60 @@ async def _obter_tarefa_ou_404(db: AsyncSession, tarefa_id: int) -> Tarefa:
     if tarefa is None:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     return tarefa
+
+
+async def _criar_etapas_ajuste(
+    db: AsyncSession, tarefa_id: int, responsaveis_ajuste: list[int], descricao: Optional[str]
+) -> None:
+    """Cria 1 Etapa "Ajustar" por responsável selecionado, com prazo no próximo
+    dia útil — disparado tanto pelo "pediu ajuste" da Revisão interna quanto
+    pela Alteração pedida pelo cliente (mesmo checklist, dois pontos de entrada).
+    """
+    if not responsaveis_ajuste:
+        raise HTTPException(status_code=400, detail="Selecione ao menos 1 responsável pelo ajuste")
+
+    result = await db.execute(
+        select(Envoxer.id).where(Envoxer.id.in_(responsaveis_ajuste), Envoxer.ativo.is_(True))
+    )
+    ids_validos = [row[0] for row in result.all()]
+    if not ids_validos:
+        raise HTTPException(status_code=400, detail="Responsável(is) do ajuste inválido(s)")
+
+    # Posiciona logo após a ÚLTIMA etapa já concluída, não no fim da lista —
+    # ajuste pedido pela revisão/cliente é urgente, não deve ficar atrás de
+    # etapas pendentes antigas que ainda nem começaram. Abre espaço deslocando
+    # pra frente (+qtd_novas) quem já estava a partir dali; o cálculo de
+    # bloqueio (etapas.py::_to_response) é sempre recomputado pela ordem atual,
+    # então esse deslocamento não quebra nenhuma trava LIBERAR_PROXIMA_ETAPA já
+    # configurada — etapa concluída nunca bloqueia a seguinte, então a etapa
+    # que agora vem logo depois da última concluída não fica presa por engano.
+    ordem_ultima_concluida = (
+        await db.execute(
+            select(func.max(Etapa.ordem)).where(Etapa.tarefa_id == tarefa_id, Etapa.status == "concluida")
+        )
+    ).scalar()
+    posicao_insercao = (ordem_ultima_concluida + 1) if ordem_ultima_concluida is not None else 0
+    qtd_novas = len(ids_validos)
+
+    await db.execute(
+        update(Etapa)
+        .where(Etapa.tarefa_id == tarefa_id, Etapa.ordem >= posicao_insercao)
+        .values(ordem=Etapa.ordem + qtd_novas)
+    )
+
+    prazo = proximo_dia_util(date.today())
+    for indice, responsavel_id in enumerate(ids_validos):
+        db.add(
+            Etapa(
+                tarefa_id=tarefa_id,
+                titulo="Ajustar",
+                descricao=descricao,
+                responsavel_id=responsavel_id,
+                prazo=prazo,
+                ordem=posicao_insercao + indice,
+            )
+        )
+    await db.flush()
 
 
 @router.post("/tarefas/{tarefa_id}/aprovacao", response_model=AprovacaoResponse, status_code=201)
@@ -59,6 +116,7 @@ async def decidir_aprovacao(
         else:
             if not payload.comentario:
                 raise HTTPException(status_code=400, detail="Comentário é obrigatório ao pedir ajuste")
+            await _criar_etapas_ajuste(db, tarefa.id, payload.responsaveis_ajuste, payload.comentario)
             tarefa.status = "ajustes"
     else:  # cliente
         if tarefa.status != "aprovacao_cliente":
@@ -82,6 +140,7 @@ async def decidir_aprovacao(
     db.add(aprovacao)
     await db.flush()
     await db.refresh(aprovacao)
+    await notificar_tarefa_atualizada(db, tarefa.id)
     return aprovacao
 
 
@@ -114,6 +173,8 @@ async def solicitar_alteracao(
     )
     proximo_numero = numero_result.scalar_one() + 1
 
+    await _criar_etapas_ajuste(db, tarefa_id, payload.responsaveis_ajuste, payload.descricao)
+
     alteracao = Alteracao(
         tarefa_id=tarefa_id,
         numero=proximo_numero,
@@ -132,6 +193,7 @@ async def solicitar_alteracao(
     limite = escopo.limite_alteracoes if escopo else None
     ultrapassou = limite is not None and proximo_numero > limite
 
+    await notificar_tarefa_atualizada(db, tarefa_id)
     return {
         "alteracao": AlteracaoResponse.model_validate(alteracao),
         "limite_alteracoes": limite,

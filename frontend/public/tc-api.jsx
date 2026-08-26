@@ -14,6 +14,12 @@ function setSession(token, nome, permissao, id, fotoUrl) {
 }
 
 function clearSession() {
+  // Some limpa a tela salva desse envoxer (sessionStorage, ver AppShell) — assim um
+  // login novo na mesma aba, logo após logout, também cai no Dashboard do dia em vez
+  // de reabrir a última tela de uma sessão anterior.
+  const idAnterior = localStorage.getItem("envoxers_id");
+  if (idAnterior) sessionStorage.removeItem(`envoxers_view_${idAnterior}`);
+
   localStorage.removeItem("envoxers_token");
   localStorage.removeItem("envoxers_nome");
   localStorage.removeItem("envoxers_permissao");

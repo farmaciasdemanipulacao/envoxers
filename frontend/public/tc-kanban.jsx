@@ -1,4 +1,4 @@
-const { useState: useStateKb, useEffect: useEffectKb, useMemo: useMemoKb } = React;
+const { useState: useStateKb, useEffect: useEffectKb, useMemo: useMemoKb, useRef: useRefKb } = React;
 
 const STATUS_COLS = [
   { key: "nova", label: "Nova demanda", phase: "entrada", helpKey: "kanban_col_nova" },
@@ -53,6 +53,9 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
   // Colaborador sempre abre o Kanban já filtrado nele mesmo (pedido de RBAC) —
   // continua vendo o board inteiro, só o filtro já vem pré-marcado, e dá pra trocar.
   const [filtroResponsavel, setFiltroResponsavel] = useStateKb(permissao === "envoxer" && envoxerId ? String(envoxerId) : "");
+  // "card" = responsavel_envoxer_id do card (como sempre foi); "tarefa" = responsável
+  // de alguma Etapa/checklist pendente do card, mesmo sem ser o dono do card (D-117).
+  const [filtroResponsavelModo, setFiltroResponsavelModo] = useStateKb("card");
   const [filtroStatus, setFiltroStatus] = useStateKb("");
   const [filtroAtrasadas, setFiltroAtrasadas] = useStateKb(false);
   const [ocultarFinalizadas, setOcultarFinalizadas] = useStateKb(true);
@@ -82,13 +85,19 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
     return tarefas.filter((t) => {
       if (ocultarFinalizadas && t.status === "finalizado") return false;
       if (filtroCliente && String(t.cliente_id) !== filtroCliente) return false;
-      if (filtroResponsavel && String(t.responsavel_envoxer_id) !== filtroResponsavel) return false;
+      if (filtroResponsavel) {
+        if (filtroResponsavelModo === "tarefa") {
+          if (!(t.etapas_responsaveis_ids || []).map(String).includes(filtroResponsavel)) return false;
+        } else if (String(t.responsavel_envoxer_id) !== filtroResponsavel) {
+          return false;
+        }
+      }
       if (filtroStatus && t.status !== filtroStatus) return false;
       if (filtroAtrasadas && (t.status === "finalizado" || fmtPrazoKb(t.prazo).cls !== "atrasada")) return false;
       if (busca && !t.titulo.toLowerCase().includes(busca.toLowerCase())) return false;
       return true;
     });
-  }, [tarefas, busca, filtroCliente, filtroResponsavel, filtroStatus, filtroAtrasadas, ocultarFinalizadas]);
+  }, [tarefas, busca, filtroCliente, filtroResponsavel, filtroResponsavelModo, filtroStatus, filtroAtrasadas, ocultarFinalizadas]);
 
   const moverCard = async (tarefaId, novoStatus) => {
     setTarefas((prev) => prev.map((t) => (t.id === tarefaId ? { ...t, status: novoStatus } : t)));
@@ -133,6 +142,17 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
             <option value="">Todos os responsáveis</option>
             {envoxersList.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
           </select>
+          {filtroResponsavel && (
+            <select
+              className="chip"
+              value={filtroResponsavelModo}
+              onChange={(e) => setFiltroResponsavelModo(e.target.value)}
+              title="Responsável do card inteiro, ou responsável de alguma tarefa/etapa (checklist) dentro dele"
+            >
+              <option value="card">responsável do Card</option>
+              <option value="tarefa">responsável de Tarefa/Etapa</option>
+            </select>
+          )}
           <select className="chip" value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
             <option value="">Todos os status</option>
             {STATUS_COLS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
@@ -230,6 +250,18 @@ function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
       <div className="kb-card-meta">
         {t.etiqueta && <span className={`tag tag-${t.etiqueta_cor || "cinza"}`}>{t.etiqueta}</span>}
       </div>
+      {t.proxima_etapa_titulo && (
+        <div className="kb-card-etapa" title={t.proxima_etapa_titulo}>
+          <svg className="kb-card-foot-icon" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h3M2 8h3M2 12h3M7 4h7M7 8h7M7 12h7" /></svg>
+          <span className="kb-card-etapa-titulo">{t.proxima_etapa_titulo}</span>
+          {t.proxima_etapa_prazo && (
+            <span className={`prazo ${fmtPrazoKb(t.proxima_etapa_prazo).cls}`}>{fmtPrazoKb(t.proxima_etapa_prazo).txt}</span>
+          )}
+          {t.proxima_etapa_responsavel_nome && (
+            <EnvoxersShared.Avatar nome={t.proxima_etapa_responsavel_nome} fotoUrl={t.proxima_etapa_responsavel_foto} size="sm" className="gray" envoxerId={t.proxima_etapa_responsavel_id} />
+          )}
+        </div>
+      )}
       <div className="kb-card-foot">
         <span className="kb-card-foot-item">
           <svg className="kb-card-foot-icon" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="12" height="10" rx="1" /><path d="M2 7h12M6 2v3M10 2v3" /></svg>
@@ -261,6 +293,33 @@ function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
   );
 }
 
+// Seletor de 1+ responsáveis pelo ajuste — cria 1 Etapa "Ajustar" por pessoa
+// marcada (ver POST /tarefas/{id}/aprovacao e /alteracoes no backend), por
+// isso é sempre obrigatório marcar pelo menos 1 antes de pedir o ajuste.
+function ResponsavelAjusteSeletor({ envoxersList, selecionados, onToggle }) {
+  return (
+    <div className="field">
+      <label>Responsável(is) pelo ajuste <span className="req">*</span></label>
+      <div className="ajuste-responsaveis-lista">
+        {envoxersList.map((env) => {
+          const marcado = selecionados.includes(env.id);
+          return (
+            <button
+              type="button"
+              key={env.id}
+              className={"ajuste-responsavel-pill" + (marcado ? " marcado" : "")}
+              onClick={() => onToggle(env.id)}
+            >
+              <EnvoxersShared.Avatar nome={env.nome} fotoUrl={env.foto_url} size="sm" className="gray" envoxerId={env.id} />
+              {env.nome}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, envoxersList, focoAtivo, focoElapsed, onIniciarFoco, onPausarFoco, onFinalizarFoco, onClose, onSaved }) {
   const isEdit = !!tarefaId;
   const toast = EnvoxersShared.useToast();
@@ -280,14 +339,20 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   const [etiqueta, setEtiqueta] = useStateKb("");
   const [etiquetaCor, setEtiquetaCor] = useStateKb("cinza");
   const [novoComentario, setNovoComentario] = useStateKb("");
+  const [mencaoAberta, setMencaoAberta] = useStateKb(false);
+  const [mencaoQuery, setMencaoQuery] = useStateKb("");
+  const [mencoesSelecionadas, setMencoesSelecionadas] = useStateKb([]);
+  const comentarioTextareaRef = useRefKb(null);
   const [editandoTitulo, setEditandoTitulo] = useStateKb(false);
   const [tituloSalvando, setTituloSalvando] = useStateKb(false);
 
   const [aprovacoes, setAprovacoes] = useStateKb([]);
   const [alteracoesLista, setAlteracoesLista] = useStateKb([]);
   const [ajusteComentario, setAjusteComentario] = useStateKb("");
+  const [ajusteResponsaveis, setAjusteResponsaveis] = useStateKb([]);
   const [alteracaoDescricao, setAlteracaoDescricao] = useStateKb("");
   const [alteracaoSolicitante, setAlteracaoSolicitante] = useStateKb("");
+  const [alteracaoResponsaveis, setAlteracaoResponsaveis] = useStateKb([]);
   const [acaoLoading, setAcaoLoading] = useStateKb(false);
 
   const [etapas, setEtapas] = useStateKb([]);
@@ -404,11 +469,40 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     etiqueta_cor: etiqueta ? etiquetaCor : null,
   });
 
-  const handleSave = async () => {
-    if (!clienteId || !titulo) {
-      toast("Cliente e título são obrigatórios", "error");
+  // true quando algum campo do formulário difere do último estado persistido
+  // (`tarefa`, que é realimentado a cada PATCH/refresh que já acontece durante
+  // a sessão — ex.: editar título, concluir etapa). Evita PATCH desnecessário
+  // ao fechar um card que o usuário só abriu pra olhar.
+  const precisaSalvar = () => {
+    if (!tarefa) return true;
+    const p = buildPayload();
+    return (
+      p.cliente_id !== tarefa.cliente_id ||
+      (p.servico_id || null) !== (tarefa.servico_id || null) ||
+      p.titulo !== tarefa.titulo ||
+      (p.responsavel_envoxer_id || null) !== (tarefa.responsavel_envoxer_id || null) ||
+      p.status !== tarefa.status ||
+      (p.prazo || null) !== (tarefa.prazo || null) ||
+      (p.etiqueta || null) !== (tarefa.etiqueta || null) ||
+      (p.etiqueta_cor || null) !== (tarefa.etiqueta_cor || null)
+    );
+  };
+
+  // Sem botão "Salvar" — fechar o card (X ou clique fora) salva sozinho se
+  // algo mudou. Card novo sem Cliente/Título é descartado ao fechar (nunca
+  // cria uma demanda vazia sem querer).
+  const handleFecharComSalvar = async () => {
+    if (saving) return;
+    if (bloqueado) { onClose(); return; }
+
+    const valido = !!clienteId && !!titulo.trim();
+    if (!valido) {
+      if (titulo.trim() || clienteId) toast("Cliente e título são obrigatórios — alterações não salvas", "error");
+      onClose();
       return;
     }
+    if (isEdit && !precisaSalvar()) { onClose(); return; }
+
     setSaving(true);
     try {
       if (isEdit) {
@@ -416,17 +510,17 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
       } else {
         await EnvoxersAPI.api("/tarefas", { method: "POST", body: JSON.stringify(buildPayload()) });
       }
-      toast("Demanda salva!", "success");
       onSaved();
     } catch (err) {
       toast(err.message, "error");
+      onClose();
     } finally {
       setSaving(false);
     }
   };
 
   // Título clicável no cabeçalho — salva sozinho ao sair do campo, sem fechar o card
-  // (diferente do "Salvar alterações" da sidebar, que salva tudo e fecha o modal).
+  // (diferente de handleFecharComSalvar, que salva o resto do formulário só ao fechar).
   const handleSalvarTitulo = async () => {
     const novoTitulo = titulo.trim();
     if (!novoTitulo) {
@@ -469,16 +563,82 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
 
   const handleComentar = async () => {
     if (!novoComentario.trim()) return;
+    // Só notifica quem ainda está de fato mencionado no texto final — se o
+    // usuário apagou o "@Nome" depois de escolher no dropdown, não manda.
+    const idsMencionados = mencoesSelecionadas
+      .filter((m) => novoComentario.includes("@" + m.nome))
+      .map((m) => m.id);
     try {
       const t = await EnvoxersAPI.api(`/tarefas/${tarefaId}/comentarios`, {
         method: "POST",
-        body: JSON.stringify({ texto: novoComentario }),
+        body: JSON.stringify({ texto: novoComentario, mencoes: idsMencionados }),
       });
       setTarefa(t);
       setNovoComentario("");
+      setMencoesSelecionadas([]);
+      setMencaoAberta(false);
     } catch (err) {
       toast(err.message, "error");
     }
+  };
+
+  // Detecta "@algo" digitado logo antes do cursor (não colado no meio de outra
+  // palavra) pra abrir o dropdown de menção com o texto já filtrado.
+  const handleComentarioChange = (e) => {
+    const val = e.target.value;
+    setNovoComentario(val);
+    const cursor = e.target.selectionStart;
+    const match = val.slice(0, cursor).match(/(?:^|\s)@([^\s@]*)$/);
+    if (match) {
+      setMencaoAberta(true);
+      setMencaoQuery(match[1]);
+    } else {
+      setMencaoAberta(false);
+      setMencaoQuery("");
+    }
+  };
+
+  const handleSelecionarMencao = (env) => {
+    const el = comentarioTextareaRef.current;
+    const cursor = el ? el.selectionStart : novoComentario.length;
+    const textoAteCursor = novoComentario.slice(0, cursor);
+    const atIndex = textoAteCursor.lastIndexOf("@");
+    if (atIndex === -1) return;
+    const antes = novoComentario.slice(0, atIndex);
+    const depois = novoComentario.slice(cursor);
+    const novoTexto = `${antes}@${env.nome} ${depois}`;
+    setNovoComentario(novoTexto);
+    setMencoesSelecionadas((prev) => (prev.some((m) => m.id === env.id) ? prev : [...prev, { id: env.id, nome: env.nome }]));
+    setMencaoAberta(false);
+    setMencaoQuery("");
+    requestAnimationFrame(() => {
+      if (!el) return;
+      const pos = antes.length + env.nome.length + 2;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const mencaoOpcoes = mencaoAberta
+    ? envoxersList.filter((e) => e.nome.toLowerCase().includes(mencaoQuery.toLowerCase())).slice(0, 6)
+    : [];
+
+  // Realça "@Nome" no texto já salvo do comentário, comparando com os envoxers
+  // conhecidos (nomes maiores primeiro pra não bater parcial em nome comum).
+  const destacarMencoes = (texto) => {
+    const nomes = envoxersList.map((e) => e.nome).sort((a, b) => b.length - a.length);
+    if (!texto || nomes.length === 0) return texto;
+    const pattern = new RegExp("@(" + nomes.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b", "g");
+    const partes = [];
+    let ultimo = 0;
+    let m;
+    while ((m = pattern.exec(texto)) !== null) {
+      if (m.index > ultimo) partes.push(texto.slice(ultimo, m.index));
+      partes.push(<span className="comment-mencao" key={m.index}>{"@" + m[1]}</span>);
+      ultimo = m.index + m[0].length;
+    }
+    partes.push(texto.slice(ultimo));
+    return partes;
   };
 
   // As 4 ações abaixo (decisão de aprovação/alteração) validam o STATUS PERSISTIDO no banco,
@@ -507,14 +667,24 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
       toast("Escreva o que precisa ajustar", "error");
       return;
     }
+    if (ajusteResponsaveis.length === 0) {
+      toast("Marque quem é o responsável pelo ajuste", "error");
+      return;
+    }
     setAcaoLoading(true);
     try {
       await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "PATCH", body: JSON.stringify(buildPayload()) });
       await EnvoxersAPI.api(`/tarefas/${tarefaId}/aprovacao`, {
         method: "POST",
-        body: JSON.stringify({ etapa: "interna", decisao: "pediu_ajuste", comentario: ajusteComentario }),
+        body: JSON.stringify({
+          etapa: "interna",
+          decisao: "pediu_ajuste",
+          comentario: ajusteComentario,
+          responsaveis_ajuste: ajusteResponsaveis,
+        }),
       });
       toast("Ajuste solicitado — foi para Ajustes", "success");
+      setAjusteResponsaveis([]);
       onSaved();
     } catch (err) {
       toast(err.message, "error");
@@ -545,6 +715,10 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
       toast("Descreva a alteração pedida pelo cliente", "error");
       return;
     }
+    if (alteracaoResponsaveis.length === 0) {
+      toast("Marque quem é o responsável pelo ajuste", "error");
+      return;
+    }
     setAcaoLoading(true);
     try {
       await EnvoxersAPI.api(`/tarefas/${tarefaId}`, { method: "PATCH", body: JSON.stringify(buildPayload()) });
@@ -553,6 +727,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
         body: JSON.stringify({
           descricao: alteracaoDescricao,
           solicitante_cliente_nome: alteracaoSolicitante || null,
+          responsaveis_ajuste: alteracaoResponsaveis,
         }),
       });
       if (resp.ultrapassou_limite) {
@@ -563,6 +738,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
       } else {
         toast(`Alteração nº ${resp.alteracao.numero} registrada — foi para Ajustes`, "success");
       }
+      setAlteracaoResponsaveis([]);
       onSaved();
     } catch (err) {
       toast(err.message, "error");
@@ -715,9 +891,19 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   const bloqueado = isEdit && !desbloqueado;
   const statusLabel = (STATUS_COLS.find((c) => c.key === status) || {}).label || status;
 
+  // Botão fica clicável mesmo com Foco em outra tarefa — clique gera alerta explícito
+  // em vez de só desabilitar silenciosamente (Gus pediu feedback visível na tentativa).
+  const handleIniciarFoco = () => {
+    if (focoEmOutraTarefa) {
+      toast(`Você já está com um timer aberto em "${focoAtivo.tarefa_titulo || "outra tarefa"}". Finalize-o antes de iniciar outro.`, "error");
+      return;
+    }
+    onIniciarFoco(tarefaId);
+  };
+
   return (
     <>
-    <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) handleFecharComSalvar(); }}>
       <div className="modal">
         <div className="modal-head">
           <div className="modal-eyebrow">
@@ -771,7 +957,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
               autoFocus
             />
           )}
-          <button className="modal-close" onClick={onClose} aria-label="Fechar">
+          <button className="modal-close" onClick={handleFecharComSalvar} aria-label="Fechar">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8" /></svg>
           </button>
         </div>
@@ -782,7 +968,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
           <div className="modal-body">
             <div className="modal-main">
               {isEdit && tarefa?.item_escopo_id && (
-                <>
+                <div className="modal-section" style={{ marginBottom: 14 }}>
                   <div className="modal-section-title">
                     Entregas do mês <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0 }}>
                       ({entregas.filter((e) => e.entregue).length}/{entregas.length})
@@ -805,18 +991,18 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                     ))}
                   </div>
                   {(permissao === "admin" || permissao === "gestor") && (
-                    <button className="btn btn-sm" onClick={handleRegistrarEntregaExtra} disabled={entregaLoading} style={{ marginBottom: 12 }}>
+                    <button className="btn btn-sm" onClick={handleRegistrarEntregaExtra} disabled={entregaLoading} style={{ marginBottom: 0 }}>
                       + Registrar entrega extra
                     </button>
                   )}
-                </>
+                </div>
               )}
 
               {bloqueado ? (
                 <>
                   <div className="foco-lock-banner">
                     <div className="foco-lock-text">Ative o Foco para ver os detalhes e agir nesta tarefa</div>
-                    <button className="btn btn-envox btn-sm" onClick={() => onIniciarFoco(tarefaId)} disabled={!!focoEmOutraTarefa}>
+                    <button className="btn btn-envox btn-sm" onClick={handleIniciarFoco}>
                       <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><path d="M3 2l7 4-7 4z" /></svg>
                       Iniciar Foco
                     </button>
@@ -866,10 +1052,10 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                   )}
                 </>
               ) : (
-                <>
+                <div className="modal-sections">
 
               {isEdit && (
-                <>
+                <div className="modal-section">
                   <div className="modal-section-title">Etapas do processo <EnvoxersShared.HelpIcon helpKey="modal_etapas" /></div>
                   <div className="etapa-list">
                     {etapas.length === 0 && (
@@ -1006,85 +1192,143 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                       </button>
                     </div>
                   )}
-                </>
+                </div>
+              )}
+
+              {isEdit && (
+                <div className="modal-section modal-section-comentarios">
+                  <div className="modal-section-title">Comentários <EnvoxersShared.HelpIcon helpKey="modal_comentarios" /></div>
+                  <div>
+                    {(tarefa?.comentarios || []).map((c, i) => (
+                      <div className="comment" key={i}>
+                        <div className="avatar sm gray">{initialsKb(c.envoxer_nome)}</div>
+                        <div className="comment-body">
+                          <div className="comment-head"><span className="comment-author">{c.envoxer_nome}</span></div>
+                          <div className="comment-text">{destacarMencoes(c.texto)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="comment-box">
+                    <textarea
+                      ref={comentarioTextareaRef}
+                      placeholder="Comentar… use @ pra marcar alguém"
+                      value={novoComentario}
+                      onChange={handleComentarioChange}
+                      onKeyUp={handleComentarioChange}
+                      onBlur={() => setTimeout(() => setMencaoAberta(false), 150)}
+                      onKeyDown={(e) => { if (e.key === "Escape") setMencaoAberta(false); }}
+                    ></textarea>
+                    {mencaoAberta && mencaoOpcoes.length > 0 && (
+                      <div className="mencao-dropdown">
+                        {mencaoOpcoes.map((env) => (
+                          <button
+                            type="button"
+                            key={env.id}
+                            className="mencao-opcao"
+                            onMouseDown={(e) => { e.preventDefault(); handleSelecionarMencao(env); }}
+                          >
+                            <EnvoxersShared.Avatar nome={env.nome} fotoUrl={env.foto_url} size="sm" className="gray" envoxerId={env.id} />
+                            {env.nome}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="comment-box-actions">
+                      <button className="btn btn-envox btn-sm" onClick={handleComentar}>Comentar</button>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {isEdit && status === "revisao_interna" && (permissao === "admin" || permissao === "gestor") && (
-                <>
+                <div className="modal-section">
                   <div className="modal-section-title">Aprovação — Revisão interna <EnvoxersShared.HelpIcon helpKey="modal_aprovacao_int" /></div>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <button className="btn btn-envox btn-sm" onClick={handleAprovarInterno} disabled={acaoLoading}>
-                      Aprovar interno
+
+                  <button className="btn btn-approve" style={{ width: "100%", justifyContent: "center" }} onClick={handleAprovarInterno} disabled={acaoLoading}>
+                    Aprovar internamente
+                  </button>
+
+                  <div className="aprovacao-ajuste-form">
+                    <div className="aprovacao-ajuste-title">ou pedir ajuste</div>
+                    <div className="field">
+                      <label>O que precisa ajustar <span className="req">*</span></label>
+                      <textarea
+                        value={ajusteComentario}
+                        onChange={(e) => setAjusteComentario(e.target.value)}
+                        placeholder="Descreva o que precisa mudar antes de seguir pra aprovação do cliente"
+                      ></textarea>
+                    </div>
+                    <ResponsavelAjusteSeletor
+                      envoxersList={envoxersList}
+                      selecionados={ajusteResponsaveis}
+                      onToggle={(id) => setAjusteResponsaveis((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                    />
+                    <button className="btn btn-reject" style={{ width: "100%", justifyContent: "center" }} onClick={handlePedirAjusteInterno} disabled={acaoLoading}>
+                      Pedir ajuste
                     </button>
                   </div>
-                  <textarea
-                    value={ajusteComentario}
-                    onChange={(e) => setAjusteComentario(e.target.value)}
-                    placeholder="Comentário do ajuste pedido (obrigatório para pedir ajuste)"
-                    style={{ width: "100%", minHeight: 50 }}
-                  ></textarea>
-                  <button
-                    className="btn btn-sm"
-                    style={{ marginTop: 6, color: "var(--farol-amarelo)" }}
-                    onClick={handlePedirAjusteInterno}
-                    disabled={acaoLoading}
-                  >
-                    Pedir ajuste
-                  </button>
-                </>
+                </div>
               )}
 
               {isEdit && status === "revisao_interna" && permissao !== "admin" && permissao !== "gestor" && (
-                <div className="modal-section-title" style={{ color: "var(--ink-4)" }}>
+                <div className="modal-section" style={{ color: "var(--ink-4)", fontSize: 13 }}>
                   Aguardando aprovação do gestor
                 </div>
               )}
 
               {isEdit && status === "aprovacao_cliente" && (
-                <>
+                <div className="modal-section">
                   <div className="modal-section-title">Aprovação — Aprovação cliente <EnvoxersShared.HelpIcon helpKey="modal_aprovacao_cli" /></div>
                   {(() => {
                     const limite = cliente?.escopo?.limite_alteracoes;
                     const qtd = tarefa?.qtd_alteracoes || 0;
                     const noLimite = limite != null && qtd >= limite;
                     return (
-                      <div className="pill" style={{ marginBottom: 8, color: noLimite ? "var(--farol-vermelho)" : "inherit" }}>
-                        Alterações <EnvoxersShared.HelpIcon helpKey="modal_alteracoes" />: {qtd}{limite != null ? ` / ${limite}` : ""}
-                        {noLimite ? " — limite do escopo atingido" : ""}
+                      <div className={"alt-counter" + (noLimite ? " over" : "")} style={{ marginBottom: 12 }}>
+                        <span className="alt-counter-num">{qtd}{limite != null ? ` / ${limite}` : ""}</span>
+                        <span>Alterações <EnvoxersShared.HelpIcon helpKey="modal_alteracoes" />{noLimite ? " — limite do escopo atingido" : ""}</span>
                       </div>
                     );
                   })()}
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <button className="btn btn-envox btn-sm" onClick={handleAprovarCliente} disabled={acaoLoading}>
-                      Aprovar
+
+                  <button className="btn btn-approve" style={{ width: "100%", justifyContent: "center" }} onClick={handleAprovarCliente} disabled={acaoLoading}>
+                    Aprovar
+                  </button>
+
+                  <div className="aprovacao-ajuste-form">
+                    <div className="aprovacao-ajuste-title">ou registrar alteração pedida pelo cliente</div>
+                    <div className="field">
+                      <label>Quem solicitou <span className="hint">opcional</span></label>
+                      <input
+                        type="text"
+                        value={alteracaoSolicitante}
+                        onChange={(e) => setAlteracaoSolicitante(e.target.value)}
+                        placeholder="Nome de quem pediu do lado do cliente"
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Descreva a alteração <span className="req">*</span></label>
+                      <textarea
+                        value={alteracaoDescricao}
+                        onChange={(e) => setAlteracaoDescricao(e.target.value)}
+                        placeholder="O que o cliente pediu pra mudar"
+                      ></textarea>
+                    </div>
+                    <ResponsavelAjusteSeletor
+                      envoxersList={envoxersList}
+                      selecionados={alteracaoResponsaveis}
+                      onToggle={(id) => setAlteracaoResponsaveis((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                    />
+                    <button className="btn btn-reject" style={{ width: "100%", justifyContent: "center" }} onClick={handleSolicitarAlteracao} disabled={acaoLoading}>
+                      Solicitar alteração
                     </button>
                   </div>
-                  <input
-                    type="text"
-                    value={alteracaoSolicitante}
-                    onChange={(e) => setAlteracaoSolicitante(e.target.value)}
-                    placeholder="Nome de quem solicitou do lado do cliente (opcional)"
-                    style={{ width: "100%", marginBottom: 6 }}
-                  />
-                  <textarea
-                    value={alteracaoDescricao}
-                    onChange={(e) => setAlteracaoDescricao(e.target.value)}
-                    placeholder="Descreva a alteração solicitada pelo cliente"
-                    style={{ width: "100%", minHeight: 50 }}
-                  ></textarea>
-                  <button
-                    className="btn btn-sm"
-                    style={{ marginTop: 6, color: "var(--farol-amarelo)" }}
-                    onClick={handleSolicitarAlteracao}
-                    disabled={acaoLoading}
-                  >
-                    Solicitar alteração
-                  </button>
-                </>
+                </div>
               )}
 
               {isEdit && (aprovacoes.length > 0 || alteracoesLista.length > 0) && (
-                <>
+                <div className="modal-section">
                   <div className="modal-section-title">Histórico de aprovações</div>
                   <div>
                     {aprovacoes.map((a) => (
@@ -1113,47 +1357,9 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                       </div>
                     ))}
                   </div>
-                </>
+                </div>
               )}
-
-              {isEdit && (
-                <>
-                  <div className="modal-section-title">
-                    Anexos <EnvoxersShared.HelpIcon helpKey="modal_anexos" /> <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0 }}>· {tarefa?.anexos?.length || 0} arquivo(s)</span>
-                  </div>
-                  <div className="attach-list">
-                    {(tarefa?.anexos || []).map((a, i) => (
-                      <a key={i} className="attach" href={a.url} target="_blank" rel="noreferrer">
-                        <svg className="attach-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="2" width="10" height="12" rx="1" /><path d="M6 6h4M6 9h4M6 12h2" /></svg> {a.nome}
-                      </a>
-                    ))}
-                    <label className="attach" style={{ borderStyle: "dashed", color: "var(--ink-3)", cursor: "pointer" }}>
-                      + Anexar
-                      <input type="file" style={{ display: "none" }} onChange={handleUploadAnexo} />
-                    </label>
-                  </div>
-
-                  <div className="modal-section-title">Comentários <EnvoxersShared.HelpIcon helpKey="modal_comentarios" /></div>
-                  <div>
-                    {(tarefa?.comentarios || []).map((c, i) => (
-                      <div className="comment" key={i}>
-                        <div className="avatar sm gray">{initialsKb(c.envoxer_nome)}</div>
-                        <div className="comment-body">
-                          <div className="comment-head"><span className="comment-author">{c.envoxer_nome}</span></div>
-                          <div className="comment-text">{c.texto}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="comment-box">
-                    <textarea placeholder="Comentar…" value={novoComentario} onChange={(e) => setNovoComentario(e.target.value)}></textarea>
-                    <div className="comment-box-actions">
-                      <button className="btn btn-envox btn-sm" onClick={handleComentar}>Comentar</button>
-                    </div>
-                  </div>
-                </>
-              )}
-                </>
+                </div>
               )}
             </div>
 
@@ -1209,6 +1415,25 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                 </div>
               </div>
 
+              {isEdit && !bloqueado && (
+                <div className="modal-side-block">
+                  <div className="modal-side-label">
+                    Anexos <EnvoxersShared.HelpIcon helpKey="modal_anexos" /> <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0 }}>· {tarefa?.anexos?.length || 0}</span>
+                  </div>
+                  <div className="attach-list">
+                    {(tarefa?.anexos || []).map((a, i) => (
+                      <a key={i} className="attach" href={a.url} target="_blank" rel="noreferrer" title={a.nome}>
+                        <svg className="attach-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="2" width="10" height="12" rx="1" /><path d="M6 6h4M6 9h4M6 12h2" /></svg> {a.nome}
+                      </a>
+                    ))}
+                    <label className="attach" style={{ borderStyle: "dashed", color: "var(--ink-3)", cursor: "pointer" }}>
+                      + Anexar
+                      <input type="file" style={{ display: "none" }} onChange={handleUploadAnexo} />
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {isEdit && (
                 <div className="modal-side-block">
                   <div className="modal-side-label">Foco na tarefa <EnvoxersShared.HelpIcon helpKey="modal_foco" /></div>
@@ -1225,8 +1450,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                     <button
                       className="btn btn-envox btn-sm"
                       style={{ width: "100%", justifyContent: "center", marginTop: 6 }}
-                      onClick={() => onIniciarFoco(tarefaId)}
-                      disabled={!!focoEmOutraTarefa}
+                      onClick={handleIniciarFoco}
                     >
                       <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><path d="M3 2l7 4-7 4z" /></svg>
                       Iniciar Foco
@@ -1236,18 +1460,13 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                 </div>
               )}
 
-              {!bloqueado && (
+              {!bloqueado && isEdit && (
                 <div className="modal-side-block">
                   <div className="modal-side-label">Ações</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
-                    <button className="btn btn-sm" style={{ width: "100%", justifyContent: "flex-start" }} onClick={handleSave} disabled={saving}>
-                      {saving ? "Salvando…" : "Salvar alterações"}
+                    <button className="btn btn-sm" style={{ width: "100%", justifyContent: "flex-start", color: "var(--farol-vermelho)", borderColor: "transparent" }} onClick={handleExcluir}>
+                      Excluir
                     </button>
-                    {isEdit && (
-                      <button className="btn btn-sm" style={{ width: "100%", justifyContent: "flex-start", color: "var(--farol-vermelho)", borderColor: "transparent" }} onClick={handleExcluir}>
-                        Excluir
-                      </button>
-                    )}
                   </div>
                 </div>
               )}

@@ -157,6 +157,15 @@ function IconExcluir(props) {
     </svg>
   );
 }
+function IconArrastar(props) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" {...props}>
+      <circle cx="5" cy="3" r="1.3" /><circle cx="11" cy="3" r="1.3" />
+      <circle cx="5" cy="8" r="1.3" /><circle cx="11" cy="8" r="1.3" />
+      <circle cx="5" cy="13" r="1.3" /><circle cx="11" cy="13" r="1.3" />
+    </svg>
+  );
+}
 
 // Modal "Como fazer" — descrição/passo-a-passo de uma etapa, separado do card
 // pra não bagunçar a lista quando a instrução é longa (D-100).
@@ -404,30 +413,6 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </div>
 
       <div className="nav-section">
-        <div className="nav-section-title">Cadastros</div>
-        <nav className="nav">
-          {item(
-            "clientes",
-            "Clientes",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="5" r="2.5" /><path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5" /></svg>,
-            "nav_clientes"
-          )}
-          {item(
-            "envoxers",
-            "Envoxers",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="6" cy="6" r="2" /><circle cx="11" cy="7" r="1.5" /><path d="M2 13c0-2.2 1.8-4 4-4s4 1.8 4 4" /><path d="M10 13c0-1.7 1.3-3 3-3" /></svg>,
-            "nav_envoxers"
-          )}
-          {item(
-            "servicos",
-            "Serviços",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 4h10M3 8h10M3 12h6" /></svg>,
-            "nav_servicos"
-          )}
-        </nav>
-      </div>
-
-      <div className="nav-section">
         <div className="nav-section-title">F1 · Operação</div>
         <nav className="nav">
           {item(
@@ -523,6 +508,17 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
+      <div className="nav-section">
+        <div className="nav-section-title">F4 · Desenvolvimento</div>
+        <nav className="nav">
+          {item(
+            "f4",
+            "PDI & Feedback",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l1.8 3.7 4.1.6-3 2.9.7 4.1L8 11.3 4.4 13.3l.7-4.1-3-2.9 4.1-.6z" /></svg>
+          )}
+        </nav>
+      </div>
+
       {(permissao === "admin" || permissao === "gestor") && (
         <div className="nav-section">
           <div className="nav-section-title">Admin</div>
@@ -536,7 +532,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </div>
       )}
 
-      <div className="sidebar-user" onClick={() => onNavigate("meu-perfil")} style={{ cursor: "pointer" }} title="Meu Perfil">
+      <div className="sidebar-user" onClick={() => onNavigate("configuracoes")} style={{ cursor: "pointer" }} title="Configurações">
         <Avatar nome={nome} fotoUrl={fotoUrl} envoxerId={envoxerId} />
         <div className="sidebar-user-info">
           <div className="sidebar-user-name">{nome}</div>
@@ -727,10 +723,12 @@ const HELP_TEXTS = {
   dash_farol_widget: { t: "Farol do topo do Dashboard", b: "<p>Os até 5 clientes com pior health score aparecem aqui todo dia. Se você abrir o sistema só para uma coisa, é esta.</p><p>Clique no cliente para abrir a ficha.</p>" },
   dash_meu_foco: { t: "Meu Foco", b: "<p>Tempo total que você registrou <strong>hoje</strong> e <strong>esta semana</strong>, com o quanto isso vale em custo gerado.</p><p>A meta de 32h semanais é o benchmark: 4 dias × 8h. Envoxer com gestão registra menos (~120h/mês); operador registra mais (~160h/mês).</p>" },
   dash_progress: { t: "Em andamento", b: "<p>Tarefas nas colunas <em>Produção</em>, <em>Revisão interna</em> e <em>Ajustes</em>. É o que o time está tocando agora mesmo.</p>" },
-  dash_late: { t: "Atrasadas", b: "<p>Tarefas com prazo interno vencido e ainda não finalizadas. Este é <strong>o número que precisa ir a zero</strong> — atraso alimenta o sinal 2 do farol.</p>" },
+  dash_prioridades_cards: { t: "Prioridades de hoje — Cards", b: "<p>Cards atrasados + com prazo hoje (prazo do CARD, não das etapas dele). Ordem automática: atraso primeiro, depois cor do farol do cliente, depois prazo mais próximo.</p><p>Arraste pra reordenar manualmente — a ordem manual sempre vence a automática, e some sozinha quando o card sai da lista.</p><p><strong>Este é o número que precisa ir a zero</strong> — atraso alimenta o sinal 2 do farol.</p>" },
+  dash_prioridades_etapas: { t: "Prioridades de hoje — Tarefas/Etapas", b: "<p>Mesma lógica do bloco de Cards, mas olhando o prazo de cada TAREFA/ETAPA (checklist) dentro dos cards, não o prazo do card. Um card pode estar tranquilo com uma etapa dele já atrasada.</p><p>Arraste pra reordenar manualmente.</p>" },
   dash_approvals: { t: "Aprovações pendentes", b: "<p>Tarefas em <em>Aprovação cliente</em>. Se ficarem paradas, viram sinal no farol.</p>" },
-  dash_pendencias: { t: "Pendências", b: "<p>Avisos gerados pela automação \"Criar alerta para o responsável\" das Etapas do processo. Clicar abre a tarefa e marca o aviso como lido.</p>" },
-  dash_next3: { t: "Próximos 3 dias", b: "<p>Tarefas com prazo nos próximos 3 dias. Ajuda a decidir o que priorizar hoje para não atrasar a entrega.</p>" },
+  dash_pendencias: { t: "Pendências", b: "<p>Avisos gerados pela automação \"Criar alerta para o responsável\" das Etapas do processo, e por @menções em comentários de tarefa. Clicar abre a tarefa e marca o aviso como lido.</p>" },
+  dash_next3: { t: "Cards — próximos 3 dias", b: "<p>Cards com prazo nos próximos 3 dias. Ajuda a decidir o que priorizar para não atrasar a entrega.</p>" },
+  dash_next3_etapas: { t: "Tarefas/Etapas — próximos 3 dias", b: "<p>Etapas (checklist) com prazo nos próximos 3 dias, independente do prazo do card onde elas estão.</p>" },
   dash_hoje_eventos: { t: "Captações e eventos de hoje", b: "<p>Reuniões, captações e eventos externos agendados para hoje. Cabe checar antes das 10h.</p>" },
   dash_rel_rapido: { t: "Relatório rápido", b: "<p>Prévia do Relatório de custo (menu Operação → Relatório). Mostra os clientes com pior situação de margem para você ver antes de abrir a tela cheia.</p>" },
 
@@ -954,5 +952,5 @@ function HelpIcon({ helpKey, onDark }) {
 
 window.EnvoxersShared = {
   formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, HelpIcon, initials, Avatar,
-  IconEditar, IconAutomacao, IconExcluir, ComoFazerModal, corPrazoEtapa, AvatarCropModal,
+  IconEditar, IconAutomacao, IconExcluir, IconArrastar, ComoFazerModal, corPrazoEtapa, AvatarCropModal,
 };

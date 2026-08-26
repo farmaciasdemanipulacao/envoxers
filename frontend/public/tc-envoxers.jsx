@@ -13,8 +13,11 @@ function EnvoxersScreen({ permissao }) {
   const [aba, setAba] = useStateEnv("lista"); // "lista" | "acessos" — aba só existe pro admin
   const toast = EnvoxersShared.useToast();
   const isAdmin = permissao === "admin";
+  const isGestorOuAdmin = permissao === "admin" || permissao === "gestor";
 
   const [acessandoComoId, setAcessandoComoId] = useStateEnv(null);
+  const [alvoDesativar, setAlvoDesativar] = useStateEnv(null);
+  const [reativandoId, setReativandoId] = useStateEnv(null);
 
   const handleAcessarComo = async (e, alvo) => {
     e.stopPropagation();
@@ -27,6 +30,21 @@ function EnvoxersScreen({ permissao }) {
     } catch (err) {
       toast(err.message, "error");
       setAcessandoComoId(null);
+    }
+  };
+
+  const handleReativar = async (e, alvo) => {
+    e.stopPropagation();
+    if (!window.confirm(`Reativar ${alvo.nome}?`)) return;
+    setReativandoId(alvo.id);
+    try {
+      await EnvoxersAPI.api(`/envoxers/${alvo.id}/ativar`, { method: "POST" });
+      toast(`${alvo.nome} reativado(a)!`, "success");
+      carregar();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setReativandoId(null);
     }
   };
 
@@ -66,6 +84,7 @@ function EnvoxersScreen({ permissao }) {
   ];
 
   return (
+    <>
     <div className="page">
       <EnvoxersShared.PageHeader
         title="Envoxers"
@@ -109,7 +128,7 @@ function EnvoxersScreen({ permissao }) {
               <th className="table-mobile-hide">E-mail</th>
               {isAdmin && <th className="table-mobile-hide" style={{ textAlign: "right" }}>Custo/hora</th>}
               <th style={{ width: 110 }}>Permissão</th>
-              {isAdmin && <th style={{ width: 140 }}></th>}
+              {isGestorOuAdmin && <th style={{ width: 230 }}></th>}
             </tr>
           </thead>
           <tbody>
@@ -127,18 +146,38 @@ function EnvoxersScreen({ permissao }) {
                 <td className="table-mobile-hide">{e.email}</td>
                 {isAdmin && <td className="table-mobile-hide mono" style={{ textAlign: "right" }}>{e.custo_hora != null ? EnvoxersShared.formatMoney(e.custo_hora) : "—"}</td>}
                 <td>{e.permissao}</td>
-                {isAdmin && (
+                {isGestorOuAdmin && (
                   <td>
-                    {e.permissao !== "admin" && e.ativo && (
-                      <button
-                        className="btn btn-sm"
-                        onClick={(ev) => handleAcessarComo(ev, e)}
-                        disabled={acessandoComoId === e.id}
-                        title={`Ver o app como ${e.nome}`}
-                      >
-                        {acessandoComoId === e.id ? "Acessando…" : "Acessar como"}
-                      </button>
-                    )}
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {isAdmin && e.permissao !== "admin" && e.ativo && (
+                        <button
+                          className="btn btn-sm"
+                          onClick={(ev) => handleAcessarComo(ev, e)}
+                          disabled={acessandoComoId === e.id}
+                          title={`Ver o app como ${e.nome}`}
+                        >
+                          {acessandoComoId === e.id ? "Acessando…" : "Acessar como"}
+                        </button>
+                      )}
+                      {e.ativo ? (
+                        <button
+                          className="btn btn-sm"
+                          onClick={(ev) => { ev.stopPropagation(); setAlvoDesativar(e); }}
+                          title={`Desativar ${e.nome}`}
+                        >
+                          Desativar
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-sm"
+                          onClick={(ev) => handleReativar(ev, e)}
+                          disabled={reativandoId === e.id}
+                          title={`Reativar ${e.nome}`}
+                        >
+                          {reativandoId === e.id ? "Reativando…" : "Reativar"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>
@@ -155,6 +194,88 @@ function EnvoxersScreen({ permissao }) {
       </div>
       </>
       )}
+    </div>
+    {alvoDesativar && (
+      <DesativarSubstitutoModal
+        alvo={alvoDesativar}
+        envoxers={envoxers}
+        onCancel={() => setAlvoDesativar(null)}
+        onDesativado={() => { setAlvoDesativar(null); carregar(); }}
+      />
+    )}
+    </>
+  );
+}
+
+// Troca de pessoa (D-117): desativar exige escolher um substituto ativo antes de
+// confirmar — o backend transfere etapas abertas/atrasadas, etapas-modelo padrão e
+// a ordem manual de prioridade pra ele. Histórico (etapas já concluídas) não muda.
+function DesativarSubstitutoModal({ alvo, envoxers, onCancel, onDesativado }) {
+  const opcoes = envoxers.filter((e) => e.ativo && e.id !== alvo.id);
+  const [substitutoId, setSubstitutoId] = useStateEnv(opcoes[0]?.id || "");
+  const [enviando, setEnviando] = useStateEnv(false);
+  const toast = EnvoxersShared.useToast();
+
+  const handleConfirmar = async () => {
+    if (!substitutoId) {
+      toast("Escolha um substituto", "error");
+      return;
+    }
+    setEnviando(true);
+    try {
+      const resumo = await EnvoxersAPI.api(`/envoxers/${alvo.id}/desativar`, {
+        method: "POST",
+        body: JSON.stringify({ substituto_id: Number(substitutoId) }),
+      });
+      toast(
+        `${alvo.nome} desativado(a). Transferido pra ${resumo.substituto_nome}: ${resumo.etapas_migradas} etapa(s), ${resumo.etapas_template_migradas} etapa(s)-modelo, ${resumo.prioridades_migradas} prioridade(s)${resumo.foco_finalizado ? ", Foco ativo finalizado" : ""}.`,
+        "success"
+      );
+      onDesativado();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal" style={{ maxWidth: 440 }}>
+        <div className="modal-head">
+          <div className="modal-eyebrow"><span>Envoxers</span></div>
+          <h2 className="modal-title">Desativar {alvo.nome}</h2>
+          <button className="modal-close" onClick={onCancel} aria-label="Fechar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          </button>
+        </div>
+        <div className="modal-body" style={{ gridTemplateColumns: "1fr" }}>
+          <div className="modal-main">
+            <p style={{ fontSize: 13, color: "var(--ink-3)", lineHeight: 1.6, marginBottom: 14 }}>
+              Escolha quem assume as etapas abertas/atrasadas, as etapas-modelo padrão e a ordem
+              de prioridade de {alvo.nome}. Etapas já concluídas continuam registradas no nome dela(e).
+            </p>
+            {opcoes.length === 0 ? (
+              <p style={{ fontSize: 13, color: "var(--farol-vermelho)" }}>
+                Não há outro envoxer ativo pra ser o substituto.
+              </p>
+            ) : (
+              <div className="field">
+                <label>Substituto <span className="req">*</span></label>
+                <select value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)}>
+                  {opcoes.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </select>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+              <button className="btn btn-sm" onClick={onCancel}>Cancelar</button>
+              <button className="btn btn-sm btn-envox" onClick={handleConfirmar} disabled={enviando || opcoes.length === 0}>
+                {enviando ? "Desativando…" : "Confirmar desativação"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -283,12 +404,17 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
   const [enviandoFoto, setEnviandoFoto] = useStateEnv(false);
   const [arquivoParaRecortar, setArquivoParaRecortar] = useStateEnv(null);
   const [permissao, setPermissao] = useStateEnv(envoxer?.permissao || "envoxer");
+  const [gestorResponsavelId, setGestorResponsavelId] = useStateEnv(envoxer?.gestor_responsavel_id ?? "");
+  const [todosEnvoxers, setTodosEnvoxers] = useStateEnv([]);
   const [salarioMensal, setSalarioMensal] = useStateEnv(envoxer?.salario_mensal ?? "");
   const [horasMes, setHorasMes] = useStateEnv(envoxer?.horas_mes ?? 220);
-  const [ativo, setAtivo] = useStateEnv(envoxer?.ativo ?? true);
   const [senha, setSenha] = useStateEnv("");
   const [saving, setSaving] = useStateEnv(false);
   const toast = EnvoxersShared.useToast();
+
+  useEffectEnv(() => {
+    EnvoxersAPI.api("/envoxers").then(setTodosEnvoxers).catch(() => {});
+  }, []);
 
   const handleFotoFile = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -321,7 +447,11 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
     }
     setSaving(true);
     try {
-      const payload = { nome, email, cargo, foto_url: fotoUrl || null, permissao, salario_mensal: Number(salarioMensal), horas_mes: Number(horasMes), ativo };
+      const payload = {
+        nome, email, cargo, foto_url: fotoUrl || null, permissao,
+        salario_mensal: Number(salarioMensal), horas_mes: Number(horasMes),
+        gestor_responsavel_id: gestorResponsavelId ? Number(gestorResponsavelId) : null,
+      };
       if (senha) payload.senha = senha;
       if (isEdit) {
         await EnvoxersAPI.api(`/envoxers/${envoxer.id}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -388,6 +518,16 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
                   <option value="admin">Admin — vê e configura tudo</option>
                 </select>
               </div>
+              <div className="field">
+                <label>Gestor responsável <span className="hint">opcional</span></label>
+                <select value={gestorResponsavelId} onChange={(e) => setGestorResponsavelId(e.target.value)}>
+                  <option value="">— nenhum —</option>
+                  {todosEnvoxers.filter((e) => e.id !== envoxer?.id && (e.permissao === "gestor" || e.permissao === "admin")).map((e) => (
+                    <option key={e.id} value={e.id}>{e.nome}</option>
+                  ))}
+                </select>
+                <div className="field-help">Base pra Avaliação 180° (mão dupla) e Feedback 1:1.</div>
+              </div>
             </div>
           </div>
 
@@ -408,13 +548,6 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
                 <EnvoxersShared.MoneyInput value={custoHoraCalculado} readOnly disabled />
                 <div className="field-help">Salário mensal ÷ horas/mês, atualizado automaticamente.</div>
               </div>
-              <div className="field">
-                <label>Ativo</label>
-                <div className="seg">
-                  <input type="radio" name="ativo" id="ativo-sim" checked={ativo === true} onChange={() => setAtivo(true)} /><label htmlFor="ativo-sim">Sim</label>
-                  <input type="radio" name="ativo" id="ativo-nao" checked={ativo === false} onChange={() => setAtivo(false)} /><label htmlFor="ativo-nao">Não</label>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -429,7 +562,7 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
           </div>
 
           <div className="form-footer">
-            <span className="save-hint">Envoxer inativo não some — só deixa de aparecer nas seleções.</span>
+            <span className="save-hint">Pra ativar/desativar, use os botões na lista de Envoxers.</span>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn" onClick={onCancel}>Cancelar</button>
               <button className="btn btn-envox" onClick={handleSave} disabled={saving}>{saving ? "Salvando…" : "Salvar Envoxer"}</button>

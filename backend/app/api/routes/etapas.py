@@ -17,6 +17,7 @@ from app.models.etapa import Etapa
 from app.models.automacao_etapa import AutomacaoEtapa, ACAO_AUTOMACAO_VALUES
 from app.schemas.etapa import EtapaCreate, EtapaUpdate, EtapaResponse, AutomacaoEtapaUpsert, AutomacaoEtapaResponse
 from app.services.etapas_automacao import executar_automacao, aplicar_processo_do_servico
+from app.services.realtime import notificar_tarefa_atualizada
 
 router = APIRouter(tags=["etapas"])
 
@@ -147,6 +148,7 @@ async def criar_etapa(
     await db.flush()
     await db.refresh(etapa)
     resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
+    await notificar_tarefa_atualizada(db, tarefa_id)
     return next(r for r in resp if r.id == etapa.id)
 
 
@@ -168,6 +170,7 @@ async def atualizar_etapa(
     await db.flush()
     await db.refresh(etapa)
     resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
+    await notificar_tarefa_atualizada(db, tarefa_id)
     return next(r for r in resp if r.id == etapa.id)
 
 
@@ -182,6 +185,7 @@ async def excluir_etapa(
     etapa = await _obter_etapa_ou_404(db, tarefa_id, etapa_id)
     await db.delete(etapa)
     await db.flush()
+    await notificar_tarefa_atualizada(db, tarefa_id)
 
 
 @router.post("/tarefas/{tarefa_id}/etapas/{etapa_id}/concluir", response_model=EtapaResponse)
@@ -219,6 +223,7 @@ async def concluir_etapa(
     await db.flush()
     await db.refresh(etapa)
     resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
+    await notificar_tarefa_atualizada(db, tarefa_id)
     return next(r for r in resp if r.id == etapa.id)
 
 
@@ -240,6 +245,7 @@ async def reabrir_etapa(
     await db.flush()
     await db.refresh(etapa)
     resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
+    await notificar_tarefa_atualizada(db, tarefa_id)
     return next(r for r in resp if r.id == etapa.id)
 
 
@@ -308,4 +314,5 @@ async def aplicar_processo(
 
     resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
     ids_novas = {e.id for e in novas_etapas}
+    await notificar_tarefa_atualizada(db, tarefa_id)
     return [r for r in resp if r.id in ids_novas]

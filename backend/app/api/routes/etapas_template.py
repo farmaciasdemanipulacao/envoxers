@@ -19,6 +19,7 @@ from app.models.automacao_etapa_template import AutomacaoEtapaTemplate, ACAO_AUT
 from app.schemas.etapa_template import (
     EtapaTemplateCreate,
     EtapaTemplateUpdate,
+    EtapaTemplateReordenar,
     EtapaTemplateResponse,
     AutomacaoEtapaTemplateUpsert,
     AutomacaoEtapaTemplateResponse,
@@ -131,6 +132,27 @@ async def criar_template(
     await db.refresh(template)
     resp = await _to_response(db, await _listar_templates_ordenados(db, servico_id))
     return next(r for r in resp if r.id == template.id)
+
+
+@router.put("/servicos/{servico_id}/etapas-template/reordenar", response_model=list[EtapaTemplateResponse])
+async def reordenar_templates(
+    servico_id: int,
+    payload: EtapaTemplateReordenar,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+):
+    await _obter_servico_ou_404(db, servico_id)
+    templates = await _listar_templates_ordenados(db, servico_id)
+    templates_por_id = {t.id: t for t in templates}
+
+    if set(payload.ids_em_ordem) != set(templates_por_id.keys()):
+        raise HTTPException(status_code=400, detail="A lista precisa conter exatamente as etapas-modelo do serviço")
+
+    for indice, template_id in enumerate(payload.ids_em_ordem):
+        templates_por_id[template_id].ordem = indice
+
+    await db.flush()
+    return await _to_response(db, await _listar_templates_ordenados(db, servico_id))
 
 
 @router.patch("/servicos/{servico_id}/etapas-template/{template_id}", response_model=EtapaTemplateResponse)

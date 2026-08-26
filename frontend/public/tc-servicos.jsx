@@ -14,6 +14,7 @@ function EtapasTemplateModal({ servico, onClose }) {
   const [automacaoAcao, setAutomacaoAcao] = useStateSrv("LIBERAR_PROXIMA_ETAPA");
   const [automacaoColuna, setAutomacaoColuna] = useStateSrv("");
   const [comoFazerTemplate, setComoFazerTemplate] = useStateSrv(null);
+  const [dragId, setDragId] = useStateSrv(null);
   const toast = EnvoxersShared.useToast();
   const STATUS_COLS = window.KANBAN_STATUS_COLS || [];
 
@@ -154,6 +155,43 @@ function EtapasTemplateModal({ servico, onClose }) {
     }
   };
 
+  const handleDragStart = (e, template) => {
+    if (salvando) return;
+    setDragId(template.id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(template.id));
+  };
+
+  const handleDragOverItem = (e, template) => {
+    e.preventDefault();
+    if (dragId === null || dragId === template.id) return;
+    setTemplates((prev) => {
+      const fromIdx = prev.findIndex((t) => t.id === dragId);
+      const toIdx = prev.findIndex((t) => t.id === template.id);
+      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
+      const next = prev.slice();
+      const [movido] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, movido);
+      return next;
+    });
+  };
+
+  const handleDragEnd = async () => {
+    setDragId(null);
+    setSalvando(true);
+    try {
+      await EnvoxersAPI.api(`/servicos/${servico.id}/etapas-template/reordenar`, {
+        method: "PUT",
+        body: JSON.stringify({ ids_em_ordem: templates.map((t) => t.id) }),
+      });
+    } catch (err) {
+      toast(err.message, "error");
+      await carregar();
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   return (
     <>
     <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -180,7 +218,18 @@ function EtapasTemplateModal({ servico, onClose }) {
                   <div style={{ color: "var(--ink-4)", fontSize: 13, marginBottom: 8 }}>nenhuma etapa-modelo cadastrada</div>
                 )}
                 {templates.map((template) => (
-                  <div className="etapa-item" key={template.id}>
+                  <div
+                    className={"etapa-item etapa-item-draggable" + (dragId === template.id ? " dragging" : "")}
+                    key={template.id}
+                    draggable={editandoId !== template.id}
+                    onDragStart={(e) => handleDragStart(e, template)}
+                    onDragOver={(e) => handleDragOverItem(e, template)}
+                    onDrop={(e) => e.preventDefault()}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <span className="etapa-drag-handle" title="Arrastar para reordenar">
+                      <EnvoxersShared.IconArrastar />
+                    </span>
                     <div className="etapa-body">
                       {editandoId === template.id ? (
                         <div className="etapa-automacao-form" style={{ marginTop: 0 }}>

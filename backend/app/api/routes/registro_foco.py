@@ -173,6 +173,25 @@ async def finalizar_foco_ativo_da_tarefa(
     return registro
 
 
+async def finalizar_foco_ativo_do_envoxer(
+    db: AsyncSession, envoxer_id: int, comentario: Optional[str] = None
+) -> Optional[RegistroFoco]:
+    """Chamado ao desativar um Envoxer com substituto (troca de pessoa) — nunca deixar
+    um Foco "fantasma" ativo em nome de alguém que saiu."""
+    result = await db.execute(
+        select(RegistroFoco).where(and_(RegistroFoco.envoxer_id == envoxer_id, RegistroFoco.fim.is_(None)))
+    )
+    registro = result.scalar_one_or_none()
+    if registro is None:
+        return None
+
+    envoxer = (await db.execute(select(Envoxer).where(Envoxer.id == envoxer_id))).scalar_one_or_none()
+    custo_hora = envoxer.custo_hora if envoxer is not None else 0
+    _finalizar_registro(registro, custo_hora, comentario)
+    await db.flush()
+    return registro
+
+
 @router.post("/{registro_id}/finalizar", response_model=RegistroFocoResponse)
 async def finalizar_foco(
     registro_id: int,

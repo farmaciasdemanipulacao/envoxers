@@ -8,6 +8,7 @@ class ComentarioItem(BaseModel):
     envoxer_id: int
     envoxer_nome: str
     texto: str
+    mencoes: list[int] = []
     criado_em: datetime
 
 
@@ -53,6 +54,7 @@ class TarefaUpdate(BaseModel):
 
 class ComentarioCreate(BaseModel):
     texto: str
+    mencoes: list[int] = []
 
 
 class TarefaResponse(TarefaBase):
@@ -71,6 +73,12 @@ class TarefaResponse(TarefaBase):
     qtd_alteracoes: int = 0
     aprovada_interna: bool = False
     aprovada_cliente: bool = False
+    proxima_etapa_titulo: Optional[str] = None
+    proxima_etapa_responsavel_id: Optional[int] = None
+    proxima_etapa_responsavel_nome: Optional[str] = None
+    proxima_etapa_responsavel_foto: Optional[str] = None
+    proxima_etapa_prazo: Optional[date] = None
+    etapas_responsaveis_ids: list[int] = []
     finalizada_em: Optional[datetime] = None
     ano_mes: Optional[str] = None
     created_at: datetime
@@ -78,6 +86,14 @@ class TarefaResponse(TarefaBase):
 
     class Config:
         from_attributes = True
+
+
+class PrioridadeDiaReordenar(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tipo: str  # "card" | "etapa"
+    envoxer_id: int
+    ids_em_ordem: list[int]
 
 
 class EntregaCheckResponse(BaseModel):

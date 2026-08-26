@@ -11,6 +11,7 @@ class EnvoxerBase(BaseModel):
     permissao: str = "envoxer"
     foto_url: Optional[str] = None
     ativo: bool = True
+    gestor_responsavel_id: Optional[int] = None
 
 
 class EnvoxerCreate(EnvoxerBase):
@@ -25,6 +26,9 @@ class EnvoxerCreate(EnvoxerBase):
 class EnvoxerUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    # Sem `ativo` de propósito — ativar/desativar só passa por POST /{id}/ativar e
+    # /{id}/desativar (essa exige substituto pra transferir pendências, ver
+    # services/transferencia_envoxer.py), nunca por este PATCH genérico.
     nome: Optional[str] = None
     email: Optional[EmailStr] = None
     cargo: Optional[str] = None
@@ -32,8 +36,22 @@ class EnvoxerUpdate(BaseModel):
     horas_mes: Optional[int] = Field(default=None, gt=0)
     permissao: Optional[str] = None
     foto_url: Optional[str] = None
-    ativo: Optional[bool] = None
     senha: Optional[str] = None
+    gestor_responsavel_id: Optional[int] = None
+
+
+class EnvoxerDesativarRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    substituto_id: int
+
+
+class TransferenciaResumo(BaseModel):
+    substituto_nome: str
+    etapas_migradas: int
+    etapas_template_migradas: int
+    prioridades_migradas: int
+    foco_finalizado: bool
 
 
 class EnvoxerResponse(EnvoxerBase):

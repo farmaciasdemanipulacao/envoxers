@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Integer, String, Numeric, Boolean, DateTime, Enum as SAEnum
+from sqlalchemy import BigInteger, Integer, String, Numeric, Boolean, DateTime, Enum as SAEnum, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -44,3 +44,9 @@ class Envoxer(Base, TimestampMixin):
     # Permanente — uma vez satisfeito, não volta a bloquear mesmo que desinstale depois.
     app_instalado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     app_instalado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # F4 (D-121): base pra Avaliação 180° (mão dupla) e Feedback 1:1, que precisam
+    # de um par pessoa-a-pessoa — antes disso o projeto só tinha papel global.
+    gestor_responsavel_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("envoxer.id", ondelete="SET NULL"), nullable=True
+    )
