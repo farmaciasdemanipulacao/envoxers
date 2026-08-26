@@ -519,6 +519,17 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
+      <div className="nav-section">
+        <div className="nav-section-title">Envox Skills</div>
+        <nav className="nav">
+          {item(
+            "skills",
+            "Envox Skills",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="5" cy="5" r="2.5" /><circle cx="11" cy="5" r="2.5" /><circle cx="8" cy="11" r="2.5" /><path d="M6.8 6.8l.7 1.7M9.2 6.8l-.7 1.7M7.5 5h1" /></svg>
+          )}
+        </nav>
+      </div>
+
       {(permissao === "admin" || permissao === "gestor") && (
         <div className="nav-section">
           <div className="nav-section-title">Admin</div>
