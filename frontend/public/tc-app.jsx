@@ -692,6 +692,10 @@ function AppShell() {
   const configLabel = { clientes: "Cadastros / Clientes", envoxers: "Cadastros / Envoxers", servicos: "Cadastros / Serviços", perfil: "Meu Perfil" }[configItem];
   const crumbs = {
     configuracoes: `Configurações / ${configLabel}`,
+    "comercial-dashboard": "Comercial / Dashboard",
+    "comercial-hoje": "Comercial / Prospecções de Hoje",
+    "comercial-leads": "Comercial / Leads",
+    "comercial-pipeline": "Comercial / Pipeline",
     kanban: "Operação / Kanban",
     dashboard: "Operação / Dashboard do dia",
     calendario: "Operação / Calendário",
@@ -782,6 +786,10 @@ function AppShell() {
       >
         {impersonando && <ImpersonandoBar nomeAtual={nome} nomeAdmin={nomeAdminReal} onVoltar={handleVoltarImpersonacao} />}
         <EnvoxersShared.Topbar crumb={crumbs[view]} onLogout={handleLogout} onMenuClick={() => setMobileMenuOpen(true)} />
+        {view === "comercial-dashboard" && <ComercialScreen mode="dashboard" />}
+        {view === "comercial-hoje" && <ComercialScreen mode="hoje" />}
+        {view === "comercial-leads" && <ComercialScreen mode="leads" />}
+        {view === "comercial-pipeline" && <ComercialScreen mode="pipeline" />}
         {view === "kanban" && (
           <KanbanScreen
             permissao={permissao}

@@ -18,7 +18,7 @@ from app.models.motivo_churn import MotivoChurnCatalogo
 from app.models.chat_canal import ChatCanal
 from app.models.alerta_config import AlertaConfig
 from app.models.competencia_catalogo import CompetenciaCatalogo
-from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth, item_escopo, documento_acordo, portal_documentos, acessos, pdi, ciclos, avaliacao_360, avaliacao_180, feedback_1a1, clima
+from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth, item_escopo, documento_acordo, portal_documentos, acessos, pdi, ciclos, avaliacao_360, avaliacao_180, feedback_1a1, clima, comercial
 
 logger = structlog.get_logger()
 
@@ -199,6 +199,7 @@ app.include_router(avaliacao_360.router, prefix=API_PREFIX)
 app.include_router(avaliacao_180.router, prefix=API_PREFIX)
 app.include_router(feedback_1a1.router, prefix=API_PREFIX)
 app.include_router(clima.router, prefix=API_PREFIX)
+app.include_router(comercial.router, prefix=API_PREFIX)
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount(f"{API_PREFIX}/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")

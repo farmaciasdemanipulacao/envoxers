@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: Optional[str] = None
     VAPID_CLAIM_EMAIL: str = "admin@envox.com.br"
 
+    # === IA · Módulo Comercial ===
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_MODEL: str = "gpt-5.6-luna"
+
     # === CORS ===
     ALLOWED_ORIGINS: Union[list[str], str] = ["http://localhost:8081"]
 

@@ -413,6 +413,16 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </div>
 
       <div className="nav-section">
+        <div className="nav-section-title">Comercial</div>
+        <nav className="nav">
+          {item("comercial-dashboard", "Dashboard Comercial", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V7h3v6M6.5 13V3h3v10M11 13V5h3v8" /></svg>)}
+          {item("comercial-hoje", "Prospecções de Hoje", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/></svg>)}
+          {item("comercial-leads", "Leads", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="6" cy="5" r="2.5"/><path d="M2 13c.4-2.6 1.8-4 4-4s3.6 1.4 4 4M11 5h3M12.5 3.5v3"/></svg>)}
+          {item("comercial-pipeline", "Pipeline", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="3" width="3" height="10" rx="1"/><rect x="6.5" y="3" width="3" height="10" rx="1"/><rect x="11" y="3" width="3" height="10" rx="1"/></svg>)}
+        </nav>
+      </div>
+
+      <div className="nav-section">
         <div className="nav-section-title">F1 · Operação</div>
         <nav className="nav">
           {item(
