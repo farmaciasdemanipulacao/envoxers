@@ -1,0 +1,180 @@
+/* ============================================================
+   ENVOXERS — PADRÃO GLOBAL DE FORMULÁRIOS
+   Regra: nenhum form novo deve depender da aparência nativa do browser.
+   Este arquivo é carregado depois de envox-tokens.css e funciona como
+   camada obrigatória de acabamento para inputs, selects, datas e textareas.
+   ============================================================ */
+
+:root {
+  --form-control-h: 40px;
+  --form-control-radius: 8px;
+  --form-control-pad-x: 12px;
+  --form-control-bg: var(--bg-elev);
+  --form-control-border: var(--line-2);
+  --form-control-border-hover: #bbb9af;
+  --form-control-placeholder: var(--ink-4);
+}
+
+/* Campos textuais e derivados — preserva checkbox/radio/file/range etc. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]),
+select,
+textarea {
+  min-height: var(--form-control-h);
+  padding: 9px var(--form-control-pad-x);
+  border: 1px solid var(--form-control-border);
+  border-radius: var(--form-control-radius);
+  background-color: var(--form-control-bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.35;
+  outline: none;
+  box-shadow: 0 1px 1px rgba(14, 14, 12, 0.025);
+  transition:
+    border-color .14s ease,
+    box-shadow .14s ease,
+    background-color .14s ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):hover,
+select:hover,
+textarea:hover {
+  border-color: var(--form-control-border-hover);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--envox);
+  box-shadow: 0 0 0 3px var(--envox-soft);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--form-control-placeholder);
+  opacity: 1;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  background: var(--bg-inset);
+  color: var(--ink-4);
+  opacity: .78;
+}
+
+/* Select sem aparência antiga do navegador. */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  padding-right: 36px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* Datepicker continua nativo funcional, mas visualmente integrado ao sistema. */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"],
+input[type="month"],
+input[type="week"] {
+  color-scheme: light;
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: .62;
+  transition: opacity .14s ease;
+}
+
+input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator,
+input[type="time"]:hover::-webkit-calendar-picker-indicator,
+input[type="month"]:hover::-webkit-calendar-picker-indicator,
+input[type="week"]:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
+
+textarea {
+  min-height: 96px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* Estrutura padrão. Novos forms devem usar .field + .form-row. */
+.field {
+  gap: 7px;
+}
+
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+.form-row {
+  gap: 16px 20px;
+}
+
+/* Botão ao lado de campo deve acompanhar a altura do controle. */
+input + .btn.btn-sm,
+select + .btn.btn-sm,
+textarea + .btn.btn-sm {
+  min-height: var(--form-control-h);
+  padding: 8px 13px;
+}
+
+/* Corrige modal de coluna única: sem painel lateral, não reserva 300px vazios. */
+.modal:not(:has(.modal-side)) {
+  width: min(920px, calc(100vw - 32px));
+}
+
+.modal-body:not(:has(.modal-side)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.modal-body:not(:has(.modal-side)) .modal-main {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Ações de formulário com acabamento consistente. */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Segurança para layouts compactos / mobile. */
+@media (max-width: 700px) {
+  :root {
+    --form-control-h: 42px;
+  }
+
+  .modal:not(:has(.modal-side)) {
+    width: calc(100vw - 20px);
+  }
+
+  .form-row,
+  .form-row.three {
+    grid-template-columns: 1fr;
+  }
+}

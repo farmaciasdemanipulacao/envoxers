@@ -90,3 +90,15 @@ F4 → PDI + feedback + gamificação | F5 → IA + integrações
 
 \- Construir uma fase por vez, só avançar quando Gus validar
 
+
+
+## Padrão obrigatório de formulários e fields
+
+- Todo formulário novo deve nascer já no padrão visual global do Envoxers. Não deixar `input`, `select`, `textarea`, datepicker ou controles equivalentes com aparência nativa/arcaica do navegador.
+- O acabamento obrigatório está em `frontend/public/envox-forms.css`, carregado depois de `envox-tokens.css`.
+- Estrutura preferencial: `.field` para label + controle e `.form-row` para agrupamentos. Evitar estilos inline para aparência de campos; usar o design system.
+- Manter tipografia, altura, padding, borda, radius, hover, focus, disabled e placeholder consistentes em toda a aplicação.
+- `select` e campos de data devem permanecer funcionais, mas visualmente integrados ao Envoxers.
+- Botões posicionados ao lado de campos devem acompanhar a altura do controle.
+- Modal sem painel lateral não pode reservar coluna vazia. Modal de uma coluna deve ocupar somente o espaço necessário e ser responsivo.
+- Ao criar ou revisar qualquer tela com formulário, verificar desktop e mobile e corrigir visualmente antes de considerar a entrega concluída.
