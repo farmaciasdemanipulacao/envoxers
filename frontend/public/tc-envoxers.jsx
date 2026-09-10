@@ -72,7 +72,7 @@ function EnvoxersScreen({ permissao }) {
     );
   }
 
-  const contagem = { admin: 0, gestor: 0, envoxer: 0 };
+  const contagem = { admin: 0, gestor: 0, envoxer: 0, comercial: 0 };
   envoxers.forEach((e) => { if (contagem[e.permissao] !== undefined) contagem[e.permissao]++; });
 
   const filtrados = filtroPermissao === "todos" ? envoxers : envoxers.filter((e) => e.permissao === filtroPermissao);
@@ -80,6 +80,7 @@ function EnvoxersScreen({ permissao }) {
     ["todos", "Todos", envoxers.length],
     ["admin", "Admin", contagem.admin],
     ["gestor", "Gestor", contagem.gestor],
+    ["comercial", "Comercial", contagem.comercial],
     ["envoxer", "Envoxer", contagem.envoxer],
   ];
 
@@ -515,6 +516,7 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
                 <select value={permissao} onChange={(e) => setPermissao(e.target.value)}>
                   <option value="envoxer">Envoxer — executa e registra tempo</option>
                   <option value="gestor">Gestor — gerencia e aprova</option>
+                  <option value="comercial">Comercial — somente Chat e Comercial</option>
                   <option value="admin">Admin — vê e configura tudo</option>
                 </select>
               </div>

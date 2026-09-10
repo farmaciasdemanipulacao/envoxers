@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
 
-PERMISSAO_VALUES = ("admin", "gestor", "envoxer")
+PERMISSAO_VALUES = ("admin", "gestor", "envoxer", "comercial")
 
 
 class Envoxer(Base, TimestampMixin):

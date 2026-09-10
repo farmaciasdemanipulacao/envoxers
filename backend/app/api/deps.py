@@ -1,7 +1,7 @@
 """Dependências compartilhadas das rotas — auth via JWT."""
 from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,24 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 oauth2_scheme_portal = OAuth2PasswordBearer(tokenUrl="/api/v1/portal/auth/login", auto_error=False)
 
 
+def perfil_comercial_pode_acessar(path: str, method: str) -> bool:
+    """Allowlist do perfil Comercial. Mantida aqui para ser auditável/testável.
+
+    GET /envoxers existe apenas para o diretório de pessoas usado pelo Chat.
+    """
+    path = path.rstrip("/")
+    return (
+        path.startswith("/api/v1/comercial")
+        or path.startswith("/api/v1/chat")
+        or path.startswith("/api/v1/push")
+        or path == "/api/v1/auth/me"
+        or path == "/api/v1/envoxers/me/status-instalacao"
+        or (path == "/api/v1/envoxers" and method.upper() == "GET")
+    )
+
+
 async def get_current_envoxer(
+    request: Request,
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Envoxer:
@@ -39,6 +56,16 @@ async def get_current_envoxer(
     envoxer = result.scalar_one_or_none()
     if envoxer is None or not envoxer.ativo:
         raise credentials_exception
+
+    # Perfil COMERCIAL: fronteira de autorização no backend, não apenas no menu.
+    # Pode usar o CRM, Chat e dependências técnicas indispensáveis ao Chat/PWA.
+    # GET /envoxers é permitido somente como diretório de pessoas para iniciar DMs.
+    if envoxer.permissao == "comercial":
+        if not perfil_comercial_pode_acessar(request.url.path, request.method):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Perfil Comercial possui acesso somente ao Chat e ao módulo Comercial",
+            )
     return envoxer
 
 

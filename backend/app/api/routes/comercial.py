@@ -396,7 +396,7 @@ async def dashboard(
     user: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     q = select(ComercialLead).where(ComercialLead.deleted_at.is_(None))
-    if user.permissao == "envoxer":
+    if user.permissao in ("envoxer", "comercial"):
         q = q.where(or_(ComercialLead.responsavel_envoxer_id == user.id, ComercialLead.responsavel_envoxer_id.is_(None)))
     leads = (await db.execute(q)).scalars().all()
     ids = [x.id for x in leads]
@@ -443,7 +443,7 @@ async def hoje(
 ):
     now = _now()
     base = select(ComercialLead).where(ComercialLead.deleted_at.is_(None), ComercialLead.nao_prospectar.is_(False))
-    if user.permissao == "envoxer":
+    if user.permissao in ("envoxer", "comercial"):
         base = base.where(or_(ComercialLead.responsavel_envoxer_id == user.id, ComercialLead.responsavel_envoxer_id.is_(None)))
     leads = (await db.execute(base)).scalars().all()
     ids = [x.id for x in leads]
@@ -480,7 +480,7 @@ async def hoje(
         ComercialTask.prazo <= now,
         ComercialLead.deleted_at.is_(None),
     )
-    if user.permissao == "envoxer":
+    if user.permissao in ("envoxer", "comercial"):
         tq = tq.where(or_(ComercialTask.responsavel_envoxer_id == user.id, ComercialTask.responsavel_envoxer_id.is_(None)))
     task_rows = (await db.execute(tq.order_by(ComercialTask.prazo))).all()
     overdue_tasks = [{**d(t), "lead": await _lead_view(db, l, resp, tags)} for t, l in task_rows]
@@ -517,7 +517,7 @@ async def listar_leads(
     user: Envoxer = Depends(get_current_envoxer),
 ):
     st = select(ComercialLead).where(ComercialLead.deleted_at.is_(None))
-    if user.permissao == "envoxer":
+    if user.permissao in ("envoxer", "comercial"):
         st = st.where(or_(ComercialLead.responsavel_envoxer_id == user.id, ComercialLead.responsavel_envoxer_id.is_(None)))
     if status:
         st = st.where(ComercialLead.status_codigo == status)
@@ -590,7 +590,7 @@ async def criar_lead(
         data["data_entrada"] = _parse_date(data["data_entrada"]) or date.today()
     if data.get("proxima_acao_em"):
         data["proxima_acao_em"] = _parse_datetime(data["proxima_acao_em"])
-    if user.permissao == "envoxer" and not data.get("responsavel_envoxer_id"):
+    if user.permissao in ("envoxer", "comercial") and not data.get("responsavel_envoxer_id"):
         data["responsavel_envoxer_id"] = user.id
     if not data.get("proxima_acao"):
         data["proxima_acao"] = "Pesquisar e analisar lead"
@@ -1101,7 +1101,7 @@ async def listar_tarefas(status: Optional[str] = None, vencidas: Optional[bool] 
     q = select(ComercialTask, ComercialLead).join(ComercialLead, ComercialLead.id == ComercialTask.lead_id).where(ComercialLead.deleted_at.is_(None))
     if status: q = q.where(ComercialTask.status == status)
     if vencidas: q = q.where(ComercialTask.status == "pendente", ComercialTask.prazo < _now())
-    if user.permissao == "envoxer": q = q.where(or_(ComercialTask.responsavel_envoxer_id == user.id, ComercialTask.responsavel_envoxer_id.is_(None)))
+    if user.permissao in ("envoxer", "comercial"): q = q.where(or_(ComercialTask.responsavel_envoxer_id == user.id, ComercialTask.responsavel_envoxer_id.is_(None)))
     rows = (await db.execute(q.order_by(ComercialTask.status, ComercialTask.prazo.asc().nullslast()))).all()
     resp = await _responsaveis(db)
     return [{**d(t), "lead_nome": l.nome_estabelecimento, "lead_status": l.status_codigo, "responsavel_nome": resp.get(t.responsavel_envoxer_id).nome if resp.get(t.responsavel_envoxer_id) else None} for t, l in rows]
@@ -1225,7 +1225,7 @@ async def editar_oportunidade(opportunity_id: int, payload: dict, db: AsyncSessi
 @router.get("/oportunidades")
 async def listar_oportunidades(db: AsyncSession = Depends(get_db), user: Envoxer = Depends(get_current_envoxer)):
     q = select(ComercialOpportunity, ComercialLead).join(ComercialLead, ComercialLead.id == ComercialOpportunity.lead_id).where(ComercialLead.deleted_at.is_(None))
-    if user.permissao == "envoxer": q = q.where(or_(ComercialOpportunity.responsavel_envoxer_id == user.id, ComercialOpportunity.responsavel_envoxer_id.is_(None)))
+    if user.permissao in ("envoxer", "comercial"): q = q.where(or_(ComercialOpportunity.responsavel_envoxer_id == user.id, ComercialOpportunity.responsavel_envoxer_id.is_(None)))
     rows = (await db.execute(q.order_by(ComercialOpportunity.updated_at.desc()))).all(); resp=await _responsaveis(db)
     return [{**d(o), "lead_nome": l.nome_estabelecimento, "lead_status": l.status_codigo, "responsavel_nome": resp.get(o.responsavel_envoxer_id).nome if resp.get(o.responsavel_envoxer_id) else None} for o,l in rows]
 
@@ -1233,7 +1233,7 @@ async def listar_oportunidades(db: AsyncSession = Depends(get_db), user: Envoxer
 @router.get("/conversas")
 async def conversas(db: AsyncSession = Depends(get_db), user: Envoxer = Depends(get_current_envoxer)):
     q = select(ComercialLead).where(ComercialLead.deleted_at.is_(None))
-    if user.permissao == "envoxer": q = q.where(or_(ComercialLead.responsavel_envoxer_id == user.id, ComercialLead.responsavel_envoxer_id.is_(None)))
+    if user.permissao in ("envoxer", "comercial"): q = q.where(or_(ComercialLead.responsavel_envoxer_id == user.id, ComercialLead.responsavel_envoxer_id.is_(None)))
     leads = (await db.execute(q)).scalars().all(); ids=[x.id for x in leads]
     if not ids: return []
     msgs=(await db.execute(select(ComercialMessage).where(ComercialMessage.lead_id.in_(ids)).order_by(ComercialMessage.enviado_em.desc()))).scalars().all()
@@ -1382,7 +1382,7 @@ async def importar_commit(payload:dict,db:AsyncSession=Depends(get_db),user:Envo
         else:
             lead_fields.setdefault("proxima_acao", "Pesquisar e analisar lead")
             lead_fields.setdefault("proxima_acao_em", _now())
-            lead=ComercialLead(**lead_fields,responsavel_envoxer_id=user.id if user.permissao=="envoxer" else None); db.add(lead); await db.flush(); created+=1; await activity(db,lead.id,user.id,"lead_importado","Lead criado por importação")
+            lead=ComercialLead(**lead_fields,responsavel_envoxer_id=user.id if user.permissao in ("envoxer", "comercial") else None); db.add(lead); await db.flush(); created+=1; await activity(db,lead.id,user.id,"lead_importado","Lead criado por importação")
         for tipo in CANAIS:
             if values.get(tipo):
                 ch=(await db.execute(select(ComercialLeadChannel).where(ComercialLeadChannel.lead_id==lead.id,ComercialLeadChannel.tipo==tipo))).scalar_one_or_none()
@@ -1416,7 +1416,7 @@ async def bulk_leads(payload:dict,db:AsyncSession=Depends(get_db),user:Envoxer=D
 @router.get("/relatorios")
 async def relatorios(db:AsyncSession=Depends(get_db),user:Envoxer=Depends(get_current_envoxer)):
     q=select(ComercialLead).where(ComercialLead.deleted_at.is_(None))
-    if user.permissao=="envoxer": q=q.where(or_(ComercialLead.responsavel_envoxer_id==user.id,ComercialLead.responsavel_envoxer_id.is_(None)))
+    if user.permissao in ("envoxer", "comercial"): q=q.where(or_(ComercialLead.responsavel_envoxer_id==user.id,ComercialLead.responsavel_envoxer_id.is_(None)))
     leads=(await db.execute(q)).scalars().all(); ids=[x.id for x in leads]
     msgs=(await db.execute(select(ComercialMessage).where(ComercialMessage.lead_id.in_(ids)).order_by(ComercialMessage.lead_id,ComercialMessage.enviado_em))).scalars().all() if ids else []
     by_channel=defaultdict(lambda:{"enviadas":0,"recebidas":0,"leads_abordados":set(),"leads_responderam":set()})

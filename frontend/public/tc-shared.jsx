@@ -428,6 +428,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
+      {permissao !== "comercial" && <>
       <div className="nav-section">
         <div className="nav-section-title">F1 · Operação</div>
         <nav className="nav">
@@ -548,7 +549,13 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </div>
       )}
 
-      <div className="sidebar-user" onClick={() => onNavigate("configuracoes")} style={{ cursor: "pointer" }} title="Configurações">
+      </>}
+
+      <div className="sidebar-user"
+        onClick={permissao === "comercial" ? undefined : () => onNavigate("configuracoes")}
+        style={{ cursor: permissao === "comercial" ? "default" : "pointer" }}
+        title={permissao === "comercial" ? "Perfil Comercial" : "Configurações"}
+      >
         <Avatar nome={nome} fotoUrl={fotoUrl} envoxerId={envoxerId} />
         <div className="sidebar-user-info">
           <div className="sidebar-user-name">{nome}</div>

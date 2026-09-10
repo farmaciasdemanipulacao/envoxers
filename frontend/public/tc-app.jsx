@@ -301,9 +301,17 @@ function ImpersonandoBar({ nomeAtual, nomeAdmin, onVoltar }) {
   );
 }
 
+const VIEWS_PERFIL_COMERCIAL = new Set([
+  "chat",
+  "comercial-dashboard", "comercial-hoje", "comercial-leads", "comercial-pipeline",
+  "comercial-conversas", "comercial-cadencias", "comercial-tarefas",
+  "comercial-oportunidades", "comercial-relatorios", "comercial-config",
+]);
+
 function AppShell() {
   const nome = localStorage.getItem("envoxers_nome") || "";
   const permissao = localStorage.getItem("envoxers_permissao") || "envoxer";
+  const perfilComercial = permissao === "comercial";
   const envoxerId = EnvoxersAPI.getEnvoxerId();
 
   // Tela atual persiste em sessionStorage (não localStorage) por envoxer: um F5 na
@@ -313,6 +321,7 @@ function AppShell() {
   const viewStorageKey = envoxerId ? `envoxers_view_${envoxerId}` : null;
   const [view, setView] = useStateApp(() => {
     const salva = viewStorageKey ? sessionStorage.getItem(viewStorageKey) : null;
+    if (perfilComercial) return salva && VIEWS_PERFIL_COMERCIAL.has(salva) ? salva : "comercial-dashboard";
     return salva || "dashboard";
   });
   useEffectApp(() => {
@@ -344,10 +353,14 @@ function AppShell() {
   // Telas 100% financeiras (D-090) — se alguém sem ser admin cair aqui (ex.: view
   // presa de uma sessão anterior), volta pro Kanban em vez de bater no 403 da API.
   useEffectApp(() => {
+    if (perfilComercial && !VIEWS_PERFIL_COMERCIAL.has(view)) {
+      setView("comercial-dashboard");
+      return;
+    }
     if ((view === "faturamento" || view === "relatorio") && permissao !== "admin") {
       setView("kanban");
     }
-  }, [view, permissao]);
+  }, [view, permissao, perfilComercial]);
 
   // Estado do menu (expandido/recolhido) persiste em localStorage — não em memória —
   // pra sobreviver a um reload de página, não só a troca de tela dentro da sessão.
@@ -365,7 +378,11 @@ function AppShell() {
   // Menu mobile: aberto via botão hamburger no Topbar, fechado ao navegar ou
   // clicar no overlay. Não persiste em localStorage — sempre começa fechado.
   const [mobileMenuOpen, setMobileMenuOpen] = useStateApp(false);
-  const navegarEFecharMenu = (v) => { setView(v); setMobileMenuOpen(false); };
+  const navegarEFecharMenu = (v) => {
+    const destino = perfilComercial && !VIEWS_PERFIL_COMERCIAL.has(v) ? "comercial-dashboard" : v;
+    setView(destino);
+    setMobileMenuOpen(false);
+  };
 
   // Banner de instalação PWA — dismiss vale só pra sessão (sessionStorage), não
   // pra sempre, senão quem clica sem querer nunca mais vê a opção.
@@ -598,6 +615,12 @@ function AppShell() {
 
   const carregarListasBase = async () => {
     try {
+      if (perfilComercial) {
+        const es = await EnvoxersAPI.api("/envoxers");
+        setClientes([]);
+        setEnvoxersList(es.filter((e) => e.ativo));
+        return;
+      }
       const [cs, es] = await Promise.all([EnvoxersAPI.api("/clientes"), EnvoxersAPI.api("/envoxers")]);
       setClientes(cs);
       setEnvoxersList(es.filter((e) => e.ativo));
@@ -620,7 +643,7 @@ function AppShell() {
     } catch (err) { /* silencioso — não é crítico pra tela */ }
   };
 
-  useEffectApp(() => { carregarFocoAtivo(); }, []);
+  useEffectApp(() => { if (!perfilComercial) carregarFocoAtivo(); }, [perfilComercial]);
 
   // Contador = tempo decorrido − tempo pausado total. Se pausado_em está setado,
   // congela usando pausado_em como referência (não usa Date.now(), então não precisa de interval).
@@ -687,7 +710,10 @@ function AppShell() {
 
   // Exposto pro Service Worker chamar quando o usuário clica numa notificação
   // push (ver mensagem NAVIGATE em index.html / notificationclick em sw.js).
-  window.envoxersNavigate = (view) => { if (view) setView(view); };
+  window.envoxersNavigate = (destino) => {
+    if (!destino) return;
+    setView(perfilComercial && !VIEWS_PERFIL_COMERCIAL.has(destino) ? "comercial-dashboard" : destino);
+  };
 
   const configLabel = { clientes: "Cadastros / Clientes", envoxers: "Cadastros / Envoxers", servicos: "Cadastros / Serviços", perfil: "Meu Perfil" }[configItem];
   const crumbs = {
