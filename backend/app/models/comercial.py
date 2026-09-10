@@ -261,4 +261,8 @@ class ComercialIntegration(Base, TimestampMixin):
     ativo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     configurado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     config_publica: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    credenciais_encriptadas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ultimo_teste_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    ultimo_teste_ok: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    ultimo_erro: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ultima_sincronizacao_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

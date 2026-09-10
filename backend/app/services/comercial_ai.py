@@ -102,15 +102,17 @@ def _parse_json(text: str) -> dict:
         raise RuntimeError("A IA retornou uma resposta fora do formato esperado. Tente novamente.")
 
 
-def _call(instructions: str, payload: dict):
-    if not settings.OPENAI_API_KEY:
-        raise RuntimeError("OpenAI ainda não está configurada neste Envoxers. Configure a OPENAI_API_KEY para habilitar auditorias e geração de mensagens.")
+def _call(instructions: str, payload: dict, api_key: str | None = None, model: str | None = None):
+    api_key = api_key or settings.OPENAI_API_KEY
+    model = model or settings.OPENAI_MODEL
+    if not api_key:
+        raise RuntimeError("OpenAI ainda não está configurada neste Envoxers. Configure a integração em Comercial → Configurações → Integrações.")
 
     body = json.dumps(
         {
-            "model": settings.OPENAI_MODEL,
+            "model": model,
             "instructions": instructions,
-            "input": json.dumps(payload, ensure_ascii=False, default=str),
+            "input": "Contexto em JSON para análise:\n" + json.dumps(payload, ensure_ascii=False, default=str),
             # JSON mode evita respostas com markdown/texto solto. As rotas ainda
             # validam a estrutura esperada e nunca persistem o resultado como fato
             # sem que exista evidência no contexto do lead.
@@ -126,7 +128,7 @@ def _call(instructions: str, payload: dict):
         "https://api.openai.com/v1/responses",
         data=body,
         headers={
-            "Authorization": "Bearer " + settings.OPENAI_API_KEY,
+            "Authorization": "Bearer " + api_key,
             "Content-Type": "application/json",
         },
         method="POST",
@@ -150,7 +152,7 @@ def _call(instructions: str, payload: dict):
     return _parse_json(text), raw.get("usage") or {}
 
 
-async def gerar_json(tarefa: str, contexto: dict, formato: str):
+async def gerar_json(tarefa: str, contexto: dict, formato: str, *, api_key: str | None = None, model: str | None = None):
     instructions = (
         SYSTEM_PROMPT
         + "\n\nTAREFA ATUAL:\n"
@@ -158,4 +160,4 @@ async def gerar_json(tarefa: str, contexto: dict, formato: str):
         + "\n\nResponda SOMENTE JSON válido, sem markdown, seguindo exatamente este formato:\n"
         + formato
     )
-    return await asyncio.to_thread(_call, instructions, contexto)
+    return await asyncio.to_thread(_call, instructions, contexto, api_key, model)

@@ -13,7 +13,7 @@ from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
+from app.api.deps import get_current_admin, get_current_envoxer, get_current_gestor_ou_admin
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.comercial import (
@@ -41,6 +41,13 @@ from app.models.comercial import (
 from app.models.envoxer import Envoxer
 from app.models.servico import Servico
 from app.services.comercial_ai import PROMPT_VERSION, gerar_json
+from app.services.comercial_integrations import (
+    clear_credentials,
+    runtime_config,
+    save_integration,
+    serialize_integrations,
+    test_integration,
+)
 
 router = APIRouter(prefix="/comercial", tags=["comercial"])
 
@@ -827,6 +834,13 @@ async def excluir_memoria(lead_id: int, fact_id: int, db: AsyncSession = Depends
     x.ativo = False; await activity(db, lead_id, user.id, "memoria_removida", "Item de memória removido"); await db.commit()
 
 
+async def _openai_runtime(db: AsyncSession) -> tuple[str, str]:
+    cfg = await runtime_config(db, "openai", require_active=True)
+    if not cfg:
+        raise HTTPException(503, "OpenAI não está configurada ou está desativada. Acesse Comercial → Configurações → Integrações.")
+    return str(cfg.get("api_key") or ""), str(cfg.get("modelo") or settings.OPENAI_MODEL)
+
+
 @router.post("/leads/{lead_id}/analisar")
 async def analisar(lead_id: int, db: AsyncSession = Depends(get_db), user: Envoxer = Depends(get_current_envoxer)):
     lead = await lead_or_404(db, lead_id)
@@ -843,11 +857,14 @@ async def analisar(lead_id: int, db: AsyncSession = Depends(get_db), user: Envox
         await db.commit()
         raise HTTPException(409, "Adicione ao menos um canal ou uma evidência pública antes de analisar. A IA não deve inventar uma auditoria sem dados.")
     formato = '{"resumo":"","tese_central":"","forcas":[],"vazamentos":[],"oportunidades":[],"ouros":[{"categoria":"google|instagram|cardapio|delivery|reputacao|posicionamento|conversao|reserva|whatsapp|seo|site|prova_social|recorrencia|ticket_medio|experiencia|outro","titulo":"","evidencia":"","impacto":"","fonte":"","grau_confianca":"alto|medio|baixo"}],"prioridade":"","risco_comercial":"","observacoes":[],"fit_score":0,"opportunity_score":0}'
+    api_key, ai_model = await _openai_runtime(db)
     try:
         result, usage = await gerar_json(
             "Audite o negócio usando somente o contexto fornecido. Não trate ausência de dado como problema observado. Separe fatos de hipóteses e gere ouros utilizáveis em conversa comercial progressiva.",
             ctx,
             formato,
+            api_key=api_key,
+            model=ai_model,
         )
     except RuntimeError as exc:
         lead.status_codigo = old_status if old_status != "em_analise" else "a_pesquisar"
@@ -864,7 +881,7 @@ async def analisar(lead_id: int, db: AsyncSession = Depends(get_db), user: Envox
         prioridade=result.get("prioridade"),
         risco_comercial=result.get("risco_comercial"),
         observacoes=result.get("observacoes", []),
-        modelo=settings.OPENAI_MODEL,
+        modelo=ai_model,
     )
     db.add(audit); await db.flush()
     for ouro in result.get("ouros", []):
@@ -890,7 +907,7 @@ async def analisar(lead_id: int, db: AsyncSession = Depends(get_db), user: Envox
         lead_id=lead.id,
         usuario_envoxer_id=user.id,
         tipo="auditoria",
-        modelo=settings.OPENAI_MODEL,
+        modelo=ai_model,
         prompt_version=PROMPT_VERSION,
         entrada=ctx,
         resultado=result,
@@ -925,16 +942,19 @@ async def gerar_mensagem(lead_id: int, payload: dict, db: AsyncSession = Depends
     ctx = await contexto(db, lead)
     ctx["ouro_escolhido"] = d(ouro)
     ctx["canal"] = canal
+    api_key, ai_model = await _openai_runtime(db)
     result, usage = await gerar_json(
         "Gere somente a próxima mensagem. Se for primeira abordagem, o objetivo é gerar resposta, usando apenas um ouro. Não peça reunião na primeira mensagem.",
         ctx,
         '{"mensagem":"","gancho":"","evidencia":"","pepita":"","marcacao_valor":"","pergunta":""}',
+        api_key=api_key,
+        model=ai_model,
     )
     db.add(ComercialAIGeneration(
         lead_id=lead.id,
         usuario_envoxer_id=user.id,
         tipo="mensagem",
-        modelo=settings.OPENAI_MODEL,
+        modelo=ai_model,
         prompt_version=PROMPT_VERSION,
         entrada=ctx,
         resultado=result,
@@ -1013,10 +1033,13 @@ async def gerar_resposta(lead_id: int, db: AsyncSession = Depends(get_db), user:
     received = [m for m in ctx["mensagens"] if m["direcao"] == "recebida"]
     if not received:
         raise HTTPException(409, "Registre a resposta do lead antes de gerar a próxima resposta.")
+    api_key, ai_model = await _openai_runtime(db)
     result, usage = await gerar_json(
         "Interprete a resposta mais recente e gere SOMENTE a próxima mensagem. Se houver um novo ouro disponível, use no máximo um e apenas se fizer sentido. Nunca discuta com o lead.",
         ctx,
         '{"interpretacao":{"tipo":"duvida|abertura|objecao|negativa|outro","sentimento":"positivo|neutro|negativo","intencao":"","objecao":"","proximo_passo":""},"mensagem":"","insight_id":null}',
+        api_key=api_key,
+        model=ai_model,
     )
     iid = result.get("insight_id")
     if iid:
@@ -1029,7 +1052,7 @@ async def gerar_resposta(lead_id: int, db: AsyncSession = Depends(get_db), user:
         lead_id=lead.id,
         usuario_envoxer_id=user.id,
         tipo="proxima_resposta",
-        modelo=settings.OPENAI_MODEL,
+        modelo=ai_model,
         prompt_version=PROMPT_VERSION,
         entrada=ctx,
         resultado=result,
@@ -1441,18 +1464,44 @@ async def notificacoes(db:AsyncSession=Depends(get_db),user:Envoxer=Depends(get_
     return notices
 
 
+@router.get("/integracoes")
+async def listar_integracoes(db: AsyncSession = Depends(get_db), _: Envoxer = Depends(get_current_envoxer)):
+    return await serialize_integrations(db)
+
+
+@router.patch("/integracoes/{provider}")
+async def configurar_integracao(provider: str, payload: dict, db: AsyncSession = Depends(get_db), _: Envoxer = Depends(get_current_admin)):
+    try:
+        await save_integration(db, provider, payload)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return next((x for x in await serialize_integrations(db) if x["provider"] == provider), None)
+
+
+@router.post("/integracoes/{provider}/testar")
+async def testar_integracao(provider: str, db: AsyncSession = Depends(get_db), _: Envoxer = Depends(get_current_admin)):
+    try:
+        return await test_integration(db, provider)
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc))
+
+
+@router.delete("/integracoes/{provider}/credenciais", status_code=204)
+async def apagar_credenciais_integracao(provider: str, db: AsyncSession = Depends(get_db), _: Envoxer = Depends(get_current_admin)):
+    await clear_credentials(db, provider)
+
+
 @router.get("/config")
 async def config_comercial(db:AsyncSession=Depends(get_db),_:Envoxer=Depends(get_current_envoxer)):
-    integrations=[d(x) for x in (await db.execute(select(ComercialIntegration).order_by(ComercialIntegration.nome))).scalars().all()]
-    for x in integrations:
-        if x["provider"]=="openai": x["configurado"]=bool(settings.OPENAI_API_KEY); x["ativo"]=bool(settings.OPENAI_API_KEY); x["config_publica"]={"modelo":settings.OPENAI_MODEL}
+    integrations=await serialize_integrations(db)
     suppressions=[]
     rows=(await db.execute(select(ComercialSuppression).order_by(ComercialSuppression.created_at.desc()).limit(500))).scalars().all()
     if rows:
         lead_ids={x.lead_id for x in rows if x.lead_id}; names={x.id:x.nome_estabelecimento for x in (await db.execute(select(ComercialLead).where(ComercialLead.id.in_(lead_ids)))).scalars().all()} if lead_ids else {}
         suppressions=[{**d(x),"lead_nome":names.get(x.lead_id)} for x in rows]
     tags=[d(x) for x in (await db.execute(select(ComercialTag).order_by(ComercialTag.nome))).scalars().all()]
-    return {"integracoes":integrations,"suppression_list":suppressions,"tags":tags,"openai_model":settings.OPENAI_MODEL}
+    openai=next((x for x in integrations if x["provider"]=="openai"),None)
+    return {"integracoes":integrations,"suppression_list":suppressions,"tags":tags,"openai_model":((openai or {}).get("config_publica") or {}).get("modelo",settings.OPENAI_MODEL)}
 
 
 @router.delete("/suppression/{item_id}",status_code=204)
