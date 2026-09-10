@@ -102,3 +102,5 @@ F4 → PDI + feedback + gamificação | F5 → IA + integrações
 - Botões posicionados ao lado de campos devem acompanhar a altura do controle.
 - Modal sem painel lateral não pode reservar coluna vazia. Modal de uma coluna deve ocupar somente o espaço necessário e ser responsivo.
 - Ao criar ou revisar qualquer tela com formulário, verificar desktop e mobile e corrigir visualmente antes de considerar a entrega concluída.
+- Checklist obrigatório antes de finalizar forms: controles com .field/.form-row, sem aparência nativa, ações com .form-actions, modal de uma coluna com .modal-form-single e nenhum style inline usado para consertar aparência de field.
+- Sempre que envox-forms.css ou envox-tokens.css mudar, incrementar a versão ?v= correspondente em index.html para impedir que o PWA mantenha CSS antigo em cache.

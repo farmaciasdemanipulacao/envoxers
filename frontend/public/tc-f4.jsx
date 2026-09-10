@@ -51,7 +51,7 @@ function PdiAcaoFormModal({ envoxerId, acao, onClose, onSaved }) {
 
   return (
     <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal">
+      <div className="modal modal-form-single">
         <div className="modal-head">
           <div className="modal-eyebrow"><span>PDI</span></div>
           <h2 className="modal-title">{isEdit ? "Editar ação" : "Nova ação de PDI"}</h2>
@@ -79,7 +79,7 @@ function PdiAcaoFormModal({ envoxerId, acao, onClose, onSaved }) {
                 <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
               </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+            <div className="form-actions">
               <button className="btn btn-sm" onClick={onClose}>Cancelar</button>
               <button className="btn btn-sm btn-primary" onClick={salvar} disabled={saving}>{saving ? "Salvando…" : "Salvar"}</button>
             </div>
@@ -140,11 +140,13 @@ function PdiAcaoCard({ acao, onAtualizado }) {
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
           {acao.descricao && <div style={{ fontSize: 13, color: "var(--ink-2)", marginBottom: 10, whiteSpace: "pre-wrap" }}>{acao.descricao}</div>}
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
-            <label style={{ fontSize: 12, color: "var(--ink-3)" }}>Status:</label>
-            <select value={acao.status} onChange={(e) => mudarStatus(e.target.value)} style={{ maxWidth: 180 }} onClick={(e) => e.stopPropagation()}>
-              {Object.entries(STATUS_PDI_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
+          <div className="pdi-inline-controls">
+            <div className="field pdi-status-field">
+              <label>Status</label>
+              <select value={acao.status} onChange={(e) => mudarStatus(e.target.value)} onClick={(e) => e.stopPropagation()}>
+                {Object.entries(STATUS_PDI_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
             <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setEditando(true); }}>Editar</button>
           </div>
 
@@ -161,8 +163,8 @@ function PdiAcaoCard({ acao, onAtualizado }) {
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", gap: 8 }} onClick={(e) => e.stopPropagation()}>
-            <input type="text" value={comentario} onChange={(e) => setComentario(e.target.value)} placeholder="Adicionar um check-in de progresso…" style={{ flex: 1 }} />
+          <div className="pdi-checkin-form" onClick={(e) => e.stopPropagation()}>
+            <input className="pdi-checkin-input" type="text" value={comentario} onChange={(e) => setComentario(e.target.value)} placeholder="Adicionar um check-in de progresso…" />
             <button className="btn btn-sm" onClick={enviarComentario} disabled={enviando}>Comentar</button>
           </div>
         </div>
@@ -732,7 +734,7 @@ function Feedback1a1FormModal({ envoxersAtivos, gestorId, registro, onClose, onS
 
   return (
     <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal">
+      <div className="modal modal-form-single">
         <div className="modal-head">
           <div className="modal-eyebrow"><span>1:1</span></div>
           <h2 className="modal-title">{isEdit ? "Editar 1:1" : "Registrar 1:1"}</h2>
@@ -755,7 +757,7 @@ function Feedback1a1FormModal({ envoxersAtivos, gestorId, registro, onClose, onS
             </div>
             <div className="field"><label>Pauta</label><textarea rows={3} value={pauta} onChange={(e) => setPauta(e.target.value)} /></div>
             <div className="field"><label>Combinados</label><textarea rows={3} value={combinados} onChange={(e) => setCombinados(e.target.value)} /></div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div className="form-actions">
               <button className="btn btn-sm" onClick={onClose}>Cancelar</button>
               <button className="btn btn-sm btn-primary" onClick={salvar} disabled={saving}>Salvar</button>
             </div>
@@ -941,7 +943,7 @@ function ClimaBrutoModal({ ciclo, onClose }) {
 
   return (
     <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal">
+      <div className="modal modal-form-single">
         <div className="modal-head">
           <div className="modal-eyebrow"><span>Clima — auditoria (admin)</span></div>
           <h2 className="modal-title">Respostas individuais — {ciclo.nome}</h2>

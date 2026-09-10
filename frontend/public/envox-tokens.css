@@ -658,8 +658,8 @@ tbody tr:hover .farol-dot { box-shadow: 0 0 0 3px var(--bg-inset); }
 }
 /* Base pra QUALQUER input/select/textarea solto (fora de .field) — rede de
    segurança contra o bug recorrente de campo sem estilo (D-100/D-122): baixa
-   especificidade de propósito (seletor de tag puro), então .field/.search/
-   .table-edit-*/.money-input etc. continuam ganhando normalmente por cima. */
+   especificidade de propósito (seletor de tag puro), então .field/.search,
+   .table-edit-* e .money-input continuam ganhando normalmente por cima. */
 input, select, textarea {
   padding: 8px 12px;
   border: 1px solid var(--line-2);
