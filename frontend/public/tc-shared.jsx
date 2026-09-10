@@ -415,10 +415,16 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       <div className="nav-section">
         <div className="nav-section-title">Comercial</div>
         <nav className="nav">
-          {item("comercial-dashboard", "Dashboard Comercial", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V7h3v6M6.5 13V3h3v10M11 13V5h3v8" /></svg>)}
+          {item("comercial-dashboard", "Dashboard", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V7h3v6M6.5 13V3h3v10M11 13V5h3v8" /></svg>)}
           {item("comercial-hoje", "Prospecções de Hoje", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/></svg>)}
           {item("comercial-leads", "Leads", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="6" cy="5" r="2.5"/><path d="M2 13c.4-2.6 1.8-4 4-4s3.6 1.4 4 4M11 5h3M12.5 3.5v3"/></svg>)}
           {item("comercial-pipeline", "Pipeline", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="3" width="3" height="10" rx="1"/><rect x="6.5" y="3" width="3" height="10" rx="1"/><rect x="11" y="3" width="3" height="10" rx="1"/></svg>)}
+          {item("comercial-conversas", "Conversas", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v7H5l-3 3z"/><path d="M5 6h6M5 8h4"/></svg>)}
+          {item("comercial-cadencias", "Cadências", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3h8M3 8h6M3 13h10"/><path d="M12 2l2 2-2 2"/></svg>)}
+          {item("comercial-tarefas", "Tarefas", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8l2 2 4-4"/></svg>)}
+          {item("comercial-oportunidades", "Oportunidades", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v8M5 7h6"/></svg>)}
+          {item("comercial-relatorios", "Relatórios", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V3M2 13h12"/><path d="M5 10V7M8 10V5M11 10V8"/></svg>)}
+          {item("comercial-config", "Configurações", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1"/></svg>)}
         </nav>
       </div>
 

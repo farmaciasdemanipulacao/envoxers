@@ -696,6 +696,12 @@ function AppShell() {
     "comercial-hoje": "Comercial / Prospecções de Hoje",
     "comercial-leads": "Comercial / Leads",
     "comercial-pipeline": "Comercial / Pipeline",
+    "comercial-conversas": "Comercial / Conversas",
+    "comercial-cadencias": "Comercial / Cadências",
+    "comercial-tarefas": "Comercial / Tarefas",
+    "comercial-oportunidades": "Comercial / Oportunidades",
+    "comercial-relatorios": "Comercial / Relatórios",
+    "comercial-config": "Comercial / Configurações",
     kanban: "Operação / Kanban",
     dashboard: "Operação / Dashboard do dia",
     calendario: "Operação / Calendário",
@@ -790,6 +796,12 @@ function AppShell() {
         {view === "comercial-hoje" && <ComercialScreen mode="hoje" />}
         {view === "comercial-leads" && <ComercialScreen mode="leads" />}
         {view === "comercial-pipeline" && <ComercialScreen mode="pipeline" />}
+        {view === "comercial-conversas" && <ComercialScreen mode="conversas" />}
+        {view === "comercial-cadencias" && <ComercialScreen mode="cadencias" />}
+        {view === "comercial-tarefas" && <ComercialScreen mode="tarefas" />}
+        {view === "comercial-oportunidades" && <ComercialScreen mode="oportunidades" />}
+        {view === "comercial-relatorios" && <ComercialScreen mode="relatorios" />}
+        {view === "comercial-config" && <ComercialScreen mode="config" />}
         {view === "kanban" && (
           <KanbanScreen
             permissao={permissao}
