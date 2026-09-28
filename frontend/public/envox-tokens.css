@@ -4155,3 +4155,96 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   .commercial-page .commercial-integrations{grid-template-columns:1fr}
   .commercial-page .commercial-stage-list > div{grid-template-columns:1fr 80px auto}
 }
+/* ============================================================
+   SIDEBAR · GRUPOS RECOLHÍVEIS POR USUÁRIO
+   ============================================================ */
+.nav-section-collapsible {
+  transition: margin-bottom 0.22s ease;
+}
+.nav-section-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-ui);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.35;
+}
+.nav-section-toggle:hover {
+  color: var(--ink-2);
+}
+.nav-section-chevron {
+  flex-shrink: 0;
+  transform: rotate(90deg);
+  transition: transform 0.2s ease, opacity 0.15s ease;
+  opacity: 0.7;
+}
+.nav-section-collapsible > .nav {
+  max-height: 720px;
+  opacity: 1;
+  transform: translateY(0);
+  overflow: hidden;
+  transition: max-height 0.26s ease, opacity 0.18s ease, transform 0.22s ease;
+}
+.nav-section-collapsible.closed {
+  margin-bottom: 9px;
+}
+.nav-section-collapsible.closed > .nav {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-5px);
+  pointer-events: none;
+}
+.nav-section-collapsible.closed .nav-section-toggle {
+  margin-bottom: 0;
+}
+.nav-section-collapsible.closed .nav-section-chevron {
+  transform: rotate(0deg);
+}
+/* Quando a sidebar inteira está em modo ícone, os pais ficam visualmente ocultos.
+   Os links permanecem acessíveis; ao expandir a sidebar, o estado de cada grupo
+   volta exatamente como estava salvo. */
+.sidebar.collapsed .nav-section-collapsible > .nav {
+  max-height: 720px;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  overflow: visible;
+}
+.sidebar.collapsed .nav-section-toggle {
+  pointer-events: none;
+}
+.sidebar.collapsed .nav-section-chevron {
+  display: none;
+}
+
+.nav-section-collapsible > .nav {
+  margin-left: 9px;
+  padding-left: 5px;
+  border-left: 1px solid var(--line);
+}
+.nav-section-collapsible.has-active > .nav-section-toggle {
+  color: var(--ink-2);
+  font-weight: 700;
+}
+.nav-section-collapsible.has-active > .nav-section-toggle::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--envox);
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+.nav-section-collapsible.has-active > .nav-section-toggle > span {
+  margin-right: auto;
+}
+.sidebar.collapsed .nav-section-collapsible > .nav {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}

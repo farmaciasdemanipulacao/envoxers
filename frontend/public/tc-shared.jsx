@@ -372,6 +372,66 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
     </a>
   );
 
+  // Estado dos grupos do menu é individual por usuário e persiste em localStorage.
+  // Não é apagado no logout: ao entrar novamente no mesmo navegador, cada pessoa
+  // recupera exatamente os pais que deixou abertos/fechados.
+  const sectionDefaults = {
+    comercial: true,
+    operacao: true,
+    entregaveis: true,
+    farol: true,
+    icp: true,
+    desenvolvimento: true,
+    admin: true,
+  };
+  const sectionStorageKey = envoxerId ? `envoxers_sidebar_sections_${envoxerId}` : null;
+  const readSectionState = () => {
+    if (!sectionStorageKey) return sectionDefaults;
+    try {
+      const saved = JSON.parse(localStorage.getItem(sectionStorageKey) || "{}");
+      return { ...sectionDefaults, ...saved };
+    } catch (err) {
+      return sectionDefaults;
+    }
+  };
+  const [sectionOpen, setSectionOpen] = useState(readSectionState);
+  useEffect(() => {
+    setSectionOpen(readSectionState());
+  }, [envoxerId]);
+
+  const toggleSection = (key) => {
+    setSectionOpen((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      if (sectionStorageKey) localStorage.setItem(sectionStorageKey, JSON.stringify(next));
+      return next;
+    });
+  };
+  const sectionHasActive = (key) => ({
+    comercial: view.startsWith("comercial-"),
+    operacao: ["kanban", "dashboard", "calendario", "relatorio", "foco-ativos"].includes(view),
+    entregaveis: view === "entregaveis",
+    farol: ["solicitacoes", "farol", "alertas"].includes(view),
+    icp: ["icp", "faturamento", "churn"].includes(view),
+    desenvolvimento: view === "f4",
+    admin: view === "config-alertas",
+  }[key] || false);
+  const sectionClass = (key) =>
+    `nav-section nav-section-collapsible ${sectionOpen[key] ? "open" : "closed"}${sectionHasActive(key) ? " has-active" : ""}`;
+  const sectionTitle = (key, label) => (
+    <button
+      type="button"
+      className="nav-section-title nav-section-toggle"
+      onClick={() => toggleSection(key)}
+      aria-expanded={!!sectionOpen[key]}
+      title={sectionOpen[key] ? `Recolher ${label}` : `Expandir ${label}`}
+    >
+      <span>{label}</span>
+      <svg className="nav-section-chevron" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M4 2.5L7.5 6 4 9.5" />
+      </svg>
+    </button>
+  );
+
   return (
     <aside className={"sidebar" + (collapsed && !isMobile ? " collapsed" : "") + (mobileOpen ? " open" : "")}>
       <div className="brand">
@@ -412,8 +472,8 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      <div className="nav-section">
-        <div className="nav-section-title">Comercial</div>
+      <div className={sectionClass("comercial")}>
+        {sectionTitle("comercial", "Comercial")}
         <nav className="nav">
           {item("comercial-dashboard", "Dashboard", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V7h3v6M6.5 13V3h3v10M11 13V5h3v8" /></svg>)}
           {item("comercial-hoje", "Prospecções de Hoje", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/></svg>)}
@@ -429,8 +489,8 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </div>
 
       {permissao !== "comercial" && <>
-      <div className="nav-section">
-        <div className="nav-section-title">F1 · Operação</div>
+      <div className={sectionClass("operacao")}>
+        {sectionTitle("operacao", "F1 · Operação")}
         <nav className="nav">
           {item(
             "kanban",
@@ -465,8 +525,8 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      <div className="nav-section">
-        <div className="nav-section-title">Entregáveis</div>
+      <div className={sectionClass("entregaveis")}>
+        {sectionTitle("entregaveis", "Entregáveis")}
         <nav className="nav">
           {item(
             "entregaveis",
@@ -477,8 +537,8 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      <div className="nav-section" style={{ marginTop: "auto" }}>
-        <div className="nav-section-title">F2 · Farol</div>
+      <div className={sectionClass("farol")}>
+        {sectionTitle("farol", "F2 · Farol")}
         <nav className="nav">
           {item(
             "solicitacoes",
@@ -501,8 +561,8 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      <div className="nav-section">
-        <div className="nav-section-title">F3 · ICP</div>
+      <div className={sectionClass("icp")}>
+        {sectionTitle("icp", "F3 · ICP")}
         <nav className="nav">
           {permissao !== "envoxer" && item(
             "icp",
@@ -525,8 +585,8 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      <div className="nav-section">
-        <div className="nav-section-title">F4 · Desenvolvimento</div>
+      <div className={sectionClass("desenvolvimento")}>
+        {sectionTitle("desenvolvimento", "F4 · Desenvolvimento")}
         <nav className="nav">
           {item(
             "f4",
@@ -537,8 +597,8 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </div>
 
       {(permissao === "admin" || permissao === "gestor") && (
-        <div className="nav-section">
-          <div className="nav-section-title">Admin</div>
+        <div className={sectionClass("admin")}>
+          {sectionTitle("admin", "Admin")}
           <nav className="nav">
             {item(
               "config-alertas",

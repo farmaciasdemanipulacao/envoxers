@@ -362,15 +362,24 @@ function AppShell() {
     }
   }, [view, permissao, perfilComercial]);
 
-  // Estado do menu (expandido/recolhido) persiste em localStorage — não em memória —
-  // pra sobreviver a um reload de página, não só a troca de tela dentro da sessão.
-  const [sidebarCollapsed, setSidebarCollapsed] = useStateApp(
-    () => localStorage.getItem("envoxers_sidebar_collapsed") === "1"
-  );
+  // Estado geral da sidebar também é por usuário. O fallback da chave antiga
+  // preserva a preferência existente na primeira abertura após esta atualização.
+  const sidebarCollapsedStorageKey = envoxerId
+    ? `envoxers_sidebar_collapsed_${envoxerId}`
+    : "envoxers_sidebar_collapsed";
+  const readSidebarCollapsed = () => {
+    const own = localStorage.getItem(sidebarCollapsedStorageKey);
+    if (own !== null) return own === "1";
+    return localStorage.getItem("envoxers_sidebar_collapsed") === "1";
+  };
+  const [sidebarCollapsed, setSidebarCollapsed] = useStateApp(readSidebarCollapsed);
+  useEffectApp(() => {
+    setSidebarCollapsed(readSidebarCollapsed());
+  }, [envoxerId]);
   const toggleSidebarCollapsed = () => {
     setSidebarCollapsed((prev) => {
       const next = !prev;
-      localStorage.setItem("envoxers_sidebar_collapsed", next ? "1" : "0");
+      localStorage.setItem(sidebarCollapsedStorageKey, next ? "1" : "0");
       return next;
     });
   };
