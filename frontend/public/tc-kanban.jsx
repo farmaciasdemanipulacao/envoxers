@@ -59,6 +59,7 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
   const [filtroStatus, setFiltroStatus] = useStateKb("");
   const [filtroAtrasadas, setFiltroAtrasadas] = useStateKb(false);
   const [ocultarFinalizadas, setOcultarFinalizadas] = useStateKb(true);
+  const [kanbanFullscreen, setKanbanFullscreen] = useStateKb(false);
   const toast = EnvoxersShared.useToast();
 
   const carregar = async () => {
@@ -80,6 +81,47 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
   };
 
   useEffectKb(() => { carregar(); }, [dataVersion]);
+
+  useEffectKb(() => {
+    document.body.classList.toggle("kanban-fullscreen-active", kanbanFullscreen);
+    return () => document.body.classList.remove("kanban-fullscreen-active");
+  }, [kanbanFullscreen]);
+
+  useEffectKb(() => {
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement && kanbanFullscreen) setKanbanFullscreen(false);
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape" && kanbanFullscreen && !document.fullscreenElement) {
+        setKanbanFullscreen(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [kanbanFullscreen]);
+
+  const toggleKanbanFullscreen = async () => {
+    if (kanbanFullscreen) {
+      setKanbanFullscreen(false);
+      if (document.fullscreenElement && document.exitFullscreen) {
+        try { await document.exitFullscreen(); } catch (_) {}
+      }
+      return;
+    }
+
+    setKanbanFullscreen(true);
+    const appEl = document.querySelector(".app");
+    if (appEl && appEl.requestFullscreen) {
+      try { await appEl.requestFullscreen(); } catch (_) {
+        // O modo focado por CSS continua funcionando quando o navegador
+        // bloqueia a Fullscreen API (ex.: alguns PWAs/iOS).
+      }
+    }
+  };
 
   const filtradas = useMemoKb(() => {
     return tarefas.filter((t) => {
@@ -110,13 +152,21 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
   };
 
   return (
-    <div className="page" style={{ paddingBottom: 20 }}>
+    <div className={"page kanban-page" + (kanbanFullscreen ? " kb-fullscreen" : "")} style={{ paddingBottom: 20 }}>
       <div className="page-header" style={{ marginBottom: 16, paddingBottom: 16 }}>
         <div className="page-title-block">
           <h1>Kanban</h1>
           <div className="page-sub">Fluxo de demandas. Arraste os cards entre as colunas — a listra colorida do card é o farol do cliente.</div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="kanban-header-actions">
+          <button className="btn" onClick={toggleKanbanFullscreen}>
+            {kanbanFullscreen ? (
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4" /></svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg>
+            )}
+            {kanbanFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+          </button>
           <button className="btn" onClick={() => onNavigate("calendario")}>
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="12" height="10" rx="1" /><path d="M2 7h12M6 2v3M10 2v3" /></svg> Calendário
           </button>
@@ -166,6 +216,12 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
             Ocultar finalizadas
           </label>
         </div>
+        {kanbanFullscreen && (
+          <button className="btn kanban-toolbar-fullscreen-exit" onClick={toggleKanbanFullscreen}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4" /></svg>
+            Sair da tela cheia
+          </button>
+        )}
       </div>
 
       <div className="kanban-shell">

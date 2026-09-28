@@ -825,23 +825,30 @@ input[type="checkbox"], input[type="radio"], input[type="file"], input[type="ran
    KANBAN — F1
    ============================================================ */
 .kanban-shell {
-  padding: 20px 32px 40px;
+  padding: 0 0 24px;
+  width: 100%;
+  min-width: 0;
 }
 .kanban-toolbar {
   display: flex; align-items: center; gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
 }
 .kanban-toolbar .search { max-width: 240px; }
 
 .kanban {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 288px;
+  grid-auto-columns: minmax(272px, 288px);
   gap: 12px;
+  width: 100%;
+  min-width: 0;
   overflow-x: auto;
-  padding-bottom: 16px;
+  padding: 0 0 16px;
   scroll-snap-type: x proximity;
+  scrollbar-gutter: stable;
 }
 .kanban::-webkit-scrollbar { height: 10px; }
 .kanban::-webkit-scrollbar-track { background: transparent; }
@@ -4791,4 +4798,107 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   .foco-monitor-summary { grid-template-columns: 1fr 1fr; }
   .foco-summary-total { grid-column: 1 / -1; grid-row: auto; min-height: 90px; }
   .foco-summary-state { min-height: 90px; }
+}
+
+/* ============================================================
+   KANBAN · ALINHAMENTO + TELA CHEIA
+   ============================================================ */
+.kanban-page {
+  overflow-x: hidden;
+}
+.kanban-page .page-header {
+  width: 100%;
+}
+.kanban-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.kanban-toolbar .filter-group {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.kanban-toolbar-fullscreen-exit {
+  margin-left: auto;
+}
+
+/* O body recebe esta classe enquanto o Kanban está em tela cheia. Ela serve
+   tanto para o modo nativo do navegador quanto como fallback em PWAs/iOS. */
+body.kanban-fullscreen-active {
+  overflow: hidden;
+}
+body.kanban-fullscreen-active .app {
+  grid-template-columns: 1fr !important;
+  height: 100vh;
+  min-height: 100vh;
+}
+body.kanban-fullscreen-active .sidebar,
+body.kanban-fullscreen-active .topbar,
+body.kanban-fullscreen-active .foco-bar,
+body.kanban-fullscreen-active .mobile-overlay {
+  display: none !important;
+}
+body.kanban-fullscreen-active .main {
+  width: 100vw;
+  height: 100vh;
+  min-width: 0;
+  overflow: hidden;
+  padding-bottom: 0 !important;
+}
+.kanban-page.kb-fullscreen {
+  height: 100vh;
+  min-height: 100vh;
+  padding: 18px 18px 10px !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+.kanban-page.kb-fullscreen .page-header {
+  display: none;
+}
+.kanban-page.kb-fullscreen .page-title-block h1 {
+  font-size: 30px;
+}
+.kanban-page.kb-fullscreen .page-title-block .page-sub {
+  font-size: 11px;
+}
+.kanban-page.kb-fullscreen .kanban-toolbar {
+  flex: 0 0 auto;
+  margin-bottom: 10px;
+}
+.kanban-page.kb-fullscreen .kanban-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+.kanban-page.kb-fullscreen .kanban {
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 10px;
+}
+.kanban-page.kb-fullscreen .kb-col {
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+}
+.kanban-page.kb-fullscreen .kb-col-body {
+  min-height: 0;
+}
+
+@media(max-width:900px) {
+  .kanban-page {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .kanban-header-actions {
+    justify-content: flex-start;
+  }
+  .kanban-toolbar .search {
+    max-width: none;
+    width: 100%;
+  }
 }
