@@ -141,6 +141,13 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
     });
   }, [tarefas, busca, filtroCliente, filtroResponsavel, filtroResponsavelModo, filtroStatus, filtroAtrasadas, ocultarFinalizadas]);
 
+  const rolarKanbanHorizontal = (e) => {
+    if (!e.shiftKey) return;
+    e.preventDefault();
+    const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    e.currentTarget.scrollLeft += delta;
+  };
+
   const moverCard = async (tarefaId, novoStatus) => {
     setTarefas((prev) => prev.map((t) => (t.id === tarefaId ? { ...t, status: novoStatus } : t)));
     try {
@@ -224,8 +231,15 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
         )}
       </div>
 
+      <div className="kanban-navigation-hint" role="note" aria-label="Dica de navegação horizontal">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+          <path d="M2 8h12M4.5 5.5L2 8l2.5 2.5M11.5 5.5L14 8l-2.5 2.5" />
+        </svg>
+        <span>Segure <kbd>Shift</kbd> + role a roda do mouse para navegar horizontalmente</span>
+      </div>
+
       <div className="kanban-shell">
-        <div className="kanban">
+        <div className="kanban" onWheel={rolarKanbanHorizontal}>
           {loading && <div style={{ padding: 20, color: "var(--ink-3)" }}>Carregando…</div>}
           {!loading && STATUS_COLS.map((col) => (
             <KanbanColuna
