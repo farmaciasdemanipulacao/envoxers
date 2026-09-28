@@ -408,12 +408,12 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
   };
   const sectionHasActive = (key) => ({
     comercial: view.startsWith("comercial-"),
-    operacao: ["kanban", "dashboard", "calendario", "relatorio", "foco-ativos"].includes(view),
+    operacao: ["kanban", "dashboard", "calendario", "foco-ativos"].includes(view),
     entregaveis: view === "entregaveis",
     farol: ["solicitacoes", "farol", "alertas"].includes(view),
-    icp: ["icp", "faturamento", "churn"].includes(view),
+    icp: ["icp", "churn"].includes(view),
     desenvolvimento: view === "f4",
-    admin: view === "config-alertas",
+    admin: ["config-alertas", "relatorio", "faturamento"].includes(view),
   }[key] || false);
   const sectionClass = (key) =>
     `nav-section nav-section-collapsible ${sectionOpen[key] ? "open" : "closed"}${sectionHasActive(key) ? " has-active" : ""}`;
@@ -498,7 +498,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
           )}
           {item(
             "dashboard",
-            "Dashboard do dia",
+            "Dash do dia",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="5" height="12" rx="1" /><rect x="9" y="2" width="5" height="6" rx="1" /></svg>,
             "nav_dashboard"
           )}
@@ -508,15 +508,9 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4" width="12" height="10" rx="1" /><path d="M2 7h12M6 2v3M10 2v3" /></svg>,
             "nav_calendario"
           )}
-          {permissao === "admin" && item(
-            "relatorio",
-            "Relatório de custo",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V3M2 13h12" /><path d="M5 10V7M8 10V5M11 10V8" /></svg>,
-            "nav_relatorio"
-          )}
           {item(
             "foco-ativos",
-            "Quem está em Foco",
+            "Foco",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><path d="M8 5v3l2 2" /></svg>,
             "nav_foco_ativos"
           )}
@@ -524,11 +518,11 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </div>
 
       <div className={sectionClass("entregaveis")}>
-        {sectionTitle("entregaveis", "Entregáveis")}
+        {sectionTitle("entregaveis", "Entregas")}
         <nav className="nav">
           {item(
             "entregaveis",
-            "Controle de Entregáveis",
+            "Controle",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 8l3 3 7-7" /><rect x="2" y="2" width="12" height="12" rx="2" /></svg>,
             "nav_entregaveis"
           )}
@@ -568,12 +562,6 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 12l4-4 3 3 5-5" /></svg>,
             "nav_icp"
           )}
-          {permissao === "admin" && item(
-            "faturamento",
-            "Painel de faturamento",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13l4-6 3 3 5-7" /><path d="M9 3h5v5" /></svg>,
-            "nav_faturamento"
-          )}
           {item(
             "churn",
             "Cancelamentos",
@@ -598,6 +586,18 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         <div className={sectionClass("admin")}>
           {sectionTitle("admin", "Admin")}
           <nav className="nav">
+            {permissao === "admin" && item(
+              "relatorio",
+              "Custos",
+              <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V3M2 13h12" /><path d="M5 10V7M8 10V5M11 10V8" /></svg>,
+              "nav_relatorio"
+            )}
+            {permissao === "admin" && item(
+              "faturamento",
+              "Painel de Faturamento",
+              <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13l4-6 3 3 5-7" /><path d="M9 3h5v5" /></svg>,
+              "nav_faturamento"
+            )}
             {item(
               "config-alertas",
               "Configuração de Alertas",
@@ -803,8 +803,8 @@ const HELP_TEXTS = {
 
   // --- Navegação
   nav_calendario: { t: "Calendário geral", b: "<p>Publicações programadas + reuniões + captações + eventos externos, tudo numa agenda. Filtro por cliente.</p>" },
-  nav_relatorio: { t: "Relatório de custo", b: "<p>Horas de Foco × custo do time × contrato. Mostra margem por cliente/serviço/tipo/envoxer. Sinaliza margem &lt;20% em amarelo, &lt;10% em vermelho.</p>" },
-  nav_dashboard: { t: "Dashboard do dia", b: "<p>Resumo do que precisa da sua atenção hoje: farol dos clientes em risco, atrasos, aprovações pendentes, publicações dos próximos 3 dias, e captações do dia.</p>" },
+  nav_relatorio: { t: "Custos", b: "<p>Horas de Foco × custo do time × contrato. Mostra margem por cliente/serviço/tipo/envoxer. Sinaliza margem &lt;20% em amarelo, &lt;10% em vermelho.</p>" },
+  nav_dashboard: { t: "Dash do dia", b: "<p>Resumo do que precisa da sua atenção hoje: farol dos clientes em risco, atrasos, aprovações pendentes, publicações dos próximos 3 dias, e captações do dia.</p>" },
   nav_kanban: { t: "Kanban de demandas", b: "<p>Todas as tarefas de todos os clientes em 8 colunas (Nova → Finalizado). Arraste cards entre colunas. Filtre por cliente, responsável, tipo e atrasadas.</p>" },
   nav_solic: { t: "Solicitações do cliente", b: "<p>Inbox de pedidos: novo post, alteração, material extra, campanha, dúvida, evento. Triar aqui evita que pedidos virem WhatsApp perdido.</p>" },
 
@@ -819,7 +819,7 @@ const HELP_TEXTS = {
   dash_next3: { t: "Cards — próximos 3 dias", b: "<p>Cards com prazo nos próximos 3 dias. Ajuda a decidir o que priorizar para não atrasar a entrega.</p>" },
   dash_next3_etapas: { t: "Tarefas/Etapas — próximos 3 dias", b: "<p>Etapas (checklist) com prazo nos próximos 3 dias, independente do prazo do card onde elas estão.</p>" },
   dash_hoje_eventos: { t: "Captações e eventos de hoje", b: "<p>Reuniões, captações e eventos externos agendados para hoje. Cabe checar antes das 10h.</p>" },
-  dash_rel_rapido: { t: "Relatório rápido", b: "<p>Prévia do Relatório de custo (menu Operação → Relatório). Mostra os clientes com pior situação de margem para você ver antes de abrir a tela cheia.</p>" },
+  dash_rel_rapido: { t: "Relatório rápido", b: "<p>Prévia de Custos (menu Admin → Custos). Mostra os clientes com pior situação de margem para você ver antes de abrir a tela cheia.</p>" },
 
   // --- Foco
   foco_hoje: { t: "Foco de hoje", b: "<p>Soma de todas as sessões de Foco finalizadas hoje, e quanto isso vale em custo gerado (horas × custo/hora do Envoxer).</p>" },
@@ -831,10 +831,10 @@ const HELP_TEXTS = {
   solic_acao: { t: "Ações da solicitação", b: "<p><strong>Virar demanda</strong> cria um card no Kanban com os dados. <strong>Em análise</strong> só marca como vista. <strong>Recusar</strong> exige motivo — cliente é notificado.</p>" },
   nav_farol: { t: "Farol de clientes", b: "<p>Todos os clientes ordenados por risco (health score 0-100). Vermelho = ligação essa semana. Amarelo = próximos 15 dias. Verde = mensal.</p>" },
   nav_alertas: { t: "Central de alertas", b: "<p>Toda vez que um cliente muda de farol, um alerta é criado com motivo específico e sugestão de ação. Reconheça, resolva, ou ignore com justificativa.</p>" },
-  nav_entregaveis: { t: "Controle de Entregáveis", b: "<p>Contratado × entregue por cliente, calculado a partir dos itens de escopo e das tarefas finalizadas no Kanban. Gaps em meses fechados viram alerta automaticamente.</p>" },
+  nav_entregaveis: { t: "Controle", b: "<p>Contratado × entregue por cliente, calculado a partir dos itens de escopo e das tarefas finalizadas no Kanban. Gaps em meses fechados viram alerta automaticamente.</p>" },
   nav_icp: { t: "ICP Builder", b: "<p>Compara clientes que ficaram &gt;12 meses com os que saíram em &lt;6 meses. A diferença entre os dois grupos é o seu ICP (quem buscar) e anti-ICP (quem evitar).</p>" },
   nav_churn: { t: "Cancelamentos", b: "<p>Histórico de churn. Cada cancelamento congela snapshot dos dados do cliente (segmento, ticket, canal, perfil) — sem isso o ICP builder mente.</p>" },
-  nav_faturamento: { t: "Painel de faturamento", b: "<p>MRR real, concentração top 3, receita em risco, projeção 90 dias, curva de retenção por cohort. A previsibilidade que substitui a montanha-russa.</p>" },
+  nav_faturamento: { t: "Painel de Faturamento", b: "<p>MRR real, concentração top 3, receita em risco, projeção 90 dias, curva de retenção por cohort. A previsibilidade que substitui a montanha-russa.</p>" },
   nav_clientes: { t: "Cadastro de clientes", b: "<p>Base viva de contas. Cada cliente carrega dados de contrato + dados de ICP (segmento, canal, ticket, maturidade) — capturados no cadastro para uso em F3.</p>" },
   nav_envoxers: { t: "Cadastro de Envoxers", b: "<p>Time interno. O <code>custo/hora</code> aqui alimenta a margem em todos os relatórios — use salário + encargos (~1,5-1,8×), não salário puro.</p>" },
   nav_servicos: { t: "Cadastro de serviços", b: "<p>Catálogo fixo do que a Envox oferece. Editar aqui reflete em contratos históricos — mude com cuidado.</p>" },

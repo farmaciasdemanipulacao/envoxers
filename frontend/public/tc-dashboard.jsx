@@ -218,7 +218,7 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
     <div className="page">
       <div className="page-header">
         <div className="page-title-block">
-          <h1>Dashboard do dia</h1>
+          <h1>Dash do dia</h1>
           <div className="page-sub">O que precisa acontecer hoje — separado entre prazo de card e prazo de tarefa/etapa, ordenado por prioridade.</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

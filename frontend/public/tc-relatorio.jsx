@@ -110,7 +110,7 @@ function RelatorioScreen() {
   return (
     <div className="rep-shell">
       <EnvoxersShared.PageHeader
-        title="Relatório de custo"
+        title="Custos"
         subtitle="Horas de Foco × custo do time × contrato. Onde a agência está ganhando dinheiro — e onde está perdendo."
         actions={(
           <button className="btn" onClick={exportarCsv}>

@@ -60,7 +60,7 @@ function EntregaveisScreen({ onAbrirCliente }) {
   return (
     <div className="page">
       <EnvoxersShared.PageHeader
-        title="Controle de Entregáveis"
+        title="Controle"
         subtitle="Contratado × entregue por cliente, últimos 6 meses — pra nunca mais precisar recontar no WhatsApp."
       />
 

@@ -134,7 +134,7 @@ function FaturamentoScreen() {
   return (
     <div className="page">
       <EnvoxersShared.PageHeader
-        title="Painel de faturamento"
+        title="Painel de Faturamento"
         subtitle="MRR, concentração, receita em risco e projeção 90 dias — recalculado a cada visita a esta tela."
       />
 
