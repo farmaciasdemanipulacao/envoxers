@@ -68,10 +68,16 @@ async def _sincronizar_servico_card_existente(db, tarefa_id: int, servico_id: Op
         return
     novas_etapas = await aplicar_processo_do_servico(db, tarefa_id, servico_id)
     if novas_etapas and tarefa.responsavel_envoxer_id is None:
-        primeira = min(novas_etapas, key=lambda e: e.ordem)
-        if primeira.responsavel_id:
-            tarefa.responsavel_envoxer_id = primeira.responsavel_id
-            await db.flush()
+        responsavel_cliente = (await db.execute(
+            select(Cliente.responsavel_envoxer_id).where(Cliente.id == tarefa.cliente_id)
+        )).scalar_one_or_none()
+        if responsavel_cliente:
+            tarefa.responsavel_envoxer_id = responsavel_cliente
+        else:
+            primeira = min(novas_etapas, key=lambda e: e.ordem)
+            if primeira.responsavel_id:
+                tarefa.responsavel_envoxer_id = primeira.responsavel_id
+        await db.flush()
 
 
 async def _obter_ou_criar_card_id(
@@ -87,9 +93,14 @@ async def _obter_ou_criar_card_id(
         return tarefa_id
 
     titulo = f"{tipo}{f' — {descricao}' if descricao else ''} ({ano_mes})"
+    responsavel_cliente = (await db.execute(
+        select(Cliente.responsavel_envoxer_id).where(Cliente.id == cliente_id)
+    )).scalar_one_or_none()
+
     tarefa = Tarefa(
         cliente_id=cliente_id, item_escopo_id=item_id, ano_mes=ano_mes, servico_id=servico_id,
         titulo=titulo, status="nova", prazo=_fim_do_mes(ano_mes),
+        responsavel_envoxer_id=responsavel_cliente,
     )
     db.add(tarefa)
     try:
@@ -113,7 +124,7 @@ async def _obter_ou_criar_card_id(
     # simplesmente não seta nada — não é erro, card provisionado nunca deve
     # falhar por causa de um processo ainda não cadastrado.
     novas_etapas = await aplicar_processo_do_servico(db, tarefa.id, servico_id)
-    if novas_etapas:
+    if novas_etapas and tarefa.responsavel_envoxer_id is None:
         primeira = min(novas_etapas, key=lambda e: e.ordem)
         if primeira.responsavel_id:
             tarefa.responsavel_envoxer_id = primeira.responsavel_id
