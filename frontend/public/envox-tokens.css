@@ -4248,3 +4248,266 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   padding-left: 0;
   border-left: 0;
 }
+
+
+/* ============================================================
+   MENU PAI · HIT AREA + ÍCONES (2026-09-28)
+   ============================================================ */
+.nav-section-toggle {
+  min-height: 38px;
+  max-height: 42px;
+  padding: 8px 9px;
+  margin-bottom: 4px;
+  border-radius: 9px;
+  font-size: 11.5px;
+  letter-spacing: .075em;
+  color: var(--ink-3);
+  transition: background .14s ease, color .14s ease, max-height .22s ease, padding .22s ease;
+}
+.nav-section-toggle:hover {
+  background: var(--bg-inset);
+  color: var(--ink);
+}
+.nav-section-title-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: auto;
+}
+.nav-section-parent-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  color: var(--ink-3);
+}
+.nav-section-collapsible.has-active > .nav-section-toggle .nav-section-parent-icon {
+  color: var(--envox);
+}
+.nav-section-collapsible.has-active > .nav-section-toggle::before {
+  display: none;
+}
+.nav-section-collapsible > .nav {
+  margin-left: 17px;
+  padding-left: 7px;
+}
+.sidebar.collapsed .nav-section-toggle {
+  min-height: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+.sidebar.collapsed .nav-section-collapsible > .nav {
+  margin-left: 0;
+  padding-left: 0;
+}
+
+/* ============================================================
+   TOPBAR · CHAT GLOBAL + AÇÃO CONTEXTUAL
+   ============================================================ */
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.topbar-new-chat {
+  white-space: nowrap;
+  border-color: var(--line-2);
+  background: var(--bg-elev);
+}
+.topbar-chat-btn {
+  position: relative;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  font: 600 12px/1 var(--font-ui);
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.topbar-chat-btn:hover {
+  background: var(--bg-inset);
+  border-color: var(--line);
+}
+.topbar-chat-btn.active {
+  color: var(--envox);
+  background: var(--envox-soft);
+  border-color: rgba(47,74,239,.18);
+}
+.topbar-chat-badge {
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 99px;
+  background: var(--envox);
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* ============================================================
+   CHAT · EDIÇÃO, EXCLUSÃO, EMOJIS E COMPOSER AUTOEXPANSÍVEL
+   ============================================================ */
+.chat-sidebar-empty {
+  padding: 7px 12px 10px;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.chat-msg-body {
+  position: relative;
+}
+.chat-msg-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.chat-msg:hover .chat-msg-actions,
+.chat-msg:focus-within .chat-msg-actions {
+  opacity: 1;
+}
+.chat-msg-actions button {
+  border: 0;
+  background: transparent;
+  color: var(--ink-4);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font: 500 10px/1.2 var(--font-ui);
+}
+.chat-msg-actions button:hover {
+  color: var(--ink);
+  background: var(--bg-inset);
+}
+.chat-msg-actions button.danger:hover {
+  color: var(--farol-vermelho);
+  background: rgba(178,59,46,.08);
+}
+.chat-msg-deleted {
+  background: transparent !important;
+  border: 1px dashed var(--line-2);
+  color: var(--ink-4) !important;
+  font-style: italic;
+}
+.chat-msg.deleted {
+  opacity: .82;
+}
+.chat-msg-editor {
+  width: min(520px, 62vw);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.chat-msg-editor textarea {
+  width: 100%;
+  min-height: 72px;
+  max-height: 160px;
+  resize: vertical;
+  border: 1px solid var(--envox);
+  border-radius: var(--r-md);
+  background: var(--bg-elev);
+  padding: 9px 11px;
+  line-height: 1.45;
+}
+.chat-msg-editor > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.chat-input-bar {
+  position: relative;
+}
+.chat-input-bar textarea {
+  min-height: 42px;
+  height: 42px;
+  max-height: 84px;
+  overflow-y: hidden;
+  line-height: 20px;
+  transition: height .08s ease, border-color .12s ease;
+}
+.chat-composer-tools {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+}
+.chat-emoji-btn {
+  width: 38px;
+  height: 42px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  cursor: pointer;
+  font-size: 18px;
+}
+.chat-emoji-btn:hover {
+  background: var(--bg-inset);
+  border-color: var(--ink-4);
+}
+.chat-emoji-picker {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  width: 286px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--bg-elev);
+  box-shadow: 0 12px 35px rgba(20,24,33,.14);
+}
+.chat-emoji-picker button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+}
+.chat-emoji-picker button:hover {
+  background: var(--bg-inset);
+  transform: scale(1.08);
+}
+.chat-send-btn {
+  min-height: 42px;
+}
+.chat-new-conversation-list {
+  padding: 10px 12px 18px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+@media(max-width:900px) {
+  .topbar-left { flex: 1; }
+  .topbar-new-chat { padding-left: 8px; padding-right: 8px; }
+  .topbar-chat-btn > span:not(.topbar-chat-badge) { display: none; }
+}
+@media(max-width:600px) {
+  .topbar { gap: 8px; padding-left: 14px; padding-right: 14px; }
+  .topbar-crumb { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-new-chat { font-size: 11px; }
+  .chat-input-bar { gap: 6px; padding-left: 12px; padding-right: 12px; }
+  .chat-emoji-picker { width: 252px; grid-template-columns: repeat(7,1fr); }
+  .chat-msg-editor { width: 76vw; }
+}

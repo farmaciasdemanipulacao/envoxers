@@ -481,6 +481,7 @@ function AppShell() {
   // o WS aqui só recebe o evento "mensagem_nova" e repassa pra ChatScreen via wsEvent.
   const [chatWsEvent, setChatWsEvent] = useStateApp(null);
   const [chatBadgeTotal, setChatBadgeTotal] = useStateApp(0);
+  const [chatNewConversationSignal, setChatNewConversationSignal] = useStateApp(0);
   const chatBadgeTimeoutRef = useRefApp(null);
 
   const carregarChatBadge = async () => {
@@ -561,6 +562,9 @@ function AppShell() {
           if (data.tipo === "mensagem_nova") {
             setChatWsEvent(data);
             agendarRecalculoBadge();
+          } else if (data.tipo === "mensagem_editada" || data.tipo === "mensagem_excluida") {
+            setChatWsEvent(data);
+            carregarChatBadge();
           } else if (data.tipo === "presenca") {
             window.EnvoxersPresence.set(data.envoxer_id, data.status);
           } else if (data.tipo === "tarefa_atualizada") {
@@ -794,6 +798,7 @@ function AppShell() {
           <ChatScreen
             envoxersList={envoxersList}
             wsEvent={chatWsEvent}
+            newConversationSignal={chatNewConversationSignal}
             onLeituraAtualizada={agendarRecalculoBadge}
           />
         </main>
@@ -826,7 +831,15 @@ function AppShell() {
         style={focoAtivo ? { paddingBottom: 60 } : undefined}
       >
         {impersonando && <ImpersonandoBar nomeAtual={nome} nomeAdmin={nomeAdminReal} onVoltar={handleVoltarImpersonacao} />}
-        <EnvoxersShared.Topbar crumb={crumbs[view]} onLogout={handleLogout} onMenuClick={() => setMobileMenuOpen(true)} />
+        <EnvoxersShared.Topbar
+          crumb={crumbs[view]}
+          onLogout={handleLogout}
+          onMenuClick={() => setMobileMenuOpen(true)}
+          onChatClick={() => navegarEFecharMenu("chat")}
+          chatBadge={chatBadgeTotal}
+          chatActive={view === "chat"}
+          leftAction={view === "chat" ? <button className="btn btn-sm topbar-new-chat" onClick={() => setChatNewConversationSignal((v) => v + 1)}>+ Nova conversa</button> : null}
+        />
         {view === "comercial-dashboard" && <ComercialScreen mode="dashboard" />}
         {view === "comercial-hoje" && <ComercialScreen mode="hoje" />}
         {view === "comercial-leads" && <ComercialScreen mode="leads" />}
@@ -884,7 +897,7 @@ function AppShell() {
           />
         )}
         {view === "chat" && (
-          <ChatScreen envoxersList={envoxersList} wsEvent={chatWsEvent} onLeituraAtualizada={agendarRecalculoBadge} />
+          <ChatScreen envoxersList={envoxersList} wsEvent={chatWsEvent} newConversationSignal={chatNewConversationSignal} onLeituraAtualizada={agendarRecalculoBadge} />
         )}
       </main>
       <FocoBar

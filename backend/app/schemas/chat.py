@@ -9,6 +9,10 @@ class ChatMensagemCreate(BaseModel):
     anexo_url: Optional[str] = None
 
 
+class ChatMensagemEdit(BaseModel):
+    texto: str
+
+
 class ChatMensagemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -20,6 +24,12 @@ class ChatMensagemResponse(BaseModel):
     texto: Optional[str] = None
     anexo_url: Optional[str] = None
     created_at: datetime
+    editado_em: Optional[datetime] = None
+    excluida_para_todos_em: Optional[datetime] = None
+    prazo_edicao: Optional[datetime] = None
+    prazo_exclusao: Optional[datetime] = None
+    pode_editar: bool = False
+    pode_excluir: bool = False
 
 
 class ChatCanalResponse(BaseModel):

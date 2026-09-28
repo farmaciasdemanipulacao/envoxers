@@ -5,7 +5,7 @@ o WebSocket empurra eventos pra quem está conectado e recebe só sinais de
 visibilidade da aba do cliente (usado pra decidir push de mensagem nova).
 """
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
@@ -23,13 +23,68 @@ from app.models.cliente import Cliente
 from app.models.envoxer import Envoxer
 from app.models.alerta_config import AlertaConfig
 from app.schemas.chat import (
-    ChatCanalResponse, ChatMensagemCreate, ChatMensagemResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
+    ChatCanalResponse, ChatMensagemCreate, ChatMensagemEdit, ChatMensagemResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
 )
 from app.services.chat_ws_manager import chat_ws_manager
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def _prazo_um_dia_util(criado_em: datetime) -> datetime:
+    """Um dia útil a partir do envio, pulando sábado/domingo.
+
+    Ex.: sexta 15h -> segunda 15h. Mantém o horário original e não depende
+    de scheduler; a permissão é calculada ao vivo em cada leitura/ação.
+    """
+    base = criado_em if criado_em.tzinfo else criado_em.replace(tzinfo=timezone.utc)
+    prazo = base + timedelta(days=1)
+    while prazo.weekday() >= 5:
+        prazo += timedelta(days=1)
+    return prazo
+
+
+def _prazo_edicao_mensagem(criado_em: datetime) -> datetime:
+    base = criado_em if criado_em.tzinfo else criado_em.replace(tzinfo=timezone.utc)
+    return base + timedelta(days=1)
+
+
+def _pode_editar_mensagem(mensagem: ChatMensagem, envoxer_id: int) -> bool:
+    if mensagem.autor_envoxer_id != envoxer_id or mensagem.excluida_para_todos_em is not None:
+        return False
+    return datetime.now(timezone.utc) <= _prazo_edicao_mensagem(mensagem.created_at)
+
+
+def _pode_excluir_mensagem(mensagem: ChatMensagem, envoxer_id: int) -> bool:
+    if mensagem.autor_envoxer_id != envoxer_id or mensagem.excluida_para_todos_em is not None:
+        return False
+    return datetime.now(timezone.utc) <= _prazo_um_dia_util(mensagem.created_at)
+
+
+def _mensagem_response(
+    mensagem: ChatMensagem, autor_nome: str, autor_foto: Optional[str], viewer_id: Optional[int] = None
+) -> ChatMensagemResponse:
+    prazo_edicao = _prazo_edicao_mensagem(mensagem.created_at)
+    prazo_exclusao = _prazo_um_dia_util(mensagem.created_at)
+    pode_editar = viewer_id is not None and _pode_editar_mensagem(mensagem, viewer_id)
+    pode_excluir = viewer_id is not None and _pode_excluir_mensagem(mensagem, viewer_id)
+    return ChatMensagemResponse(
+        id=mensagem.id, canal_id=mensagem.canal_id, autor_envoxer_id=mensagem.autor_envoxer_id,
+        autor_nome=autor_nome, autor_foto=autor_foto, texto=mensagem.texto, anexo_url=mensagem.anexo_url,
+        created_at=mensagem.created_at, editado_em=mensagem.editado_em,
+        excluida_para_todos_em=mensagem.excluida_para_todos_em,
+        prazo_edicao=prazo_edicao, prazo_exclusao=prazo_exclusao,
+        pode_editar=pode_editar, pode_excluir=pode_excluir,
+    )
+
+
+async def _broadcast_evento_mensagem(db: AsyncSession, canal: ChatCanal, payload_ws: dict) -> None:
+    if canal.tipo == "dm":
+        await chat_ws_manager.broadcast_dm(canal.dm_envoxer_a_id, canal.dm_envoxer_b_id, payload_ws)
+        return
+    result = await db.execute(select(Envoxer.id).where(Envoxer.ativo == True))  # noqa: E712
+    await chat_ws_manager.broadcast_geral_ou_cliente([row[0] for row in result.all()], payload_ws)
 
 
 async def _get_or_create_canal_geral(db: AsyncSession) -> ChatCanal:
@@ -86,6 +141,7 @@ async def _nao_lidas(db: AsyncSession, canal_id: int, envoxer_id: int) -> int:
             ChatMensagem.canal_id == canal_id,
             ChatMensagem.created_at > last_read_at,
             ChatMensagem.autor_envoxer_id != envoxer_id,
+            ChatMensagem.excluida_para_todos_em.is_(None),
         )
     )
     return result.scalar_one()
@@ -103,11 +159,7 @@ async def _ultima_mensagem(db: AsyncSession, canal_id: int) -> Optional[ChatMens
     if row is None:
         return None
     msg, autor_nome, autor_foto = row
-    return ChatMensagemResponse(
-        id=msg.id, canal_id=msg.canal_id, autor_envoxer_id=msg.autor_envoxer_id,
-        autor_nome=autor_nome, autor_foto=autor_foto, texto=msg.texto, anexo_url=msg.anexo_url,
-        created_at=msg.created_at,
-    )
+    return _mensagem_response(msg, autor_nome, autor_foto)
 
 
 async def _montar_resposta(
@@ -205,6 +257,7 @@ async def verificar_bloqueio(
                 ChatMensagem.created_at > last_read_at,
                 ChatMensagem.created_at < hoje_00h,
                 ChatMensagem.autor_envoxer_id != envoxer.id,
+                ChatMensagem.excluida_para_todos_em.is_(None),
             )
         )
         qtd_pendente = qtd_result.scalar_one()
@@ -264,10 +317,7 @@ async def listar_mensagens(
 
     result = await db.execute(stmt)
     mensagens = [
-        ChatMensagemResponse(
-            id=m.id, canal_id=m.canal_id, autor_envoxer_id=m.autor_envoxer_id,
-            autor_nome=nome, autor_foto=foto, texto=m.texto, anexo_url=m.anexo_url, created_at=m.created_at,
-        )
+        _mensagem_response(m, nome, foto, envoxer.id)
         for m, nome, foto in result.all()
     ]
     mensagens.reverse()
@@ -295,11 +345,7 @@ async def enviar_mensagem(
     await db.flush()
     await db.refresh(mensagem)
 
-    resposta = ChatMensagemResponse(
-        id=mensagem.id, canal_id=canal_id, autor_envoxer_id=envoxer.id,
-        autor_nome=envoxer.nome, autor_foto=envoxer.foto_url,
-        texto=mensagem.texto, anexo_url=mensagem.anexo_url, created_at=mensagem.created_at,
-    )
+    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id)
 
     payload_ws = {"tipo": "mensagem_nova", "canal_id": canal_id, "mensagem": resposta.model_dump(mode="json")}
     if canal.tipo == "dm":
@@ -342,6 +388,81 @@ async def enviar_mensagem(
                     tag="envoxers-chat",
                 )
 
+    return resposta
+
+
+@router.patch("/canais/{canal_id}/mensagens/{mensagem_id}", response_model=ChatMensagemResponse)
+async def editar_mensagem(
+    canal_id: int,
+    mensagem_id: int,
+    payload: ChatMensagemEdit,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    canal = await db.get(ChatCanal, canal_id)
+    if canal is None:
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
+    _validar_acesso_dm(canal, envoxer)
+
+    mensagem = await db.get(ChatMensagem, mensagem_id)
+    if mensagem is None or mensagem.canal_id != canal_id:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if mensagem.autor_envoxer_id != envoxer.id:
+        raise HTTPException(status_code=403, detail="Você só pode editar mensagens que enviou")
+    if mensagem.excluida_para_todos_em is not None:
+        raise HTTPException(status_code=409, detail="Mensagem já foi excluída para todos")
+    if not _pode_editar_mensagem(mensagem, envoxer.id):
+        raise HTTPException(status_code=409, detail="O prazo de 24 horas para editar esta mensagem encerrou")
+
+    texto = (payload.texto or "").strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="A mensagem não pode ficar vazia")
+    mensagem.texto = texto
+    mensagem.editado_em = datetime.now(timezone.utc)
+    await db.flush()
+    await db.refresh(mensagem)
+
+    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id)
+    await _broadcast_evento_mensagem(db, canal, {
+        "tipo": "mensagem_editada", "canal_id": canal_id,
+        "mensagem": resposta.model_dump(mode="json"),
+    })
+    return resposta
+
+
+@router.delete("/canais/{canal_id}/mensagens/{mensagem_id}", response_model=ChatMensagemResponse)
+async def excluir_mensagem_para_todos(
+    canal_id: int,
+    mensagem_id: int,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    canal = await db.get(ChatCanal, canal_id)
+    if canal is None:
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
+    _validar_acesso_dm(canal, envoxer)
+
+    mensagem = await db.get(ChatMensagem, mensagem_id)
+    if mensagem is None or mensagem.canal_id != canal_id:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if mensagem.autor_envoxer_id != envoxer.id:
+        raise HTTPException(status_code=403, detail="Você só pode excluir mensagens que enviou")
+    if mensagem.excluida_para_todos_em is not None:
+        raise HTTPException(status_code=409, detail="Mensagem já foi excluída para todos")
+    if not _pode_excluir_mensagem(mensagem, envoxer.id):
+        raise HTTPException(status_code=409, detail="O prazo de 1 dia útil para excluir esta mensagem encerrou")
+
+    mensagem.texto = None
+    mensagem.anexo_url = None
+    mensagem.excluida_para_todos_em = datetime.now(timezone.utc)
+    await db.flush()
+    await db.refresh(mensagem)
+
+    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id)
+    await _broadcast_evento_mensagem(db, canal, {
+        "tipo": "mensagem_excluida", "canal_id": canal_id,
+        "mensagem": resposta.model_dump(mode="json"),
+    })
     return resposta
 
 

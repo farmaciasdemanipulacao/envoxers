@@ -417,6 +417,16 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
   }[key] || false);
   const sectionClass = (key) =>
     `nav-section nav-section-collapsible ${sectionOpen[key] ? "open" : "closed"}${sectionHasActive(key) ? " has-active" : ""}`;
+  const sectionIcon = (key) => {
+    const common = { className: "nav-section-parent-icon", viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: "1.5" };
+    if (key === "comercial") return <svg {...common}><path d="M2 13V8h3v5M6.5 13V4h3v9M11 13V6h3v7" /></svg>;
+    if (key === "operacao") return <svg {...common}><path d="M3 3h10v10H3z"/><path d="M6 3v10M3 7h3M9 7h4"/></svg>;
+    if (key === "entregaveis") return <svg {...common}><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M5 8l2 2 4-4"/></svg>;
+    if (key === "farol") return <svg {...common}><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2"/></svg>;
+    if (key === "icp") return <svg {...common}><circle cx="6" cy="6" r="2.5"/><path d="M2.5 13c.5-2.5 1.7-3.8 3.5-3.8S9 10.5 9.5 13M11 4h3M12.5 2.5v3"/></svg>;
+    if (key === "desenvolvimento") return <svg {...common}><path d="M8 2l1.6 3.3 3.7.5-2.7 2.6.7 3.7L8 10.3 4.7 12l.7-3.6-2.7-2.6 3.7-.5z"/></svg>;
+    return <svg {...common}><circle cx="8" cy="8" r="5.5"/><path d="M8 5v6M5 8h6"/></svg>;
+  };
   const sectionTitle = (key, label) => (
     <button
       type="button"
@@ -425,8 +435,8 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       aria-expanded={!!sectionOpen[key]}
       title={sectionOpen[key] ? `Recolher ${label}` : `Expandir ${label}`}
     >
-      <span>{label}</span>
-      <svg className="nav-section-chevron" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <span className="nav-section-title-main">{sectionIcon(key)}<span>{label}</span></span>
+      <svg className="nav-section-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6">
         <path d="M4 2.5L7.5 6 4 9.5" />
       </svg>
     </button>
@@ -460,18 +470,6 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </button>
       </div>
 
-      <div className="nav-section">
-        <nav className="nav">
-          {item(
-            "chat",
-            "Chat",
-            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v7H5l-3 3z" /></svg>,
-            null,
-            chatNaoLidas > 0 ? chatNaoLidas : null
-          )}
-        </nav>
-      </div>
-
       <div className={sectionClass("comercial")}>
         {sectionTitle("comercial", "Comercial")}
         <nav className="nav">
@@ -490,7 +488,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
 
       {permissao !== "comercial" && <>
       <div className={sectionClass("operacao")}>
-        {sectionTitle("operacao", "F1 · Operação")}
+        {sectionTitle("operacao", "Operação")}
         <nav className="nav">
           {item(
             "kanban",
@@ -538,7 +536,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </div>
 
       <div className={sectionClass("farol")}>
-        {sectionTitle("farol", "F2 · Farol")}
+        {sectionTitle("farol", "Farol")}
         <nav className="nav">
           {item(
             "solicitacoes",
@@ -562,7 +560,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </div>
 
       <div className={sectionClass("icp")}>
-        {sectionTitle("icp", "F3 · ICP")}
+        {sectionTitle("icp", "ICP")}
         <nav className="nav">
           {permissao !== "envoxer" && item(
             "icp",
@@ -586,7 +584,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </div>
 
       <div className={sectionClass("desenvolvimento")}>
-        {sectionTitle("desenvolvimento", "F4 · Desenvolvimento")}
+        {sectionTitle("desenvolvimento", "Desenvolvimento")}
         <nav className="nav">
           {item(
             "f4",
@@ -772,14 +770,22 @@ function NotificacoesButton() {
 }
 
 // ==================== TOPBAR ====================
-function Topbar({ crumb, onLogout, onMenuClick }) {
+function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chatActive = false, leftAction = null }) {
   return (
     <div className="topbar">
       <button className="mobile-menu-btn" aria-label="Abrir menu" onClick={onMenuClick}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M2 8h12M2 12h12" /></svg>
       </button>
-      <div className="topbar-crumb">{crumb}</div>
+      <div className="topbar-left">
+        <div className="topbar-crumb">{crumb}</div>
+        {leftAction}
+      </div>
       <div className="topbar-actions">
+        <button type="button" className={"topbar-chat-btn" + (chatActive ? " active" : "")} onClick={onChatClick} title="Chat interno">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v7H5l-3 3z" /></svg>
+          <span>Chat</span>
+          {chatBadge > 0 && <span className="topbar-chat-badge">{chatBadge > 99 ? "99+" : chatBadge}</span>}
+        </button>
         <NotificacoesButton />
         <button className="btn btn-ghost btn-sm" onClick={onLogout}>Sair</button>
       </div>

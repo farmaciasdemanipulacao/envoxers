@@ -63,7 +63,13 @@ function ChatAccordionSection({ titulo, aberto, onToggle, children }) {
 
 // wsEvent: último evento {canal_id, mensagem} empurrado pelo WS da raiz (tc-app.jsx) —
 // a tela em si não abre conexão própria, pra badge global e badge da tela usarem a mesma fonte.
-function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
+const CHAT_EMOJIS = [
+  "😀","😃","😄","😁","😂","🤣","😊","😍","🥰","😘","😎","🤩",
+  "🤔","🙌","👏","👍","👎","👌","🙏","💪","🔥","✨","🎉","❤️",
+  "💙","💚","💛","🚀","✅","⚠️","📌","👀","💡","🤝","☕","🍻",
+];
+
+function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeituraAtualizada }) {
   const toast = EnvoxersShared.useToast();
   const [canais, setCanais] = useStateChat([]);
   const [canalAtivoId, setCanalAtivoId] = useStateChat(null);
@@ -71,9 +77,13 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
   const [texto, setTexto] = useStateChat("");
   const [enviando, setEnviando] = useStateChat(false);
   const [novoDmAberto, setNovoDmAberto] = useStateChat(false);
+  const [emojiAberto, setEmojiAberto] = useStateChat(false);
+  const [editandoId, setEditandoId] = useStateChat(null);
+  const [textoEdicao, setTextoEdicao] = useStateChat("");
   const [diretasAberto, setDiretasAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_diretas", true));
   const [clientesAberto, setClientesAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_clientes", false));
   const mensagensRef = useRefChat(null);
+  const textareaRef = useRefChat(null);
   const canalAtivoRef = useRefChat(null);
   canalAtivoRef.current = canalAtivoId;
   const canaisRef = useRefChat([]);
@@ -101,6 +111,9 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
   };
 
   useEffectChat(() => { carregarCanais(); }, []);
+  useEffectChat(() => {
+    if (newConversationSignal > 0) setNovoDmAberto(true);
+  }, [newConversationSignal]);
 
   useEffectChat(() => {
     if (canalAtivoId === null) return;
@@ -119,18 +132,23 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
 
   useEffectChat(() => {
     if (!wsEvent) return;
-    const { canal_id, mensagem } = wsEvent;
+    const { tipo, canal_id, mensagem } = wsEvent;
+    if (tipo === "mensagem_editada" || tipo === "mensagem_excluida") {
+      if (canal_id === canalAtivoRef.current && mensagem) {
+        setMensagens((prev) => prev.map((m) => (m.id === mensagem.id ? mensagem : m)));
+      }
+      carregarCanais();
+      return;
+    }
+    if (tipo !== "mensagem_nova" || !mensagem) return;
     if (canal_id === canalAtivoRef.current) {
-      setMensagens((prev) => [...prev, mensagem]);
+      setMensagens((prev) => prev.some((m) => m.id === mensagem.id) ? prev : [...prev, mensagem]);
       EnvoxersAPI.api(`/chat/canais/${canal_id}/ler`, { method: "POST" })
         .then(() => { if (onLeituraAtualizada) onLeituraAtualizada(); })
         .catch(() => {});
     } else if (canaisRef.current.some((c) => c.id === canal_id)) {
       setCanais((prev) => prev.map((c) => (c.id === canal_id ? { ...c, nao_lidas: (c.nao_lidas || 0) + 1 } : c)));
     } else {
-      // Conversa nova pra mim (ex.: alguém abriu uma DM comigo pela 1ª vez) — ainda não
-      // existe na minha lista local, então recarrega do servidor pra ela aparecer sozinha,
-      // sem precisar eu clicar em "+ Nova conversa" e procurar a pessoa manualmente.
       carregarCanais();
     }
   }, [wsEvent]);
@@ -139,16 +157,30 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
     if (mensagensRef.current) mensagensRef.current.scrollTop = mensagensRef.current.scrollHeight;
   }, [mensagens]);
 
+  const ajustarAlturaComposer = (el = textareaRef.current) => {
+    if (!el) return;
+    const minimo = 42;
+    const maximo = 84;
+    el.style.height = `${minimo}px`;
+    const nova = Math.min(Math.max(el.scrollHeight, minimo), maximo);
+    el.style.height = `${nova}px`;
+    el.style.overflowY = el.scrollHeight > maximo ? "auto" : "hidden";
+  };
+  useEffectChat(() => { ajustarAlturaComposer(); }, [texto]);
+
   const enviar = async () => {
     const t = texto.trim();
     if (!t || !canalAtivoId || enviando) return;
     setEnviando(true);
     try {
-      await EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/mensagens`, {
+      const resposta = await EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/mensagens`, {
         method: "POST",
         body: JSON.stringify({ texto: t }),
       });
+      setMensagens((prev) => prev.some((m) => m.id === resposta.id) ? prev : [...prev, resposta]);
       setTexto("");
+      setEmojiAberto(false);
+      requestAnimationFrame(() => ajustarAlturaComposer());
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -161,6 +193,49 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
       e.preventDefault();
       enviar();
     }
+  };
+
+  const inserirEmoji = (emoji) => {
+    const el = textareaRef.current;
+    const inicio = el && Number.isInteger(el.selectionStart) ? el.selectionStart : texto.length;
+    const fim = el && Number.isInteger(el.selectionEnd) ? el.selectionEnd : inicio;
+    const novo = texto.slice(0, inicio) + emoji + texto.slice(fim);
+    setTexto(novo);
+    requestAnimationFrame(() => {
+      if (!textareaRef.current) return;
+      const pos = inicio + emoji.length;
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(pos, pos);
+      ajustarAlturaComposer(textareaRef.current);
+    });
+  };
+
+  const iniciarEdicao = (m) => {
+    setEditandoId(m.id);
+    setTextoEdicao(m.texto || "");
+  };
+  const salvarEdicao = async (m) => {
+    const t = textoEdicao.trim();
+    if (!t) { toast("A mensagem não pode ficar vazia", "error"); return; }
+    try {
+      const atualizada = await EnvoxersAPI.api(`/chat/canais/${m.canal_id}/mensagens/${m.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ texto: t }),
+      });
+      setMensagens((prev) => prev.map((x) => x.id === m.id ? atualizada : x));
+      setEditandoId(null);
+      setTextoEdicao("");
+      carregarCanais();
+    } catch (err) { toast(err.message, "error"); }
+  };
+  const excluirParaTodos = async (m) => {
+    if (!confirm("Excluir esta mensagem para todos? Essa ação não pode ser desfeita.")) return;
+    try {
+      const excluida = await EnvoxersAPI.api(`/chat/canais/${m.canal_id}/mensagens/${m.id}`, { method: "DELETE" });
+      setMensagens((prev) => prev.map((x) => x.id === m.id ? excluida : x));
+      if (editandoId === m.id) { setEditandoId(null); setTextoEdicao(""); }
+      carregarCanais();
+    } catch (err) { toast(err.message, "error"); }
   };
 
   const abrirDm = async (outroEnvoxerId) => {
@@ -180,8 +255,6 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
   const dmDisponiveis = (envoxersList || []).filter(
     (e) => e.id !== meuId && !grupos.dms.some((d) => d.outro_envoxer_id === e.id)
   );
-  // Foto de quem está do outro lado de cada DM — envoxersList já traz foto_url
-  // (GET /envoxers), sem precisar de campo novo no back pra isso.
   const fotoPorEnvoxerId = {};
   (envoxersList || []).forEach((e) => { fotoPorEnvoxerId[e.id] = e.foto_url; });
 
@@ -209,9 +282,7 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
               onClick={() => setCanalAtivoId(c.id)}
             />
           ))}
-          <div className="chat-canal-item chat-canal-nova" onClick={() => setNovoDmAberto(true)}>
-            <span className="chat-canal-nome">+ Nova conversa</span>
-          </div>
+          {grupos.dms.length === 0 && <div className="chat-sidebar-empty">Nenhuma conversa direta ainda.</div>}
         </ChatAccordionSection>
 
         <ChatAccordionSection titulo="Clientes" aberto={clientesAberto} onToggle={toggleClientes}>
@@ -231,15 +302,38 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
         <div className="chat-messages" ref={mensagensRef}>
           {mensagens.map((m) => {
             const propria = m.autor_envoxer_id === meuId;
+            const excluida = !!m.excluida_para_todos_em;
+            const dentroPrazoEdicao = !m.prazo_edicao || Date.now() <= new Date(m.prazo_edicao).getTime();
+            const dentroPrazoExclusao = !m.prazo_exclusao || Date.now() <= new Date(m.prazo_exclusao).getTime();
+            const podeEditar = propria && !excluida && !!m.pode_editar && dentroPrazoEdicao;
+            const podeExcluir = propria && !excluida && !!m.pode_excluir && dentroPrazoExclusao;
             return (
-              <div className={"chat-msg" + (propria ? " own" : "")} key={m.id}>
+              <div className={"chat-msg" + (propria ? " own" : "") + (excluida ? " deleted" : "")} key={m.id}>
                 {!propria && <EnvoxersShared.Avatar nome={m.autor_nome} fotoUrl={m.autor_foto} size="sm" envoxerId={m.autor_envoxer_id} />}
                 <div className="chat-msg-body">
                   <div className="chat-msg-meta">
                     {!propria && <span className="chat-msg-autor">{m.autor_nome}</span>}
-                    <span className="chat-msg-hora">{fmtHoraChat(m.created_at)}</span>
+                    <span className="chat-msg-hora">{fmtHoraChat(m.created_at)}{m.editado_em && !excluida ? " · editada" : ""}</span>
+                    {propria && (podeEditar || podeExcluir) && editandoId !== m.id && (
+                      <span className="chat-msg-actions">
+                        {podeEditar && <button type="button" title={m.prazo_edicao ? `Editar até ${new Date(m.prazo_edicao).toLocaleString("pt-BR")}` : "Editar"} onClick={() => iniciarEdicao(m)}>Editar</button>}
+                        {podeExcluir && <button type="button" className="danger" title={m.prazo_exclusao ? `Excluir para todos até ${new Date(m.prazo_exclusao).toLocaleString("pt-BR")}` : "Excluir para todos"} onClick={() => excluirParaTodos(m)}>Excluir</button>}
+                      </span>
+                    )}
                   </div>
-                  {m.texto && <div className="chat-msg-texto">{m.texto}</div>}
+                  {editandoId === m.id ? (
+                    <div className="chat-msg-editor">
+                      <textarea value={textoEdicao} onChange={(e) => setTextoEdicao(e.target.value)} autoFocus />
+                      <div>
+                        <button className="btn btn-xs" onClick={() => { setEditandoId(null); setTextoEdicao(""); }}>Cancelar</button>
+                        <button className="btn btn-primary btn-xs" onClick={() => salvarEdicao(m)}>Salvar</button>
+                      </div>
+                    </div>
+                  ) : excluida ? (
+                    <div className="chat-msg-texto chat-msg-deleted">Mensagem excluída para todos</div>
+                  ) : (
+                    m.texto && <div className="chat-msg-texto">{m.texto}</div>
+                  )}
                 </div>
               </div>
             );
@@ -248,28 +342,37 @@ function ChatScreen({ envoxersList, wsEvent, onLeituraAtualizada }) {
         </div>
         {canalAtivoId && (
           <div className="chat-input-bar">
+            <div className="chat-composer-tools">
+              <button type="button" className="chat-emoji-btn" onClick={() => setEmojiAberto((v) => !v)} aria-label="Inserir emoji" title="Inserir emoji">😊</button>
+              {emojiAberto && (
+                <div className="chat-emoji-picker">
+                  {CHAT_EMOJIS.map((emoji) => <button type="button" key={emoji} onClick={() => inserirEmoji(emoji)}>{emoji}</button>)}
+                </div>
+              )}
+            </div>
             <textarea
+              ref={textareaRef}
               rows={1}
               placeholder="Escreva uma mensagem…"
               value={texto}
-              onChange={(e) => setTexto(e.target.value)}
+              onChange={(e) => { setTexto(e.target.value); ajustarAlturaComposer(e.target); }}
               onKeyDown={onKeyDownChat}
             />
-            <button className="btn btn-primary" disabled={enviando || !texto.trim()} onClick={enviar}>Enviar</button>
+            <button className="btn btn-primary chat-send-btn" disabled={enviando || !texto.trim()} onClick={enviar}>Enviar</button>
           </div>
         )}
       </section>
 
       {novoDmAberto && (
         <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) setNovoDmAberto(false); }}>
-          <div className="modal" style={{ maxWidth: 360 }}>
+          <div className="modal" style={{ maxWidth: 420 }}>
             <div className="modal-head">
               <h2 className="modal-title" style={{ fontSize: 20 }}>Nova conversa</h2>
               <button className="modal-close" onClick={() => setNovoDmAberto(false)} aria-label="Fechar">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8" /></svg>
               </button>
             </div>
-            <div style={{ padding: "8px 0 20px" }}>
+            <div className="chat-new-conversation-list">
               {dmDisponiveis.map((e) => (
                 <div key={e.id} className="chat-canal-item" onClick={() => abrirDm(e.id)}>
                   <EnvoxersShared.Avatar nome={e.nome} fotoUrl={e.foto_url} size="sm" envoxerId={e.id} />
