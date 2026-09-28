@@ -25,6 +25,7 @@ from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 
 from app.models.item_escopo import ItemEscopo
+from app.models.cliente import Cliente
 from app.models.tarefa import Tarefa
 from app.models.etapa import Etapa
 from app.models.entrega_check import EntregaCheck
@@ -138,17 +139,28 @@ async def _completar_checks(db, tarefa_id: int, quantidade: int) -> None:
 
 async def garantir_cards_do_mes(db) -> None:
     for cadencia, ano_mes in (("mensal", ano_mes_atual()), ("pontual", "pontual")):
-        itens = (await db.execute(
-            select(ItemEscopo).where(
+        rows = (await db.execute(
+            select(ItemEscopo, Cliente.data_inicio_contrato).join(Cliente, Cliente.id == ItemEscopo.cliente_id).where(
                 ItemEscopo.ativo.is_(True), ItemEscopo.cadencia == cadencia, ItemEscopo.quantidade > 0,
+                Cliente.deleted_at.is_(None), Cliente.ativo.is_(True),
             )
-        )).scalars().all()
+        )).all()
+        # Respeita o início real do contrato. Isso é especialmente importante quando
+        # um cliente é cadastrado no fim de um mês para começar no seguinte: abrir o
+        # Kanban hoje não pode criar automaticamente uma cota retroativa do mês atual.
+        dados_itens = []
+        for i, data_inicio_contrato in rows:
+            if ano_mes != "pontual" and data_inicio_contrato is not None:
+                inicio_ano_mes = f"{data_inicio_contrato.year:04d}-{data_inicio_contrato.month:02d}"
+                if ano_mes < inicio_ano_mes:
+                    continue
+            dados_itens.append((i.id, i.cliente_id, i.tipo, i.servico_id, i.descricao, i.quantidade))
+
         # Extrai os valores já aqui, em Python puro — depois de qualquer rollback
         # (recuperação de corrida em outro item deste mesmo loop), todos os
         # objetos ItemEscopo já carregados ficam expirados; se o loop continuasse
         # acessando `item.id`/`item.quantidade` diretamente, quebraria no primeiro
         # item seguinte também.
-        dados_itens = [(i.id, i.cliente_id, i.tipo, i.servico_id, i.descricao, i.quantidade) for i in itens]
         for item_id, cliente_id, tipo, servico_id, descricao, quantidade in dados_itens:
             tarefa_id = await _obter_ou_criar_card_id(db, item_id, cliente_id, tipo, servico_id, descricao, ano_mes)
             await _completar_checks(db, tarefa_id, quantidade)
