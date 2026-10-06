@@ -83,30 +83,42 @@ def _to_response(
 
 
 async def _proxima_etapa_por_tarefa(db: AsyncSession, tarefa_ids: list[int]) -> dict[int, dict]:
-    """P/ cada tarefa, a etapa pendente de menor ordem (ordem, id) — mesmo
-    critério de "próxima etapa" já usado em CRIAR_ALERTA_RESPONSAVEL (ver
-    services/etapas_automacao.py). 1 query só, pegando a 1ª ocorrência de cada
-    tarefa_id (garantida pelo ORDER BY) em vez de 1 query por card."""
+    """Etapa crítica exibida no card do Kanban.
+
+    Regra: entre etapas pendentes, mostra primeiro a mais atrasada; se nenhuma
+    estiver atrasada, mostra a que vence mais perto de hoje; sem prazo fica por
+    último, usando ordem/id como desempate. Isso dá ao card uma leitura de risco
+    real, em vez de simplesmente mostrar a menor ordem do checklist.
+    """
     if not tarefa_ids:
         return {}
     result = await db.execute(
         select(Etapa, Envoxer.nome, Envoxer.foto_url)
         .outerjoin(Envoxer, Envoxer.id == Etapa.responsavel_id)
         .where(Etapa.tarefa_id.in_(tarefa_ids), Etapa.status == "pendente")
-        .order_by(Etapa.tarefa_id, Etapa.ordem, Etapa.id)
     )
-    proxima_por_tarefa: dict[int, dict] = {}
+    hoje = date.today()
+    candidatos: dict[int, list[tuple]] = {}
     for etapa, resp_nome, resp_foto in result.all():
-        if etapa.tarefa_id in proxima_por_tarefa:
-            continue
-        proxima_por_tarefa[etapa.tarefa_id] = {
+        if etapa.prazo and etapa.prazo < hoje:
+            rank = (0, etapa.prazo, etapa.ordem, etapa.id)
+        elif etapa.prazo:
+            rank = (1, etapa.prazo, etapa.ordem, etapa.id)
+        else:
+            rank = (2, date.max, etapa.ordem, etapa.id)
+        candidatos.setdefault(etapa.tarefa_id, []).append((rank, etapa, resp_nome, resp_foto))
+
+    critica_por_tarefa: dict[int, dict] = {}
+    for tarefa_id, itens in candidatos.items():
+        _, etapa, resp_nome, resp_foto = min(itens, key=lambda x: x[0])
+        critica_por_tarefa[tarefa_id] = {
             "titulo": etapa.titulo,
             "responsavel_id": etapa.responsavel_id,
             "responsavel_nome": resp_nome,
             "responsavel_foto": resp_foto,
             "prazo": etapa.prazo,
         }
-    return proxima_por_tarefa
+    return critica_por_tarefa
 
 
 async def _etapas_responsaveis_por_tarefa(db: AsyncSession, tarefa_ids: list[int]) -> dict[int, list[int]]:
@@ -543,12 +555,35 @@ async def comentar_tarefa(
         ids_mencionados = [row[0] for row in result_mencoes.all() if row[0] != envoxer.id]
 
     comentarios = list(tarefa.comentarios or [])
+    texto_limpo = payload.texto.strip()
+    if not texto_limpo:
+        raise HTTPException(status_code=400, detail="Comentário não pode ficar vazio")
+
+    # Dupla proteção contra clique/retry repetido: se o mesmo autor já gravou o
+    # mesmo texto nos últimos 10s, devolve a tarefa sem inserir outra cópia.
+    agora = datetime.now(timezone.utc)
+    for existente in reversed(comentarios[-8:]):
+        if existente.get("envoxer_id") != envoxer.id:
+            continue
+        if (existente.get("texto") or "").strip() != texto_limpo:
+            continue
+        try:
+            criado = datetime.fromisoformat(existente.get("criado_em"))
+            if criado.tzinfo is None:
+                criado = criado.replace(tzinfo=timezone.utc)
+            if (agora - criado).total_seconds() <= 10:
+                result = await db.execute(_JOIN_STMT.where(Tarefa.id == tarefa.id))
+                row = result.one()
+                return _to_response(*row)
+        except (TypeError, ValueError):
+            pass
+
     comentarios.append({
         "envoxer_id": envoxer.id,
         "envoxer_nome": envoxer.nome,
-        "texto": payload.texto,
+        "texto": texto_limpo,
         "mencoes": ids_mencionados,
-        "criado_em": datetime.now(timezone.utc).isoformat(),
+        "criado_em": agora.isoformat(),
     })
     tarefa.comentarios = comentarios
     await db.flush()

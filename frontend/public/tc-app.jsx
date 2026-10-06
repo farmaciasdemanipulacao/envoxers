@@ -512,12 +512,22 @@ function AppShell() {
 
   useEffectApp(() => { carregarChatBadge(); verificarBloqueioChat(); }, []);
 
-  // Confere de novo periodicamente — cobre o caso de a aba ficar aberta parada
-  // e a virada da meia-noite acontecer sem nenhum evento de WS novo pra disparar.
+  // Reconfere ao voltar pro sistema e a cada minuto. Isso cobre login do dia
+  // seguinte, notebook saindo de suspensão e virada da meia-noite local sem
+  // depender de chegar uma nova mensagem via WebSocket.
   useEffectApp(() => {
     if (permissao === "admin") return;
-    const intervalId = setInterval(verificarBloqueioChat, 5 * 60 * 1000);
-    return () => clearInterval(intervalId);
+    const checarAoVoltar = () => {
+      if (document.visibilityState === "visible") verificarBloqueioChat();
+    };
+    const intervalId = setInterval(verificarBloqueioChat, 60 * 1000);
+    window.addEventListener("focus", verificarBloqueioChat);
+    document.addEventListener("visibilitychange", checarAoVoltar);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", verificarBloqueioChat);
+      document.removeEventListener("visibilitychange", checarAoVoltar);
+    };
   }, [permissao]);
 
   // Presença (ativo/ausente/offline) — snapshot inicial pra popular a bolinha do
@@ -838,6 +848,7 @@ function AppShell() {
           onChatClick={() => navegarEFecharMenu("chat")}
           chatBadge={chatBadgeTotal}
           chatActive={view === "chat"}
+          permissao={permissao}
           leftAction={view === "chat" ? <button className="btn btn-sm topbar-new-chat" onClick={() => setChatNewConversationSignal((v) => v + 1)}>+ Nova conversa</button> : null}
         />
         {view === "comercial-dashboard" && <ComercialScreen mode="dashboard" />}

@@ -323,12 +323,10 @@ function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
       {t.proxima_etapa_titulo && (
         <div className="kb-card-etapa" title={t.proxima_etapa_titulo}>
           <svg className="kb-card-foot-icon" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h3M2 8h3M2 12h3M7 4h7M7 8h7M7 12h7" /></svg>
+          <span className="kb-card-etapa-label">CRÍTICA</span>
           <span className="kb-card-etapa-titulo">{t.proxima_etapa_titulo}</span>
           {t.proxima_etapa_prazo && (
             <span className={`prazo ${fmtPrazoKb(t.proxima_etapa_prazo).cls}`}>{fmtPrazoKb(t.proxima_etapa_prazo).txt}</span>
-          )}
-          {t.proxima_etapa_responsavel_nome && (
-            <EnvoxersShared.Avatar nome={t.proxima_etapa_responsavel_nome} fotoUrl={t.proxima_etapa_responsavel_foto} size="sm" className="gray" envoxerId={t.proxima_etapa_responsavel_id} />
           )}
         </div>
       )}
@@ -353,9 +351,20 @@ function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
             <svg className="kb-card-foot-icon" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M11 3l-7 7a3 3 0 004 4l6-6a2 2 0 00-3-3L5 11" /></svg> {t.qtd_anexos}
           </span>
         )}
-        {t.responsavel_nome && (
-          <span className="assignee" title={t.responsavel_nome}>
-            <EnvoxersShared.Avatar nome={t.responsavel_nome} fotoUrl={t.responsavel_foto} size="sm" className="gray" envoxerId={t.responsavel_envoxer_id} />
+        {(t.responsavel_nome || t.proxima_etapa_responsavel_nome) && (
+          <span className="kb-card-people">
+            {t.responsavel_nome && (
+              <span className="kb-card-person" title={"Responsável pelo card: " + t.responsavel_nome}>
+                <span className="kb-card-person-label">C</span>
+                <EnvoxersShared.Avatar nome={t.responsavel_nome} fotoUrl={t.responsavel_foto} size="sm" className="gray" envoxerId={t.responsavel_envoxer_id} />
+              </span>
+            )}
+            {t.proxima_etapa_responsavel_nome && (
+              <span className="kb-card-person" title={"Responsável pela etapa crítica: " + t.proxima_etapa_responsavel_nome}>
+                <span className="kb-card-person-label etapa">E</span>
+                <EnvoxersShared.Avatar nome={t.proxima_etapa_responsavel_nome} fotoUrl={t.proxima_etapa_responsavel_foto} size="sm" className="gray" envoxerId={t.proxima_etapa_responsavel_id} />
+              </span>
+            )}
           </span>
         )}
       </div>
@@ -409,6 +418,12 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   const [etiqueta, setEtiqueta] = useStateKb("");
   const [etiquetaCor, setEtiquetaCor] = useStateKb("cinza");
   const [novoComentario, setNovoComentario] = useStateKb("");
+  const [comentando, setComentando] = useStateKb(false);
+  const comentarioEnviandoRef = useRefKb(false);
+  const [anexoUploading, setAnexoUploading] = useStateKb(false);
+  const [anexoProgresso, setAnexoProgresso] = useStateKb(0);
+  const [anexoNome, setAnexoNome] = useStateKb("");
+  const [anexoDragAtivo, setAnexoDragAtivo] = useStateKb(false);
   const [mencaoAberta, setMencaoAberta] = useStateKb(false);
   const [mencaoQuery, setMencaoQuery] = useStateKb("");
   const [mencoesSelecionadas, setMencoesSelecionadas] = useStateKb([]);
@@ -632,16 +647,19 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   };
 
   const handleComentar = async () => {
-    if (!novoComentario.trim()) return;
-    // Só notifica quem ainda está de fato mencionado no texto final — se o
-    // usuário apagou o "@Nome" depois de escolher no dropdown, não manda.
+    const textoEnvio = novoComentario.trim();
+    if (!textoEnvio || comentarioEnviandoRef.current) return;
+    comentarioEnviandoRef.current = true;
+    setComentando(true);
+
     const idsMencionados = mencoesSelecionadas
-      .filter((m) => novoComentario.includes("@" + m.nome))
+      .filter((m) => textoEnvio.includes("@" + m.nome))
       .map((m) => m.id);
+
     try {
-      const t = await EnvoxersAPI.api(`/tarefas/${tarefaId}/comentarios`, {
+      const t = await EnvoxersAPI.api("/tarefas/" + tarefaId + "/comentarios", {
         method: "POST",
-        body: JSON.stringify({ texto: novoComentario, mencoes: idsMencionados }),
+        body: JSON.stringify({ texto: textoEnvio, mencoes: idsMencionados }),
       });
       setTarefa(t);
       setNovoComentario("");
@@ -649,6 +667,9 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
       setMencaoAberta(false);
     } catch (err) {
       toast(err.message, "error");
+    } finally {
+      comentarioEnviandoRef.current = false;
+      setComentando(false);
     }
   };
 
@@ -817,15 +838,44 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     }
   };
 
-  const handleUploadAnexo = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const enviarAnexoArquivo = async (file) => {
+    if (!file || anexoUploading) return;
+    setAnexoUploading(true);
+    setAnexoProgresso(0);
+    setAnexoNome(file.name || "arquivo");
     try {
-      const t = await EnvoxersAPI.upload(`/tarefas/${tarefaId}/anexos`, file);
+      const t = await EnvoxersAPI.uploadWithProgress(
+        "/tarefas/" + tarefaId + "/anexos",
+        file,
+        file.name,
+        (pct) => setAnexoProgresso(pct)
+      );
       setTarefa(t);
       toast("Anexo enviado!", "success");
     } catch (err) {
       toast(err.message, "error");
+    } finally {
+      setAnexoUploading(false);
+      setAnexoProgresso(0);
+      setAnexoNome("");
+    }
+  };
+
+  const handleUploadAnexo = async (e) => {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      await enviarAnexoArquivo(file);
+    }
+    e.target.value = "";
+  };
+
+  const handleDropAnexo = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setAnexoDragAtivo(false);
+    const files = Array.from(e.dataTransfer.files || []);
+    for (const file of files) {
+      await enviarAnexoArquivo(file);
     }
   };
 
@@ -1305,7 +1355,9 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                       </div>
                     )}
                     <div className="comment-box-actions">
-                      <button className="btn btn-envox btn-sm" onClick={handleComentar}>Comentar</button>
+                      <button className="btn btn-envox btn-sm" onClick={handleComentar} disabled={comentando || !novoComentario.trim()}>
+                        {comentando ? "Enviando…" : "Comentar"}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1496,10 +1548,36 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                         <svg className="attach-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="2" width="10" height="12" rx="1" /><path d="M6 6h4M6 9h4M6 12h2" /></svg> {a.nome}
                       </a>
                     ))}
-                    <label className="attach" style={{ borderStyle: "dashed", color: "var(--ink-3)", cursor: "pointer" }}>
-                      + Anexar
-                      <input type="file" style={{ display: "none" }} onChange={handleUploadAnexo} />
-                    </label>
+                  </div>
+                  <div
+                    className={"attach-dropzone" + (anexoDragAtivo ? " drag-active" : "") + (anexoUploading ? " uploading" : "")}
+                    onDragEnter={(e) => { e.preventDefault(); setAnexoDragAtivo(true); }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setAnexoDragAtivo(true); }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      if (!e.currentTarget.contains(e.relatedTarget)) setAnexoDragAtivo(false);
+                    }}
+                    onDrop={handleDropAnexo}
+                  >
+                    {anexoUploading ? (
+                      <>
+                        <div className="attach-dropzone-title">Enviando {anexoNome}</div>
+                        <div className="attach-progress-track">
+                          <div className="attach-progress-bar" style={{ width: String(anexoProgresso) + "%" }}></div>
+                        </div>
+                        <div className="attach-progress-label">{anexoProgresso}%</div>
+                      </>
+                    ) : (
+                      <>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4h16v-4"/></svg>
+                        <div className="attach-dropzone-title">Arraste arquivos para cá</div>
+                        <div className="attach-dropzone-sub">ou clique para escolher no computador</div>
+                        <label className="btn btn-sm attach-dropzone-button">
+                          Escolher arquivo
+                          <input type="file" multiple style={{ display: "none" }} onChange={handleUploadAnexo} disabled={anexoUploading} />
+                        </label>
+                      </>
+                    )}
                   </div>
                 </div>
               )}

@@ -6,6 +6,7 @@ visibilidade da aba do cliente (usado pra decidir push de mensagem nova).
 """
 import json
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
@@ -234,7 +235,11 @@ async def verificar_bloqueio(
     if envoxer.permissao == "admin":
         return ChatBloqueioResponse(bloqueado=False, canais=[])
 
-    hoje_00h = datetime.combine(datetime.now(timezone.utc).date(), datetime.min.time(), tzinfo=timezone.utc)
+    # A regra é "mensagem do dia anterior" no dia local da equipe, não em UTC.
+    # Curitiba/São Paulo = America/Sao_Paulo; sem isso, mensagens do fim da noite
+    # podiam cair no "dia UTC" seguinte e escapar do bloqueio na manhã seguinte.
+    agora_local = datetime.now(ZoneInfo("America/Sao_Paulo"))
+    hoje_00h = agora_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
     result = await db.execute(
         select(ChatCanal).where(

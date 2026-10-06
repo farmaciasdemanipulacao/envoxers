@@ -769,8 +769,186 @@ function NotificacoesButton() {
   );
 }
 
+function FeedbackSistemaButton({ permissao }) {
+  const admin = permissao === "admin";
+  const [aberto, setAberto] = useState(false);
+  const [aba, setAba] = useState(admin ? "recebidos" : "enviar");
+  const [tipo, setTipo] = useState("erro");
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [novos, setNovos] = useState(0);
+  const [itens, setItens] = useState([]);
+  const [carregando, setCarregando] = useState(false);
+  const toast = useToast();
+
+  const carregarNovos = async () => {
+    if (!admin) return;
+    try {
+      const r = await EnvoxersAPI.api("/feedback-sistema/novos-count");
+      setNovos(r.total || 0);
+    } catch (_) {}
+  };
+
+  const carregarItens = async () => {
+    if (!admin) return;
+    setCarregando(true);
+    try {
+      const r = await EnvoxersAPI.api("/feedback-sistema");
+      setItens(r || []);
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!admin) return;
+    carregarNovos();
+    const id = setInterval(carregarNovos, 60000);
+    return () => clearInterval(id);
+  }, [admin]);
+
+  const abrir = () => {
+    const destino = admin && novos > 0 ? "recebidos" : "enviar";
+    setAba(destino);
+    setAberto(true);
+    if (admin) carregarItens();
+  };
+
+  const enviar = async () => {
+    if (!titulo.trim() || !descricao.trim() || enviando) return;
+    setEnviando(true);
+    try {
+      await EnvoxersAPI.api("/feedback-sistema", {
+        method: "POST",
+        body: JSON.stringify({
+          tipo,
+          titulo: titulo.trim(),
+          descricao: descricao.trim(),
+          pagina: window.location.pathname + window.location.search,
+        }),
+      });
+      setTitulo("");
+      setDescricao("");
+      setTipo("erro");
+      toast("Recebido! Obrigado por ajudar a melhorar o Envoxers.", "success");
+      if (admin) {
+        await carregarItens();
+        await carregarNovos();
+        setAba("recebidos");
+      } else {
+        setAberto(false);
+      }
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const atualizarStatus = async (id, status) => {
+    try {
+      await EnvoxersAPI.api("/feedback-sistema/" + id, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setItens((prev) => prev.map((x) => x.id === id ? { ...x, status } : x));
+      carregarNovos();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  return (
+    <>
+      <button type="button" className="topbar-feedback-btn" onClick={abrir} title="Reportar erro ou sugerir melhoria" aria-label="Feedback do sistema">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 2.5h10v8H8l-3 3v-3H3z"/><path d="M5.5 5.5h5M5.5 7.8h3.5"/></svg>
+        {admin && novos > 0 && <span className="topbar-feedback-badge">{novos > 99 ? "99+" : novos}</span>}
+      </button>
+
+      {aberto && (
+        <div className="modal-overlay open feedback-system-overlay" onClick={(e) => { if (e.target === e.currentTarget) setAberto(false); }}>
+          <div className="modal feedback-system-modal">
+            <div className="modal-head">
+              <div>
+                <div className="feedback-system-eyebrow">Envoxers</div>
+                <h2 className="modal-title">Erros e melhorias</h2>
+              </div>
+              <button className="modal-close" onClick={() => setAberto(false)} aria-label="Fechar">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+              </button>
+            </div>
+
+            {admin && (
+              <div className="feedback-system-tabs">
+                <button className={aba === "recebidos" ? "active" : ""} onClick={() => { setAba("recebidos"); carregarItens(); }}>
+                  Recebidos {novos > 0 ? "(" + novos + " novos)" : ""}
+                </button>
+                <button className={aba === "enviar" ? "active" : ""} onClick={() => setAba("enviar")}>Enviar</button>
+              </div>
+            )}
+
+            {aba === "enviar" ? (
+              <div className="feedback-system-form">
+                <div className="field">
+                  <label>Tipo</label>
+                  <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                    <option value="erro">Encontrei um erro</option>
+                    <option value="funcionalidade">Quero sugerir uma funcionalidade</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Título</label>
+                  <input value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={180} placeholder="Resuma em uma frase" />
+                </div>
+                <div className="field">
+                  <label>Explique o que aconteceu ou o que você precisa</label>
+                  <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={6} placeholder="Dê contexto suficiente para conseguirmos entender e reproduzir." />
+                </div>
+                <div className="feedback-system-context">A tela atual será anexada automaticamente como contexto.</div>
+                <div className="modal-actions">
+                  <button className="btn" onClick={() => setAberto(false)}>Cancelar</button>
+                  <button className="btn btn-primary" onClick={enviar} disabled={enviando || !titulo.trim() || !descricao.trim()}>
+                    {enviando ? "Enviando…" : "Enviar"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="feedback-system-inbox">
+                {carregando && <div className="empty">Carregando solicitações…</div>}
+                {!carregando && itens.length === 0 && <div className="empty">Nenhuma solicitação registrada.</div>}
+                {!carregando && itens.map((item) => (
+                  <div className={"feedback-system-item status-" + item.status} key={item.id}>
+                    <div className="feedback-system-item-head">
+                      <span className={"feedback-type " + item.tipo}>{item.tipo === "erro" ? "ERRO" : "MELHORIA"}</span>
+                      <strong>{item.titulo}</strong>
+                      <select value={item.status} onChange={(e) => atualizarStatus(item.id, e.target.value)}>
+                        <option value="novo">Novo</option>
+                        <option value="em_analise">Em análise</option>
+                        <option value="feito">Feito</option>
+                        <option value="descartado">Descartado</option>
+                      </select>
+                    </div>
+                    <div className="feedback-system-item-meta">
+                      {item.criado_por_nome} · {new Date(item.created_at).toLocaleString("pt-BR")}
+                      {item.pagina ? " · " + item.pagina : ""}
+                    </div>
+                    <div className="feedback-system-item-text">{item.descricao}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ==================== TOPBAR ====================
-function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chatActive = false, leftAction = null }) {
+function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chatActive = false, leftAction = null, permissao = "envoxer" }) {
   return (
     <div className="topbar">
       <button className="mobile-menu-btn" aria-label="Abrir menu" onClick={onMenuClick}>
@@ -786,6 +964,7 @@ function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chat
           <span>Chat</span>
           {chatBadge > 0 && <span className="topbar-chat-badge">{chatBadge > 99 ? "99+" : chatBadge}</span>}
         </button>
+        <FeedbackSistemaButton permissao={permissao} />
         <NotificacoesButton />
         <button className="btn btn-ghost btn-sm" onClick={onLogout}>Sair</button>
       </div>
