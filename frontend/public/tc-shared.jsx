@@ -526,6 +526,16 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
             "nav_foco_ativos"
           )}
           {item(
+            "foco-ajustes",
+            "Ajustes de Foco",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5v4l2.5 1.5M12.5 2.5l1 1-2 2"/></svg>
+          )}
+          {item(
+            "demandas-avulsas",
+            "Demandas avulsas",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M5 6h6M5 9h4"/></svg>
+          )}
+          {item(
             "arquivos",
             "Arquivos",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h5l1.2 1.5H14v7.5H2z"/><path d="M2 4V2.8h5l1.2 1.2"/></svg>
