@@ -666,7 +666,7 @@ function AppShell() {
     } catch (err) { /* silencioso — não é crítico pra tela */ }
   };
 
-  useEffectApp(() => { if (!perfilComercial) carregarFocoAtivo(); }, [perfilComercial]);
+  useEffectApp(() => { carregarFocoAtivo(); }, [perfilComercial]);
 
   // Contador = tempo decorrido − tempo pausado total. Se pausado_em está setado,
   // congela usando pausado_em como referência (não usa Date.now(), então não precisa de interval).
@@ -702,6 +702,18 @@ function AppShell() {
     }
   };
 
+  const iniciarFocoComercial = async (comercialTaskId) => {
+    try {
+      const registro = await EnvoxersAPI.api("/foco/iniciar", {
+        method: "POST",
+        body: JSON.stringify({ comercial_task_id: comercialTaskId }),
+      });
+      setFocoAtivo(registro);
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
   const pausarRetomarFoco = async () => {
     if (!focoAtivo) return;
     try {
@@ -724,6 +736,15 @@ function AppShell() {
     } catch (err) {
       toast(err.message, "error");
     }
+  };
+
+  const abrirContextoFoco = () => {
+    if (!focoAtivo) return;
+    if (focoAtivo.origem === "comercial" || focoAtivo.comercial_task_id) {
+      setView("comercial-tarefas");
+      return;
+    }
+    if (focoAtivo.tarefa_id) abrirTarefa(focoAtivo.tarefa_id);
   };
 
   const handleLogout = () => {
@@ -765,6 +786,7 @@ function AppShell() {
     chat: "Chat interno",
     "config-alertas": "Admin / Configuração de Alertas",
     "foco-ativos": "Operação / Foco",
+    arquivos: "Operação / Arquivos",
     f4: "Desenvolvimento / PDI, 360, 180, 1:1 e Clima",
   };
 
@@ -857,7 +879,7 @@ function AppShell() {
         {view === "comercial-pipeline" && <ComercialScreen mode="pipeline" />}
         {view === "comercial-conversas" && <ComercialScreen mode="conversas" />}
         {view === "comercial-cadencias" && <ComercialScreen mode="cadencias" />}
-        {view === "comercial-tarefas" && <ComercialScreen mode="tarefas" />}
+        {view === "comercial-tarefas" && <ComercialScreen mode="tarefas" focoAtivo={focoAtivo} focoElapsed={focoElapsed} onIniciarFoco={iniciarFocoComercial} onPausarFoco={pausarRetomarFoco} onFinalizarFoco={() => setConfirmandoFinalizar(true)} />}
         {view === "comercial-oportunidades" && <ComercialScreen mode="oportunidades" />}
         {view === "comercial-relatorios" && <ComercialScreen mode="relatorios" />}
         {view === "comercial-config" && <ComercialScreen mode="config" />}
@@ -893,6 +915,7 @@ function AppShell() {
         {view === "churn" && <ChurnListaScreen />}
         {view === "config-alertas" && <ConfigAlertasScreen permissao={permissao} />}
         {view === "foco-ativos" && <FocoAtivosScreen onAbrirTarefa={abrirTarefa} />}
+        {view === "arquivos" && <ArquivosScreen permissao={permissao} onAbrirTarefa={abrirTarefa} />}
         {view === "f4" && <F4Screen permissao={permissao} envoxerId={envoxerId} />}
         {view === "configuracoes" && (
           <ConfiguracoesScreen
@@ -916,7 +939,7 @@ function AppShell() {
         focoElapsed={focoElapsed}
         onPausarFoco={pausarRetomarFoco}
         onFinalizarFoco={() => setConfirmandoFinalizar(true)}
-        onAbrirTarefa={() => focoAtivo && abrirTarefa(focoAtivo.tarefa_id)}
+        onAbrirTarefa={abrirContextoFoco}
       />
       {installBanner && <InstallBanner onDismiss={handleInstallDismiss} ios={installIOS} />}
       {pushBanner && !installBanner && <PushPermissionBanner onDismiss={handlePushDismiss} />}
@@ -927,6 +950,8 @@ function AppShell() {
         onCancelar={() => setConfirmandoFinalizar(false)}
         onConfirmar={finalizarFoco}
       />
+
+      <EnvoxersShared.FeedbackSistemaDock permissao={permissao} />
 
       {tarefaAberta !== null && (
         <TaskModal

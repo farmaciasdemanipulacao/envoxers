@@ -10,6 +10,7 @@ class ComentarioItem(BaseModel):
     texto: str
     mencoes: list[int] = []
     criado_em: datetime
+    editado_em: Optional[datetime] = None
 
 
 class AnexoItem(BaseModel):
@@ -55,6 +56,20 @@ class TarefaUpdate(BaseModel):
 class ComentarioCreate(BaseModel):
     texto: str
     mencoes: list[int] = []
+
+
+class ComentarioEditRequest(BaseModel):
+    criado_em: datetime
+    texto: str
+
+
+class ComentarioDeleteRequest(BaseModel):
+    criado_em: datetime
+
+
+class AnexoRenameRequest(BaseModel):
+    url: str
+    nome: str
 
 
 class TarefaResponse(TarefaBase):

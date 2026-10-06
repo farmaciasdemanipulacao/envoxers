@@ -26,6 +26,7 @@ def perfil_comercial_pode_acessar(path: str, method: str) -> bool:
         or path.startswith("/api/v1/chat")
         or path.startswith("/api/v1/push")
         or path.startswith("/api/v1/feedback-sistema")
+        or path.startswith("/api/v1/foco")
         or path == "/api/v1/auth/me"
         or path == "/api/v1/envoxers/me/status-instalacao"
         or (path == "/api/v1/envoxers" and method.upper() == "GET")

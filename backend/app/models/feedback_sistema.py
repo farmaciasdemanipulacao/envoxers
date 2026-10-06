@@ -12,6 +12,7 @@ class FeedbackSistema(Base, TimestampMixin):
     titulo: Mapped[str] = mapped_column(String(180), nullable=False)
     descricao: Mapped[str] = mapped_column(Text, nullable=False)
     pagina: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    screenshot_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="novo")
     criado_por_envoxer_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("envoxer.id", ondelete="SET NULL"), nullable=True

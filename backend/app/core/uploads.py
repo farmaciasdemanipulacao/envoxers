@@ -66,3 +66,18 @@ async def salvar_foto_avatar(file: UploadFile) -> dict:
         "mime_type": "image/jpeg",
         "tamanho_kb": len(conteudo_final) // 1024,
     }
+
+
+def excluir_upload_url(url: str) -> bool:
+    """Remove um arquivo gerenciado em /api/v1/uploads sem aceitar traversal."""
+    if not url or not url.startswith("/api/v1/uploads/"):
+        return False
+    nome = Path(url).name
+    if not nome:
+        return False
+    alvo = _upload_dir() / nome
+    try:
+        alvo.unlink(missing_ok=True)
+        return True
+    except OSError:
+        return False

@@ -408,7 +408,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
   };
   const sectionHasActive = (key) => ({
     comercial: view.startsWith("comercial-"),
-    operacao: ["kanban", "dashboard", "calendario", "foco-ativos"].includes(view),
+    operacao: ["kanban", "dashboard", "calendario", "foco-ativos", "arquivos"].includes(view),
     entregaveis: view === "entregaveis",
     farol: ["solicitacoes", "farol", "alertas"].includes(view),
     icp: ["icp", "churn"].includes(view),
@@ -513,6 +513,11 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
             "Foco",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6" /><path d="M8 5v3l2 2" /></svg>,
             "nav_foco_ativos"
+          )}
+          {item(
+            "arquivos",
+            "Arquivos",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h5l1.2 1.5H14v7.5H2z"/><path d="M2 4V2.8h5l1.2 1.2"/></svg>
           )}
         </nav>
       </div>
@@ -769,7 +774,7 @@ function NotificacoesButton() {
   );
 }
 
-function FeedbackSistemaButton({ permissao }) {
+function FeedbackSistemaDock({ permissao }) {
   const admin = permissao === "admin";
   const [aberto, setAberto] = useState(false);
   const [aba, setAba] = useState(admin ? "recebidos" : "enviar");
@@ -780,6 +785,9 @@ function FeedbackSistemaButton({ permissao }) {
   const [novos, setNovos] = useState(0);
   const [itens, setItens] = useState([]);
   const [carregando, setCarregando] = useState(false);
+  const [capturando, setCapturando] = useState(false);
+  const [capturaBlob, setCapturaBlob] = useState(null);
+  const [capturaPreview, setCapturaPreview] = useState("");
   const toast = useToast();
 
   const carregarNovos = async () => {
@@ -794,8 +802,7 @@ function FeedbackSistemaButton({ permissao }) {
     if (!admin) return;
     setCarregando(true);
     try {
-      const r = await EnvoxersAPI.api("/feedback-sistema");
-      setItens(r || []);
+      setItens(await EnvoxersAPI.api("/feedback-sistema"));
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -810,29 +817,84 @@ function FeedbackSistemaButton({ permissao }) {
     return () => clearInterval(id);
   }, [admin]);
 
-  const abrir = () => {
+  useEffect(() => {
+    return () => {
+      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
+    };
+  }, [capturaPreview]);
+
+  const capturarTela = async () => {
+    if (!window.html2canvas) {
+      setCapturaBlob(null);
+      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
+      setCapturaPreview("");
+      return;
+    }
+    setCapturando(true);
+    try {
+      const canvas = await window.html2canvas(document.body, {
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        logging: false,
+        scale: Math.min(window.devicePixelRatio || 1, 1.5),
+        ignoreElements: (el) => el?.dataset?.feedbackUi === "true",
+      });
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 0.92));
+      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
+      setCapturaBlob(blob);
+      setCapturaPreview(blob ? URL.createObjectURL(blob) : "");
+    } catch (_) {
+      setCapturaBlob(null);
+      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
+      setCapturaPreview("");
+    } finally {
+      setCapturando(false);
+    }
+  };
+
+  const abrir = async () => {
     const destino = admin && novos > 0 ? "recebidos" : "enviar";
+    if (destino === "enviar") await capturarTela();
     setAba(destino);
     setAberto(true);
     if (admin) carregarItens();
+  };
+
+  const mudarParaEnviar = async () => {
+    await capturarTela();
+    setAba("enviar");
   };
 
   const enviar = async () => {
     if (!titulo.trim() || !descricao.trim() || enviando) return;
     setEnviando(true);
     try {
-      await EnvoxersAPI.api("/feedback-sistema", {
+      const contexto =
+        document.querySelector(".topbar-crumb")?.textContent?.trim() ||
+        document.querySelector(".page-title-block h1")?.textContent?.trim() ||
+        window.location.pathname;
+      let item = await EnvoxersAPI.api("/feedback-sistema", {
         method: "POST",
         body: JSON.stringify({
           tipo,
           titulo: titulo.trim(),
           descricao: descricao.trim(),
-          pagina: window.location.pathname + window.location.search,
+          pagina: contexto,
         }),
       });
+      if (capturaBlob) {
+        item = await EnvoxersAPI.upload(
+          "/feedback-sistema/" + item.id + "/screenshot",
+          capturaBlob,
+          "captura-envoxers-" + item.id + ".png"
+        );
+      }
       setTitulo("");
       setDescricao("");
       setTipo("erro");
+      setCapturaBlob(null);
+      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
+      setCapturaPreview("");
       toast("Recebido! Obrigado por ajudar a melhorar o Envoxers.", "success");
       if (admin) {
         await carregarItens();
@@ -861,88 +923,121 @@ function FeedbackSistemaButton({ permissao }) {
     }
   };
 
-  return (
+  const drawer = aberto ? (
     <>
-      <button type="button" className="topbar-feedback-btn" onClick={abrir} title="Reportar erro ou sugerir melhoria" aria-label="Feedback do sistema">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 2.5h10v8H8l-3 3v-3H3z"/><path d="M5.5 5.5h5M5.5 7.8h3.5"/></svg>
-        {admin && novos > 0 && <span className="topbar-feedback-badge">{novos > 99 ? "99+" : novos}</span>}
-      </button>
+      <div
+        className="feedback-side-backdrop"
+        data-feedback-ui="true"
+        onClick={() => setAberto(false)}
+      ></div>
+      <aside className="feedback-side-drawer" data-feedback-ui="true">
+        <div className="feedback-side-head">
+          <div>
+            <span className="feedback-system-eyebrow">Envoxers</span>
+            <h2>Erros e melhorias</h2>
+          </div>
+          <button className="modal-close" onClick={() => setAberto(false)} aria-label="Fechar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </button>
+        </div>
 
-      {aberto && (
-        <div className="modal-overlay open feedback-system-overlay" onClick={(e) => { if (e.target === e.currentTarget) setAberto(false); }}>
-          <div className="modal feedback-system-modal">
-            <div className="modal-head">
-              <div>
-                <div className="feedback-system-eyebrow">Envoxers</div>
-                <h2 className="modal-title">Erros e melhorias</h2>
-              </div>
-              <button className="modal-close" onClick={() => setAberto(false)} aria-label="Fechar">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
-              </button>
+        {admin && (
+          <div className="feedback-system-tabs">
+            <button className={aba === "recebidos" ? "active" : ""} onClick={() => { setAba("recebidos"); carregarItens(); }}>
+              Recebidos {novos > 0 ? "(" + novos + " novos)" : ""}
+            </button>
+            <button className={aba === "enviar" ? "active" : ""} onClick={mudarParaEnviar}>Enviar</button>
+          </div>
+        )}
+
+        {aba === "enviar" ? (
+          <div className="feedback-side-body">
+            <div className="field">
+              <label>Tipo</label>
+              <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                <option value="erro">Encontrei um erro</option>
+                <option value="funcionalidade">Quero sugerir uma funcionalidade</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Título</label>
+              <input value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={180} placeholder="Resuma em uma frase" />
+            </div>
+            <div className="field">
+              <label>Explique o que aconteceu ou o que você precisa</label>
+              <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={7} placeholder="Conte o que aconteceu, o que esperava e qualquer detalhe útil." />
             </div>
 
-            {admin && (
-              <div className="feedback-system-tabs">
-                <button className={aba === "recebidos" ? "active" : ""} onClick={() => { setAba("recebidos"); carregarItens(); }}>
-                  Recebidos {novos > 0 ? "(" + novos + " novos)" : ""}
+            <div className="feedback-capture-card">
+              <div className="feedback-capture-head">
+                <div>
+                  <strong>Captura da tela</strong>
+                  <span>{capturando ? "Capturando a tela atual…" : capturaPreview ? "Esta imagem será enviada junto." : "Não foi possível capturar automaticamente."}</span>
+                </div>
+                <button className="btn btn-xs" onClick={capturarTela} disabled={capturando}>
+                  {capturando ? "..." : "Atualizar"}
                 </button>
-                <button className={aba === "enviar" ? "active" : ""} onClick={() => setAba("enviar")}>Enviar</button>
               </div>
-            )}
-
-            {aba === "enviar" ? (
-              <div className="feedback-system-form">
-                <div className="field">
-                  <label>Tipo</label>
-                  <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
-                    <option value="erro">Encontrei um erro</option>
-                    <option value="funcionalidade">Quero sugerir uma funcionalidade</option>
+              {capturaPreview && <img src={capturaPreview} alt="Prévia da captura da tela" />}
+            </div>
+          </div>
+        ) : (
+          <div className="feedback-system-inbox">
+            {carregando && <div className="empty">Carregando solicitações…</div>}
+            {!carregando && itens.length === 0 && <div className="empty">Nenhuma solicitação registrada.</div>}
+            {!carregando && itens.map((item) => (
+              <div className={"feedback-system-item status-" + item.status} key={item.id}>
+                <div className="feedback-system-item-head">
+                  <span className={"feedback-type " + item.tipo}>{item.tipo === "erro" ? "ERRO" : "MELHORIA"}</span>
+                  <strong>{item.titulo}</strong>
+                  <select value={item.status} onChange={(e) => atualizarStatus(item.id, e.target.value)}>
+                    <option value="novo">Novo</option>
+                    <option value="em_analise">Em análise</option>
+                    <option value="feito">Feito</option>
+                    <option value="descartado">Descartado</option>
                   </select>
                 </div>
-                <div className="field">
-                  <label>Título</label>
-                  <input value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={180} placeholder="Resuma em uma frase" />
+                <div className="feedback-system-item-meta">
+                  {item.criado_por_nome} · {new Date(item.created_at).toLocaleString("pt-BR")}
+                  {item.pagina ? " · " + item.pagina : ""}
                 </div>
-                <div className="field">
-                  <label>Explique o que aconteceu ou o que você precisa</label>
-                  <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={6} placeholder="Dê contexto suficiente para conseguirmos entender e reproduzir." />
-                </div>
-                <div className="feedback-system-context">A tela atual será anexada automaticamente como contexto.</div>
-                <div className="modal-actions">
-                  <button className="btn" onClick={() => setAberto(false)}>Cancelar</button>
-                  <button className="btn btn-primary" onClick={enviar} disabled={enviando || !titulo.trim() || !descricao.trim()}>
-                    {enviando ? "Enviando…" : "Enviar"}
-                  </button>
-                </div>
+                <div className="feedback-system-item-text">{item.descricao}</div>
+                {item.screenshot_url && (
+                  <a className="feedback-system-shot" href={item.screenshot_url} target="_blank" rel="noreferrer">
+                    <img src={item.screenshot_url} alt={"Captura de " + item.titulo} />
+                    <span>Abrir captura</span>
+                  </a>
+                )}
               </div>
-            ) : (
-              <div className="feedback-system-inbox">
-                {carregando && <div className="empty">Carregando solicitações…</div>}
-                {!carregando && itens.length === 0 && <div className="empty">Nenhuma solicitação registrada.</div>}
-                {!carregando && itens.map((item) => (
-                  <div className={"feedback-system-item status-" + item.status} key={item.id}>
-                    <div className="feedback-system-item-head">
-                      <span className={"feedback-type " + item.tipo}>{item.tipo === "erro" ? "ERRO" : "MELHORIA"}</span>
-                      <strong>{item.titulo}</strong>
-                      <select value={item.status} onChange={(e) => atualizarStatus(item.id, e.target.value)}>
-                        <option value="novo">Novo</option>
-                        <option value="em_analise">Em análise</option>
-                        <option value="feito">Feito</option>
-                        <option value="descartado">Descartado</option>
-                      </select>
-                    </div>
-                    <div className="feedback-system-item-meta">
-                      {item.criado_por_nome} · {new Date(item.created_at).toLocaleString("pt-BR")}
-                      {item.pagina ? " · " + item.pagina : ""}
-                    </div>
-                    <div className="feedback-system-item-text">{item.descricao}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+            ))}
           </div>
-        </div>
-      )}
+        )}
+
+        {aba === "enviar" && (
+          <div className="feedback-side-footer">
+            <button className="btn" onClick={() => setAberto(false)}>Cancelar</button>
+            <button className="btn btn-envox" onClick={enviar} disabled={enviando || capturando || !titulo.trim() || !descricao.trim()}>
+              {enviando ? "Enviando…" : "Enviar"}
+            </button>
+          </div>
+        )}
+      </aside>
+    </>
+  ) : null;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="feedback-side-tab"
+        data-feedback-ui="true"
+        onClick={abrir}
+        title="Reportar erro ou sugerir melhoria"
+      >
+        <span>ERRO / IDEIA</span>
+        {admin && novos > 0 && <b>{novos > 99 ? "99+" : novos}</b>}
+      </button>
+      {drawer && ReactDOM.createPortal(drawer, document.body)}
     </>
   );
 }
@@ -964,7 +1059,6 @@ function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chat
           <span>Chat</span>
           {chatBadge > 0 && <span className="topbar-chat-badge">{chatBadge > 99 ? "99+" : chatBadge}</span>}
         </button>
-        <FeedbackSistemaButton permissao={permissao} />
         <NotificacoesButton />
         <button className="btn btn-ghost btn-sm" onClick={onLogout}>Sair</button>
       </div>
@@ -1219,6 +1313,6 @@ function HelpIcon({ helpKey, onDark }) {
 }
 
 window.EnvoxersShared = {
-  formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, HelpIcon, initials, Avatar,
+  formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, FeedbackSistemaDock, HelpIcon, initials, Avatar,
   IconEditar, IconAutomacao, IconExcluir, IconArrastar, ComoFazerModal, corPrazoEtapa, AvatarCropModal,
 };

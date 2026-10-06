@@ -23,6 +23,7 @@ class FeedbackSistemaResponse(BaseModel):
     titulo: str
     descricao: str
     pagina: Optional[str] = None
+    screenshot_url: Optional[str] = None
     status: str
     criado_por_envoxer_id: Optional[int] = None
     criado_por_nome: str

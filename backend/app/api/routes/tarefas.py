@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
 from app.api.routes.registro_foco import finalizar_foco_ativo_da_tarefa
-from app.core.uploads import salvar_upload
+from app.core.uploads import salvar_upload, excluir_upload_url
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
@@ -17,7 +17,8 @@ from app.models.tarefa import Tarefa
 from app.models.entrega_check import EntregaCheck
 from app.models.etapa import Etapa
 from app.models.prioridade_manual import PrioridadeManual
-from app.schemas.tarefa import TarefaCreate, TarefaUpdate, TarefaResponse, ComentarioCreate, EntregaCheckResponse, PrioridadeDiaReordenar
+from app.models.registro_foco import RegistroFoco
+from app.schemas.tarefa import TarefaCreate, TarefaUpdate, TarefaResponse, ComentarioCreate, ComentarioEditRequest, ComentarioDeleteRequest, AnexoRenameRequest, EntregaCheckResponse, PrioridadeDiaReordenar
 from app.services.provisionamento import garantir_cards_do_mes
 from app.services.etapas_automacao import aplicar_processo_do_servico
 from app.services.realtime import notificar_tarefa_atualizada
@@ -535,6 +536,32 @@ async def registrar_entrega_extra(
     return _check_to_response(check, envoxer.nome)
 
 
+async def _validar_foco_para_comentario(db: AsyncSession, tarefa_id: int, envoxer_id: int) -> None:
+    sessao = (await db.execute(
+        select(RegistroFoco).where(
+            RegistroFoco.envoxer_id == envoxer_id,
+            RegistroFoco.tarefa_id == tarefa_id,
+            RegistroFoco.fim.is_(None),
+        )
+    )).scalar_one_or_none()
+    if sessao is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Comentários só podem ser editados ou excluídos enquanto seu Foco neste card estiver ativo",
+        )
+
+
+def _mesmo_instante_comentario(valor: str, alvo: datetime) -> bool:
+    try:
+        atual = datetime.fromisoformat(valor)
+        if atual.tzinfo is None:
+            atual = atual.replace(tzinfo=timezone.utc)
+        alvo_norm = alvo if alvo.tzinfo else alvo.replace(tzinfo=timezone.utc)
+        return abs((atual - alvo_norm).total_seconds()) < 0.001
+    except (TypeError, ValueError):
+        return False
+
+
 @router.post("/{tarefa_id}/comentarios", response_model=TarefaResponse)
 async def comentar_tarefa(
     tarefa_id: int,
@@ -611,6 +638,75 @@ async def comentar_tarefa(
     return _to_response(*row)
 
 
+@router.patch("/{tarefa_id}/comentarios", response_model=TarefaResponse)
+async def editar_comentario(
+    tarefa_id: int,
+    payload: ComentarioEditRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
+    await _validar_foco_para_comentario(db, tarefa_id, envoxer.id)
+    texto = payload.texto.strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="Comentário não pode ficar vazio")
+
+    comentarios = list(tarefa.comentarios or [])
+    encontrado = False
+    for i, item in enumerate(comentarios):
+        if item.get("envoxer_id") != envoxer.id:
+            continue
+        if not _mesmo_instante_comentario(item.get("criado_em"), payload.criado_em):
+            continue
+        comentarios[i] = {**item, "texto": texto, "editado_em": datetime.now(timezone.utc).isoformat()}
+        encontrado = True
+        break
+    if not encontrado:
+        raise HTTPException(status_code=404, detail="Comentário não encontrado ou não pertence a você")
+
+    tarefa.comentarios = comentarios
+    await db.flush()
+    await db.refresh(tarefa)
+    result = await db.execute(_JOIN_STMT.where(Tarefa.id == tarefa.id))
+    row = result.one()
+    await notificar_tarefa_atualizada(db, tarefa.id)
+    return _to_response(*row)
+
+
+@router.delete("/{tarefa_id}/comentarios", response_model=TarefaResponse)
+async def excluir_comentario(
+    tarefa_id: int,
+    payload: ComentarioDeleteRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
+    await _validar_foco_para_comentario(db, tarefa_id, envoxer.id)
+
+    comentarios = list(tarefa.comentarios or [])
+    novo = []
+    removido = False
+    for item in comentarios:
+        if (
+            not removido
+            and item.get("envoxer_id") == envoxer.id
+            and _mesmo_instante_comentario(item.get("criado_em"), payload.criado_em)
+        ):
+            removido = True
+            continue
+        novo.append(item)
+    if not removido:
+        raise HTTPException(status_code=404, detail="Comentário não encontrado ou não pertence a você")
+
+    tarefa.comentarios = novo
+    await db.flush()
+    await db.refresh(tarefa)
+    result = await db.execute(_JOIN_STMT.where(Tarefa.id == tarefa.id))
+    row = result.one()
+    await notificar_tarefa_atualizada(db, tarefa.id)
+    return _to_response(*row)
+
+
 @router.post("/{tarefa_id}/anexos", response_model=TarefaResponse)
 async def anexar_arquivo(
     tarefa_id: int,
@@ -630,6 +726,57 @@ async def anexar_arquivo(
     await db.flush()
     await db.refresh(tarefa)
 
+    result = await db.execute(_JOIN_STMT.where(Tarefa.id == tarefa.id))
+    row = result.one()
+    await notificar_tarefa_atualizada(db, tarefa.id)
+    return _to_response(*row)
+
+
+@router.patch("/{tarefa_id}/anexos", response_model=TarefaResponse)
+async def renomear_anexo(
+    tarefa_id: int,
+    payload: AnexoRenameRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
+    nome = payload.nome.strip()
+    if not nome:
+        raise HTTPException(status_code=400, detail="Nome do arquivo é obrigatório")
+    anexos = list(tarefa.anexos or [])
+    encontrado = False
+    for i, item in enumerate(anexos):
+        if item.get("url") == payload.url:
+            anexos[i] = {**item, "nome": nome}
+            encontrado = True
+            break
+    if not encontrado:
+        raise HTTPException(status_code=404, detail="Anexo não encontrado")
+    tarefa.anexos = anexos
+    await db.flush()
+    await db.refresh(tarefa)
+    result = await db.execute(_JOIN_STMT.where(Tarefa.id == tarefa.id))
+    row = result.one()
+    await notificar_tarefa_atualizada(db, tarefa.id)
+    return _to_response(*row)
+
+
+@router.delete("/{tarefa_id}/anexos", response_model=TarefaResponse)
+async def excluir_anexo(
+    tarefa_id: int,
+    url: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+):
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
+    anexos = list(tarefa.anexos or [])
+    restante = [item for item in anexos if item.get("url") != url]
+    if len(restante) == len(anexos):
+        raise HTTPException(status_code=404, detail="Anexo não encontrado")
+    tarefa.anexos = restante
+    await db.flush()
+    excluir_upload_url(url)
+    await db.refresh(tarefa)
     result = await db.execute(_JOIN_STMT.where(Tarefa.id == tarefa.id))
     row = result.one()
     await notificar_tarefa_atualizada(db, tarefa.id)

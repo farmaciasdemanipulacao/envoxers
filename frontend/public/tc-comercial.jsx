@@ -106,7 +106,63 @@ function CommercialConversations({onOpen}){const [items,setItems]=useStateCom(nu
 function CadenceEditor({cadence,onClose,onDone}){const [name,setName]=useStateCom(cadence?.nome||''),[desc,setDesc]=useStateCom(cadence?.descricao||''),[steps,setSteps]=useStateCom(cadence?.steps?.map(x=>({ordem:x.ordem,dias_apos_inicio:x.dias_apos_inicio,tipo:x.tipo,orientacao:x.orientacao||''}))||[{dias_apos_inicio:0,tipo:'abordagem',orientacao:'Mensagem inicial com primeiro ouro.'},{dias_apos_inicio:2,tipo:'follow_up',orientacao:'Nova evidência ou ouro.'}]),[error,setError]=useStateCom('');const save=async()=>{try{await CAPI(cadence?`/comercial/cadencias/${cadence.id}`:'/comercial/cadencias',{method:cadence?'PATCH':'POST',body:JSON.stringify({nome:name,descricao:desc,steps})});onDone()}catch(e){setError(e.message)}};return <CModal title={cadence?'Editar cadência':'Nova cadência'} onClose={onClose} wide><CError error={error}/><div className="form-grid"><CField label="Nome"><input value={name} onChange={e=>setName(e.target.value)}/></CField><CField label="Descrição"><input value={desc} onChange={e=>setDesc(e.target.value)}/></CField></div><CSectionTitle title="Etapas" action={<button className="btn btn-xs" onClick={()=>setSteps([...steps,{dias_apos_inicio:steps.length?steps[steps.length-1].dias_apos_inicio+3:0,tipo:'follow_up',orientacao:''}])}>+ Etapa</button>}/><div className="commercial-cadence-edit">{steps.map((s,i)=><div key={i}><input type="number" value={s.dias_apos_inicio} onChange={e=>setSteps(steps.map((x,j)=>j===i?{...x,dias_apos_inicio:Number(e.target.value)}:x))}/><select value={s.tipo} onChange={e=>setSteps(steps.map((x,j)=>j===i?{...x,tipo:e.target.value}:x))}><option value="abordagem">Abordagem</option><option value="follow_up">Follow-up</option><option value="reativacao">Reativação</option></select><input value={s.orientacao} onChange={e=>setSteps(steps.map((x,j)=>j===i?{...x,orientacao:e.target.value}:x))}/><button className="icon-btn" onClick={()=>setSteps(steps.filter((_,j)=>j!==i))}>×</button></div>)}</div><div className="modal-footer"><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-envox" onClick={save} disabled={!name.trim()||!steps.length}>{cadence?'Salvar cadência':'Criar cadência'}</button></div></CModal>}
 function CommercialCadences({permission}){const [items,setItems]=useStateCom(null),[editor,setEditor]=useStateCom(null);const load=()=>CAPI('/comercial/cadencias').then(setItems);useEffectCom(()=>{load()},[]);if(!items)return <CSpinner/>;return <div><CSectionTitle title="Cadências de prospecção" action={['admin','gestor'].includes(permission)?<button className="btn btn-envox" onClick={()=>setEditor({})}>+ Nova cadência</button>:null}/><div className="commercial-cadence-list">{items.map(c=><div className="card" key={c.id}><div className="commercial-cadence-head"><div><h3>{c.nome}</h3><span>{c.descricao}</span></div><div><CBadge tone={c.ativa?'quente':''}>{c.ativa?'Ativa':'Inativa'}</CBadge><b>{c.leads_ativos} em andamento</b>{['admin','gestor'].includes(permission)&&<button className="btn btn-xs" onClick={()=>setEditor(c)}>Editar</button>}</div></div><div className="commercial-steps compact">{c.steps.map(s=><div className="commercial-step" key={s.id}><b>D{s.dias_apos_inicio}</b><span>{cStatus(s.tipo)}</span><small>{s.orientacao}</small></div>)}</div></div>)}</div>{editor&&<CadenceEditor cadence={editor.id?editor:null} onClose={()=>setEditor(null)} onDone={()=>{setEditor(null);load()}}/>}</div>}
 
-function CommercialTasks({onOpen}){const [items,setItems]=useStateCom(null),[filter,setFilter]=useStateCom('pendente');const load=()=>CAPI('/comercial/tarefas'+(filter?`?status=${filter}`:'')).then(setItems);useEffectCom(()=>{load()},[filter]);if(!items)return <CSpinner/>;return <div className="commercial-tasks-page"><div className="commercial-toolbar"><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="pendente">Pendentes</option><option value="concluida">Concluídas</option><option value="">Todas</option></select></div><div className="card commercial-table-card"><div className="table-wrap"><table><thead><tr><th></th><th>Tarefa</th><th>Lead</th><th>Responsável</th><th>Prazo</th><th>Status</th></tr></thead><tbody>{items.map(t=><tr key={t.id}><td><button className={'commercial-check '+(t.status==='concluida'?'done':'')} onClick={async()=>{await CAPI(`/comercial/tarefas/${t.id}`,{method:'PATCH',body:JSON.stringify({status:t.status==='concluida'?'pendente':'concluida'})});load()}}>{t.status==='concluida'?'✓':''}</button></td><td><b>{t.titulo}</b><small>{t.descricao}</small></td><td className="commercial-click" onClick={()=>onOpen(t.lead_id)}>{t.lead_nome}</td><td>{t.responsavel_nome||'—'}</td><td className={t.status==='pendente'&&t.prazo&&new Date(t.prazo)<new Date()?'overdue':''}>{cFmtDT(t.prazo)}</td><td><CBadge>{t.status}</CBadge></td></tr>)}</tbody></table></div></div></div>}
+function CommercialTasks({onOpen,focoAtivo,focoElapsed=0,onIniciarFoco,onPausarFoco,onFinalizarFoco}){
+  const [items,setItems]=useStateCom(null),[filter,setFilter]=useStateCom('pendente');
+  const load=()=>CAPI('/comercial/tarefas'+(filter?'?status='+encodeURIComponent(filter):'')).then(setItems);
+  useEffectCom(()=>{load()},[filter]);
+
+  const fmtFocus=(seg)=>{
+    const s=Math.max(0,Math.floor(seg||0));
+    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;
+    return [h,m,ss].map(x=>String(x).padStart(2,'0')).join(':');
+  };
+
+  if(!items)return <CSpinner/>;
+  return <div className="commercial-tasks-page">
+    <div className="commercial-toolbar">
+      <select value={filter} onChange={e=>setFilter(e.target.value)}>
+        <option value="pendente">Pendentes</option><option value="concluida">Concluídas</option><option value="">Todas</option>
+      </select>
+    </div>
+    <div className="card commercial-table-card">
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th></th><th>Tarefa</th><th>Lead</th><th>Responsável</th><th>Prazo</th><th>Foco</th><th>Status</th></tr></thead>
+          <tbody>{items.map(t=>{
+            const focoAqui=!!focoAtivo && focoAtivo.origem==='comercial' && Number(focoAtivo.comercial_task_id)===Number(t.id);
+            const existeOutroFoco=!!focoAtivo && !focoAqui;
+            return <tr key={t.id}>
+              <td><button className={'commercial-check '+(t.status==='concluida'?'done':'')} onClick={async()=>{await CAPI('/comercial/tarefas/'+t.id,{method:'PATCH',body:JSON.stringify({status:t.status==='concluida'?'pendente':'concluida'})});load()}}>{t.status==='concluida'?'✓':''}</button></td>
+              <td><b>{t.titulo}</b><small>{t.descricao}</small></td>
+              <td className="commercial-click" onClick={()=>onOpen(t.lead_id)}>{t.lead_nome}</td>
+              <td>{t.responsavel_nome||'—'}</td>
+              <td className={t.status==='pendente'&&t.prazo&&new Date(t.prazo)<new Date()?'overdue':''}>{cFmtDT(t.prazo)}</td>
+              <td>
+                {focoAqui ? (
+                  <div className="commercial-focus-running">
+                    <strong>{fmtFocus(focoElapsed)}</strong>
+                    <button className="btn btn-xs" onClick={onPausarFoco}>{focoAtivo.pausado_em?'Retomar':'Pausar'}</button>
+                    <button className="btn btn-xs stop" onClick={onFinalizarFoco}>Finalizar</button>
+                  </div>
+                ) : (
+                  <button
+                    className="btn btn-xs commercial-focus-start"
+                    disabled={t.status==='concluida'||existeOutroFoco}
+                    title={existeOutroFoco?'Finalize o Foco atual antes de iniciar outro':''}
+                    onClick={()=>onIniciarFoco&&onIniciarFoco(t.id)}
+                  >
+                    ▶ Foco
+                  </button>
+                )}
+              </td>
+              <td><CBadge>{t.status}</CBadge></td>
+            </tr>
+          })}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+}
 
 function CommercialOpportunities({onOpen}){const [items,setItems]=useStateCom(null);useEffectCom(()=>{CAPI('/comercial/oportunidades').then(setItems)},[]);if(!items)return <CSpinner/>;const total=items.reduce((s,x)=>s+Number(x.valor_estimado||0),0);return <div><div className="commercial-opportunity-summary"><div><span>Oportunidades</span><b>{items.length}</b></div><div><span>Pipeline estimado</span><b>{cMoney(total)}</b></div><div><span>Probabilidade média</span><b>{items.length?Math.round(items.reduce((s,x)=>s+x.probabilidade,0)/items.length):0}%</b></div></div><div className="card commercial-table-card"><div className="table-wrap"><table><thead><tr><th>Lead</th><th>Dor principal</th><th>Solução provável</th><th>Valor</th><th>Prob.</th><th>Etapa</th><th>Previsão</th></tr></thead><tbody>{items.map(o=><tr key={o.id} onClick={()=>onOpen(o.lead_id)} className="commercial-click"><td><b>{o.lead_nome}</b></td><td>{o.dor_principal||'—'}</td><td>{o.solucao_provavel||'—'}</td><td>{cMoney(o.valor_estimado)}</td><td>{o.probabilidade}%</td><td><CBadge>{cStatus(o.etapa)}</CBadge></td><td>{cFmtDate(o.data_prevista)}</td></tr>)}</tbody></table></div></div></div>}
 
@@ -168,13 +224,13 @@ function CommercialConfig({meta}){
   </div>
 }
 
-function ComercialScreen({mode='dashboard'}){
+function ComercialScreen({mode='dashboard',focoAtivo=null,focoElapsed=0,onIniciarFoco=null,onPausarFoco=null,onFinalizarFoco=null}){
   const [leadId,setLeadId]=useStateCom(null),[newLead,setNewLead]=useStateCom(false),[meta,setMeta]=useStateCom(commercialMetaCache),[metaError,setMetaError]=useStateCom(''),[version,setVersion]=useStateCom(0);
   useEffectCom(()=>{let active=true;if(!meta){CLoadMeta().then(r=>{if(active)setMeta(r)}).catch(e=>{if(active)setMetaError(e.message||'Não foi possível carregar o Comercial')})}return()=>{active=false}},[]);
   if(!meta)return <div className="page commercial-page">{metaError?<CError error={metaError}/>:<CSpinner/>}</div>;
   if(leadId)return <div className="page commercial-page"><LeadDetail leadId={leadId} onBack={()=>setLeadId(null)} meta={meta}/></div>;
   const titles={dashboard:['Dashboard','Visão do funil, conversão e prioridades da prospecção.'],hoje:['Prospecções de hoje','Quem precisa de ação agora, em uma única rotina.'],leads:['Leads','Base única de estabelecimentos e histórico comercial.'],pipeline:['Pipeline comercial','Movimente os leads sem perder a linha do tempo.'],conversas:['Conversas','Últimas interações e respostas aguardando ação.'],cadencias:['Cadências','Sequências de contato com uma nova razão comercial em cada etapa.'],tarefas:['Tarefas','Pendências comerciais com responsável e prazo.'],oportunidades:['Oportunidades','Potenciais negócios já convertidos em oportunidade comercial.'],relatorios:['Relatórios','O que está gerando resposta, reunião e fechamento.'],config:['Configurações comerciais','Pipeline, integrações, tags e lista de não contato.']};
   const [title,sub]=titles[mode]||titles.dashboard;
-  return <div className={'page commercial-page commercial-page-'+mode} key={version}><EnvoxersShared.PageHeader title={title} subtitle={sub} actions={!['config','relatorios','cadencias'].includes(mode)?<button className="btn btn-envox" onClick={()=>setNewLead(true)}>+ Novo lead</button>:null}/>{mode==='dashboard'&&<CommercialDashboard onOpen={setLeadId}/>} {mode==='hoje'&&<CommercialToday onOpen={setLeadId}/>} {mode==='leads'&&<CommercialLeads onOpen={setLeadId} onNew={()=>setNewLead(true)} meta={meta}/>} {mode==='pipeline'&&<CommercialPipeline onOpen={setLeadId} meta={meta}/>} {mode==='conversas'&&<CommercialConversations onOpen={setLeadId}/>} {mode==='cadencias'&&<CommercialCadences permission={meta.permission}/>} {mode==='tarefas'&&<CommercialTasks onOpen={setLeadId}/>} {mode==='oportunidades'&&<CommercialOpportunities onOpen={setLeadId}/>} {mode==='relatorios'&&<CommercialReports/>} {mode==='config'&&<CommercialConfig meta={meta}/>} {newLead&&<LeadFormModal meta={meta} onClose={()=>setNewLead(false)} onSaved={()=>{setNewLead(false);setVersion(v=>v+1)}}/>}</div>
+  return <div className={'page commercial-page commercial-page-'+mode} key={version}><EnvoxersShared.PageHeader title={title} subtitle={sub} actions={!['config','relatorios','cadencias'].includes(mode)?<button className="btn btn-envox" onClick={()=>setNewLead(true)}>+ Novo lead</button>:null}/>{mode==='dashboard'&&<CommercialDashboard onOpen={setLeadId}/>} {mode==='hoje'&&<CommercialToday onOpen={setLeadId}/>} {mode==='leads'&&<CommercialLeads onOpen={setLeadId} onNew={()=>setNewLead(true)} meta={meta}/>} {mode==='pipeline'&&<CommercialPipeline onOpen={setLeadId} meta={meta}/>} {mode==='conversas'&&<CommercialConversations onOpen={setLeadId}/>} {mode==='cadencias'&&<CommercialCadences permission={meta.permission}/>} {mode==='tarefas'&&<CommercialTasks onOpen={setLeadId} focoAtivo={focoAtivo} focoElapsed={focoElapsed} onIniciarFoco={onIniciarFoco} onPausarFoco={onPausarFoco} onFinalizarFoco={onFinalizarFoco}/>} {mode==='oportunidades'&&<CommercialOpportunities onOpen={setLeadId}/>} {mode==='relatorios'&&<CommercialReports/>} {mode==='config'&&<CommercialConfig meta={meta}/>} {newLead&&<LeadFormModal meta={meta} onClose={()=>setNewLead(false)} onSaved={()=>{setNewLead(false);setVersion(v=>v+1)}}/>}</div>
 }
 window.ComercialScreen=ComercialScreen;

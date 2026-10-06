@@ -424,6 +424,12 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   const [anexoProgresso, setAnexoProgresso] = useStateKb(0);
   const [anexoNome, setAnexoNome] = useStateKb("");
   const [anexoDragAtivo, setAnexoDragAtivo] = useStateKb(false);
+  const [anexoEditandoUrl, setAnexoEditandoUrl] = useStateKb("");
+  const [anexoEditNome, setAnexoEditNome] = useStateKb("");
+  const [anexoAcao, setAnexoAcao] = useStateKb("");
+  const [comentarioEditandoCriadoEm, setComentarioEditandoCriadoEm] = useStateKb("");
+  const [comentarioEditTexto, setComentarioEditTexto] = useStateKb("");
+  const [comentarioAcao, setComentarioAcao] = useStateKb("");
   const [mencaoAberta, setMencaoAberta] = useStateKb(false);
   const [mencaoQuery, setMencaoQuery] = useStateKb("");
   const [mencoesSelecionadas, setMencoesSelecionadas] = useStateKb([]);
@@ -879,6 +885,89 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     }
   };
 
+  const handleRenomearAnexo = async (anexo) => {
+    const nome = anexoEditNome.trim();
+    if (!nome || anexoAcao) return;
+    setAnexoAcao(anexo.url);
+    try {
+      const t = await EnvoxersAPI.api("/tarefas/" + tarefaId + "/anexos", {
+        method: "PATCH",
+        body: JSON.stringify({ url: anexo.url, nome }),
+      });
+      setTarefa(t);
+      setAnexoEditandoUrl("");
+      setAnexoEditNome("");
+      toast("Arquivo renomeado", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setAnexoAcao("");
+    }
+  };
+
+  const handleExcluirAnexo = async (anexo) => {
+    if (!confirm('Excluir "' + anexo.nome + '" definitivamente?')) return;
+    setAnexoAcao(anexo.url);
+    try {
+      const t = await EnvoxersAPI.api(
+        "/tarefas/" + tarefaId + "/anexos?url=" + encodeURIComponent(anexo.url),
+        { method: "DELETE" }
+      );
+      setTarefa(t);
+      toast("Arquivo excluído", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setAnexoAcao("");
+    }
+  };
+
+  const focoPermiteEditarComentario =
+    !!focoAtivo &&
+    focoAtivo.origem !== "comercial" &&
+    Number(focoAtivo.tarefa_id) === Number(tarefaId);
+
+  const handleSalvarComentarioEditado = async (comentario) => {
+    const texto = comentarioEditTexto.trim();
+    if (!texto || comentarioAcao) return;
+    setComentarioAcao(String(comentario.criado_em));
+    try {
+      const t = await EnvoxersAPI.api("/tarefas/" + tarefaId + "/comentarios", {
+        method: "PATCH",
+        body: JSON.stringify({ criado_em: comentario.criado_em, texto }),
+      });
+      setTarefa(t);
+      setComentarioEditandoCriadoEm("");
+      setComentarioEditTexto("");
+      toast("Comentário editado", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setComentarioAcao("");
+    }
+  };
+
+  const handleExcluirComentario = async (comentario) => {
+    if (!confirm("Excluir este comentário?")) return;
+    setComentarioAcao(String(comentario.criado_em));
+    try {
+      const t = await EnvoxersAPI.api("/tarefas/" + tarefaId + "/comentarios", {
+        method: "DELETE",
+        body: JSON.stringify({ criado_em: comentario.criado_em }),
+      });
+      setTarefa(t);
+      if (comentarioEditandoCriadoEm === comentario.criado_em) {
+        setComentarioEditandoCriadoEm("");
+        setComentarioEditTexto("");
+      }
+      toast("Comentário excluído", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setComentarioAcao("");
+    }
+  };
+
   const carregarEtapas = async () => {
     const lista = await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas`);
     setEtapas(lista);
@@ -1319,15 +1408,42 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                 <div className="modal-section modal-section-comentarios">
                   <div className="modal-section-title">Comentários <EnvoxersShared.HelpIcon helpKey="modal_comentarios" /></div>
                   <div>
-                    {(tarefa?.comentarios || []).map((c, i) => (
-                      <div className="comment" key={i}>
-                        <div className="avatar sm gray">{initialsKb(c.envoxer_nome)}</div>
-                        <div className="comment-body">
-                          <div className="comment-head"><span className="comment-author">{c.envoxer_nome}</span></div>
-                          <div className="comment-text">{destacarMencoes(c.texto)}</div>
+                    {(tarefa?.comentarios || []).map((c, i) => {
+                      const meuComentario = Number(c.envoxer_id) === Number(envoxerId);
+                      const podeAlterar = focoPermiteEditarComentario && meuComentario;
+                      const editando = comentarioEditandoCriadoEm === c.criado_em;
+                      return (
+                        <div className="comment" key={(c.criado_em || "comentario") + "-" + i}>
+                          <div className="avatar sm gray">{initialsKb(c.envoxer_nome)}</div>
+                          <div className="comment-body">
+                            <div className="comment-head">
+                              <span className="comment-author">{c.envoxer_nome}</span>
+                              {c.editado_em && <span className="comment-edited">editado</span>}
+                              {podeAlterar && !editando && (
+                                <span className="comment-inline-actions">
+                                  <button type="button" onClick={() => { setComentarioEditandoCriadoEm(c.criado_em); setComentarioEditTexto(c.texto); }}>Editar</button>
+                                  <button type="button" className="danger" disabled={comentarioAcao === String(c.criado_em)} onClick={() => handleExcluirComentario(c)}>Excluir</button>
+                                </span>
+                              )}
+                            </div>
+                            {editando ? (
+                              <div className="comment-edit-box">
+                                <textarea value={comentarioEditTexto} onChange={(e) => setComentarioEditTexto(e.target.value)} autoFocus />
+                                <div>
+                                  <button className="btn btn-envox btn-xs" disabled={!comentarioEditTexto.trim() || comentarioAcao === String(c.criado_em)} onClick={() => handleSalvarComentarioEditado(c)}>Salvar</button>
+                                  <button className="btn btn-xs" onClick={() => { setComentarioEditandoCriadoEm(""); setComentarioEditTexto(""); }}>Cancelar</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="comment-text">{destacarMencoes(c.texto)}</div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
+                    {!focoPermiteEditarComentario && (tarefa?.comentarios || []).some((c) => Number(c.envoxer_id) === Number(envoxerId)) && (
+                      <div className="comment-edit-rule">Para editar ou excluir seus comentários, inicie o Foco neste card.</div>
+                    )}
                   </div>
                   <div className="comment-box">
                     <textarea
@@ -1542,12 +1658,38 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                   <div className="modal-side-label">
                     Anexos <EnvoxersShared.HelpIcon helpKey="modal_anexos" /> <span style={{ fontWeight: 400, color: "var(--ink-4)", textTransform: "none", letterSpacing: 0 }}>· {tarefa?.anexos?.length || 0}</span>
                   </div>
-                  <div className="attach-list">
-                    {(tarefa?.anexos || []).map((a, i) => (
-                      <a key={i} className="attach" href={a.url} target="_blank" rel="noreferrer" title={a.nome}>
-                        <svg className="attach-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="2" width="10" height="12" rx="1" /><path d="M6 6h4M6 9h4M6 12h2" /></svg> {a.nome}
-                      </a>
-                    ))}
+                  <div className="attach-list attach-managed-list">
+                    {(tarefa?.anexos || []).map((a, i) => {
+                      const editando = anexoEditandoUrl === a.url;
+                      return (
+                        <div className="attach-managed-row" key={a.url || i}>
+                          <svg className="attach-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="2" width="10" height="12" rx="1" /><path d="M6 6h4M6 9h4M6 12h2" /></svg>
+                          {editando ? (
+                            <input className="attach-rename-input" value={anexoEditNome} onChange={(e) => setAnexoEditNome(e.target.value)} onKeyDown={(e) => {
+                              if (e.key === "Enter") handleRenomearAnexo(a);
+                              if (e.key === "Escape") { setAnexoEditandoUrl(""); setAnexoEditNome(""); }
+                            }} autoFocus />
+                          ) : (
+                            <a className="attach-managed-name" href={a.url} target="_blank" rel="noreferrer" title={a.nome}>{a.nome}</a>
+                          )}
+                          <div className="attach-managed-actions">
+                            {editando ? (
+                              <>
+                                <button className="attach-action-btn" disabled={!anexoEditNome.trim() || anexoAcao === a.url} onClick={() => handleRenomearAnexo(a)}>Salvar</button>
+                                <button className="attach-action-btn" onClick={() => { setAnexoEditandoUrl(""); setAnexoEditNome(""); }}>Cancelar</button>
+                              </>
+                            ) : (
+                              <>
+                                <button className="attach-action-btn" onClick={() => { setAnexoEditandoUrl(a.url); setAnexoEditNome(a.nome || ""); }}>Renomear</button>
+                                {(permissao === "admin" || permissao === "gestor") && (
+                                  <button className="attach-action-btn danger" disabled={anexoAcao === a.url} onClick={() => handleExcluirAnexo(a)}>Excluir</button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                   <div
                     className={"attach-dropzone" + (anexoDragAtivo ? " drag-active" : "") + (anexoUploading ? " uploading" : "")}

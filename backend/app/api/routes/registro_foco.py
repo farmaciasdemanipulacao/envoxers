@@ -11,6 +11,7 @@ from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
 from app.models.tarefa import Tarefa
 from app.models.registro_foco import RegistroFoco
+from app.models.comercial import ComercialTask, ComercialLead
 from app.schemas.registro_foco import (
     FocoIniciarRequest,
     FocoFinalizarRequest,
@@ -38,19 +39,63 @@ async def _sessao_ativa(db: AsyncSession, envoxer_id: int) -> Optional[RegistroF
     return result.scalar_one_or_none()
 
 
-async def _to_response(db: AsyncSession, registro: RegistroFoco, envoxer: Envoxer) -> RegistroFocoResponse:
-    tarefa = (await db.execute(select(Tarefa).where(Tarefa.id == registro.tarefa_id))).scalar_one_or_none()
-    cliente_nome = None
-    if tarefa is not None:
-        cliente = (await db.execute(select(Cliente).where(Cliente.id == tarefa.cliente_id))).scalar_one_or_none()
-        cliente_nome = cliente.nome if cliente else None
+async def _contexto_registro(db: AsyncSession, registro: RegistroFoco):
+    if registro.tarefa_id is not None:
+        tarefa = (await db.execute(select(Tarefa).where(Tarefa.id == registro.tarefa_id))).scalar_one_or_none()
+        cliente_nome = None
+        if tarefa is not None:
+            cliente = (await db.execute(select(Cliente).where(Cliente.id == tarefa.cliente_id))).scalar_one_or_none()
+            cliente_nome = cliente.nome if cliente else None
+        return {
+            "origem": "operacao",
+            "tarefa_id": registro.tarefa_id,
+            "comercial_task_id": None,
+            "lead_id": None,
+            "titulo": tarefa.titulo if tarefa else None,
+            "status": tarefa.status if tarefa else None,
+            "contexto": cliente_nome,
+        }
 
+    if registro.comercial_task_id is not None:
+        row = (await db.execute(
+            select(ComercialTask, ComercialLead)
+            .join(ComercialLead, ComercialLead.id == ComercialTask.lead_id)
+            .where(ComercialTask.id == registro.comercial_task_id)
+        )).first()
+        if row:
+            task, lead = row
+            return {
+                "origem": "comercial",
+                "tarefa_id": None,
+                "comercial_task_id": task.id,
+                "lead_id": lead.id,
+                "titulo": task.titulo,
+                "status": task.status,
+                "contexto": lead.nome_estabelecimento,
+            }
+
+    return {
+        "origem": "operacao",
+        "tarefa_id": registro.tarefa_id,
+        "comercial_task_id": registro.comercial_task_id,
+        "lead_id": None,
+        "titulo": None,
+        "status": None,
+        "contexto": None,
+    }
+
+
+async def _to_response(db: AsyncSession, registro: RegistroFoco, envoxer: Envoxer) -> RegistroFocoResponse:
+    ctx = await _contexto_registro(db, registro)
     resp = RegistroFocoResponse(
         id=registro.id,
-        tarefa_id=registro.tarefa_id,
-        tarefa_titulo=tarefa.titulo if tarefa else None,
-        tarefa_status=tarefa.status if tarefa else None,
-        cliente_nome=cliente_nome,
+        tarefa_id=ctx["tarefa_id"],
+        comercial_task_id=ctx["comercial_task_id"],
+        origem=ctx["origem"],
+        lead_id=ctx["lead_id"],
+        tarefa_titulo=ctx["titulo"],
+        tarefa_status=ctx["status"],
+        cliente_nome=ctx["contexto"],
         inicio=registro.inicio,
         fim=registro.fim,
         duracao_min=registro.duracao_min,
@@ -81,19 +126,38 @@ async def iniciar_foco(
     db: Annotated[AsyncSession, Depends(get_db)],
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
+    if bool(payload.tarefa_id) == bool(payload.comercial_task_id):
+        raise HTTPException(status_code=400, detail="Informe uma tarefa operacional ou uma tarefa comercial")
+
     ativo = await _sessao_ativa(db, envoxer.id)
     if ativo is not None:
-        tarefa_ativa = (await db.execute(select(Tarefa).where(Tarefa.id == ativo.tarefa_id))).scalar_one_or_none()
+        ctx = await _contexto_registro(db, ativo)
         raise HTTPException(
             status_code=409,
-            detail=f"Você já está em Foco em \"{tarefa_ativa.titulo if tarefa_ativa else 'outra tarefa'}\". Finalize antes de iniciar outro.",
+            detail=f'Você já está em Foco em "{ctx["titulo"] or "outra tarefa"}". Finalize antes de iniciar outro.',
         )
 
-    tarefa = (await db.execute(select(Tarefa).where(Tarefa.id == payload.tarefa_id))).scalar_one_or_none()
-    if tarefa is None:
-        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+    if payload.tarefa_id is not None:
+        tarefa = (await db.execute(select(Tarefa).where(Tarefa.id == payload.tarefa_id))).scalar_one_or_none()
+        if tarefa is None:
+            raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+        registro = RegistroFoco(
+            envoxer_id=envoxer.id,
+            tarefa_id=payload.tarefa_id,
+            comercial_task_id=None,
+            inicio=datetime.now(timezone.utc),
+        )
+    else:
+        task = (await db.execute(select(ComercialTask).where(ComercialTask.id == payload.comercial_task_id))).scalar_one_or_none()
+        if task is None:
+            raise HTTPException(status_code=404, detail="Tarefa comercial não encontrada")
+        registro = RegistroFoco(
+            envoxer_id=envoxer.id,
+            tarefa_id=None,
+            comercial_task_id=payload.comercial_task_id,
+            inicio=datetime.now(timezone.utc),
+        )
 
-    registro = RegistroFoco(envoxer_id=envoxer.id, tarefa_id=payload.tarefa_id, inicio=datetime.now(timezone.utc))
     db.add(registro)
     await db.flush()
     await db.refresh(registro)
@@ -262,30 +326,27 @@ async def status_foco_time(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    """Status do time inteiro na tela 'Quem está em Foco' (D-090, redesenhada a pedido
-    do Gus): quem está com o timer ligado agora + quem está offline com o último
-    registro (início/fim) de cada um. Visível a qualquer envoxer logado (sem valor $)."""
     result = await db.execute(
-        select(RegistroFoco, Envoxer, Tarefa, Cliente.nome)
+        select(RegistroFoco, Envoxer)
         .join(Envoxer, Envoxer.id == RegistroFoco.envoxer_id)
-        .join(Tarefa, Tarefa.id == RegistroFoco.tarefa_id)
-        .outerjoin(Cliente, Cliente.id == Tarefa.cliente_id)
         .where(RegistroFoco.fim.is_(None))
         .order_by(RegistroFoco.inicio)
     )
-    ativos = [
-        FocoAtivoItem(
+    ativos = []
+    for registro, env in result.all():
+        ctx = await _contexto_registro(db, registro)
+        ativos.append(FocoAtivoItem(
             envoxer_id=env.id,
             envoxer_nome=env.nome,
             envoxer_foto=env.foto_url,
-            tarefa_id=tarefa.id,
-            tarefa_titulo=tarefa.titulo,
-            cliente_nome=cliente_nome,
+            tarefa_id=ctx["tarefa_id"],
+            comercial_task_id=ctx["comercial_task_id"],
+            origem=ctx["origem"],
+            tarefa_titulo=ctx["titulo"],
+            cliente_nome=ctx["contexto"],
             inicio=registro.inicio,
             pausado_em=registro.pausado_em,
-        )
-        for registro, env, tarefa, cliente_nome in result.all()
-    ]
+        ))
     ativos_ids = {item.envoxer_id for item in ativos}
 
     todos_result = await db.execute(
@@ -295,27 +356,22 @@ async def status_foco_time(
     for env in todos_result.scalars().all():
         if env.id in ativos_ids:
             continue
-        # Último registro FINALIZADO desse envoxer — quem está offline não tem sessão
-        # aberta por definição (senão estaria em `ativos`), então fim sempre existe aqui.
-        ultimo_result = await db.execute(
-            select(RegistroFoco, Tarefa.titulo, Cliente.nome)
-            .join(Tarefa, Tarefa.id == RegistroFoco.tarefa_id)
-            .outerjoin(Cliente, Cliente.id == Tarefa.cliente_id)
+        ultimo_registro = (await db.execute(
+            select(RegistroFoco)
             .where(RegistroFoco.envoxer_id == env.id, RegistroFoco.fim.is_not(None))
             .order_by(RegistroFoco.fim.desc())
             .limit(1)
-        )
-        row = ultimo_result.first()
-        if row is None:
+        )).scalar_one_or_none()
+        if ultimo_registro is None:
             offline.append(FocoOfflineItem(envoxer_id=env.id, envoxer_nome=env.nome, envoxer_foto=env.foto_url))
             continue
-        ultimo_registro, ultimo_tarefa_titulo, ultimo_cliente_nome = row
+        ctx = await _contexto_registro(db, ultimo_registro)
         offline.append(FocoOfflineItem(
             envoxer_id=env.id,
             envoxer_nome=env.nome,
             envoxer_foto=env.foto_url,
-            ultimo_tarefa_titulo=ultimo_tarefa_titulo,
-            ultimo_cliente_nome=ultimo_cliente_nome,
+            ultimo_tarefa_titulo=ctx["titulo"],
+            ultimo_cliente_nome=ctx["contexto"],
             ultimo_inicio=ultimo_registro.inicio,
             ultimo_fim=ultimo_registro.fim,
         ))

@@ -16,7 +16,7 @@ function FocoBar({ focoAtivo, focoElapsed, onPausarFoco, onFinalizarFoco, onAbri
       <button
         className="foco-title"
         onClick={onAbrirTarefa}
-        title="Abrir a tarefa"
+        title="Abrir o contexto do Foco"
         style={{ background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer", textAlign: "left" }}
       >
         {focoContexto(focoAtivo) || "Sessão de Foco"}

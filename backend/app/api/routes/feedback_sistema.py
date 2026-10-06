@@ -1,11 +1,12 @@
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_envoxer, get_current_admin
 from app.db.session import get_db
+from app.core.uploads import salvar_upload, excluir_upload_url
 from app.models.envoxer import Envoxer
 from app.models.feedback_sistema import FeedbackSistema
 from app.schemas.feedback_sistema import (
@@ -71,6 +72,29 @@ async def atualizar_feedback(
     dados = payload.model_dump(exclude_unset=True)
     for campo, valor in dados.items():
         setattr(item, campo, valor)
+    await db.flush()
+    await db.refresh(item)
+    return item
+
+
+@router.post("/{feedback_id}/screenshot", response_model=FeedbackSistemaResponse)
+async def anexar_screenshot(
+    feedback_id: int,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    arquivo: UploadFile = File(...),
+):
+    item = await db.get(FeedbackSistema, feedback_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+    if envoxer.permissao != "admin" and item.criado_por_envoxer_id != envoxer.id:
+        raise HTTPException(status_code=403, detail="Sem permissão para anexar captura")
+    if not (arquivo.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="A captura precisa ser uma imagem")
+    salvo = await salvar_upload(arquivo)
+    if item.screenshot_url:
+        excluir_upload_url(item.screenshot_url)
+    item.screenshot_url = salvo["url"]
     await db.flush()
     await db.refresh(item)
     return item

@@ -15,8 +15,11 @@ class RegistroFoco(Base, TimestampMixin):
     envoxer_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("envoxer.id", ondelete="CASCADE"), nullable=False
     )
-    tarefa_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("tarefa.id", ondelete="CASCADE"), nullable=False
+    tarefa_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("tarefa.id", ondelete="CASCADE"), nullable=True
+    )
+    comercial_task_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("comercial_task.id", ondelete="CASCADE"), nullable=True
     )
 
     inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
