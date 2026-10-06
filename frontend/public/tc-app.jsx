@@ -305,7 +305,7 @@ const VIEWS_PERFIL_COMERCIAL = new Set([
   "chat",
   "comercial-dashboard", "comercial-hoje", "comercial-leads", "comercial-pipeline",
   "comercial-conversas", "comercial-cadencias", "comercial-tarefas",
-  "comercial-oportunidades", "comercial-relatorios", "comercial-config",
+  "comercial-oportunidades", "comercial-relatorios", "comercial-config", "arquivos",
 ]);
 
 function AppShell() {

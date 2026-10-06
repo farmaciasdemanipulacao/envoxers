@@ -486,6 +486,16 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
+      {permissao === "comercial" && (
+        <div className="nav-items">
+          {item(
+            "arquivos",
+            "Arquivos",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h5l1.2 1.5H14v7.5H2z"/><path d="M2 4V2.8h5l1.2 1.2"/></svg>
+          )}
+        </div>
+      )}
+
       {permissao !== "comercial" && <>
       <div className={sectionClass("operacao")}>
         {sectionTitle("operacao", "Operação")}
