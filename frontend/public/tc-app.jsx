@@ -305,7 +305,7 @@ const VIEWS_PERFIL_COMERCIAL = new Set([
   "chat",
   "comercial-dashboard", "comercial-hoje", "comercial-leads", "comercial-pipeline",
   "comercial-conversas", "comercial-cadencias", "comercial-tarefas",
-  "comercial-oportunidades", "comercial-relatorios", "comercial-config", "arquivos",
+  "comercial-oportunidades", "comercial-relatorios", "comercial-config", "arquivos", "foco-ajustes",
 ]);
 
 function AppShell() {
@@ -357,7 +357,7 @@ function AppShell() {
       setView("comercial-dashboard");
       return;
     }
-    if ((view === "faturamento" || view === "relatorio") && permissao !== "admin") {
+    if ((view === "faturamento" || view === "relatorio" || view === "feedback-sistema") && permissao !== "admin") {
       setView("kanban");
     }
   }, [view, permissao, perfilComercial]);
@@ -714,6 +714,18 @@ function AppShell() {
     }
   };
 
+  const iniciarFocoAvulsa = async (demandaAvulsaId) => {
+    try {
+      const registro = await EnvoxersAPI.api("/foco/iniciar", {
+        method: "POST",
+        body: JSON.stringify({ demanda_avulsa_id: demandaAvulsaId }),
+      });
+      setFocoAtivo(registro);
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
   const pausarRetomarFoco = async () => {
     if (!focoAtivo) return;
     try {
@@ -742,6 +754,10 @@ function AppShell() {
     if (!focoAtivo) return;
     if (focoAtivo.origem === "comercial" || focoAtivo.comercial_task_id) {
       setView("comercial-tarefas");
+      return;
+    }
+    if (focoAtivo.origem === "avulsa" || focoAtivo.demanda_avulsa_id) {
+      setView("demandas-avulsas");
       return;
     }
     if (focoAtivo.tarefa_id) abrirTarefa(focoAtivo.tarefa_id);
@@ -786,7 +802,10 @@ function AppShell() {
     chat: "Chat interno",
     "config-alertas": "Admin / Configuração de Alertas",
     "foco-ativos": "Operação / Foco",
+    "foco-ajustes": "Operação / Ajustes de Foco",
+    "demandas-avulsas": "Operação / Demandas avulsas",
     arquivos: "Operação / Arquivos",
+    "feedback-sistema": "Admin / Erros e ideias",
     f4: "Desenvolvimento / PDI, 360, 180, 1:1 e Clima",
   };
 
@@ -915,7 +934,20 @@ function AppShell() {
         {view === "churn" && <ChurnListaScreen />}
         {view === "config-alertas" && <ConfigAlertasScreen permissao={permissao} />}
         {view === "foco-ativos" && <FocoAtivosScreen onAbrirTarefa={abrirTarefa} />}
+        {view === "foco-ajustes" && <FocoAjustesScreen permissao={permissao} envoxerId={envoxerId} onFocoRefresh={carregarFocoAtivo} />}
+        {view === "demandas-avulsas" && (
+          <DemandasAvulsasScreen
+            permissao={permissao}
+            envoxerId={envoxerId}
+            focoAtivo={focoAtivo}
+            focoElapsed={focoElapsed}
+            onIniciarFoco={iniciarFocoAvulsa}
+            onPausarFoco={pausarRetomarFoco}
+            onFinalizarFoco={() => setConfirmandoFinalizar(true)}
+          />
+        )}
         {view === "arquivos" && <ArquivosScreen permissao={permissao} onAbrirTarefa={abrirTarefa} />}
+        {view === "feedback-sistema" && permissao === "admin" && <FeedbackSistemaScreen />}
         {view === "f4" && <F4Screen permissao={permissao} envoxerId={envoxerId} />}
         {view === "configuracoes" && (
           <ConfiguracoesScreen

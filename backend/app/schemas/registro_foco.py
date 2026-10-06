@@ -7,6 +7,7 @@ from pydantic import BaseModel
 class FocoIniciarRequest(BaseModel):
     tarefa_id: Optional[int] = None
     comercial_task_id: Optional[int] = None
+    demanda_avulsa_id: Optional[int] = None
 
 
 class FocoFinalizarRequest(BaseModel):
@@ -17,6 +18,7 @@ class RegistroFocoResponse(BaseModel):
     id: int
     tarefa_id: Optional[int] = None
     comercial_task_id: Optional[int] = None
+    demanda_avulsa_id: Optional[int] = None
     origem: str = "operacao"
     lead_id: Optional[int] = None
     tarefa_titulo: Optional[str] = None
@@ -51,6 +53,7 @@ class FocoAtivoItem(BaseModel):
     envoxer_foto: Optional[str] = None
     tarefa_id: Optional[int] = None
     comercial_task_id: Optional[int] = None
+    demanda_avulsa_id: Optional[int] = None
     origem: str = "operacao"
     tarefa_titulo: Optional[str] = None
     cliente_nome: Optional[str] = None

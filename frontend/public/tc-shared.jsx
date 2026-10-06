@@ -408,12 +408,12 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
   };
   const sectionHasActive = (key) => ({
     comercial: view.startsWith("comercial-"),
-    operacao: ["kanban", "dashboard", "calendario", "foco-ativos", "arquivos"].includes(view),
+    operacao: ["kanban", "dashboard", "calendario", "foco-ativos", "foco-ajustes", "demandas-avulsas", "arquivos"].includes(view),
     entregaveis: view === "entregaveis",
     farol: ["solicitacoes", "farol", "alertas"].includes(view),
     icp: ["icp", "churn"].includes(view),
     desenvolvimento: view === "f4",
-    admin: ["config-alertas", "relatorio", "faturamento"].includes(view),
+    admin: ["config-alertas", "relatorio", "faturamento", "feedback-sistema"].includes(view),
   }[key] || false);
   const sectionClass = (key) =>
     `nav-section nav-section-collapsible ${sectionOpen[key] ? "open" : "closed"}${sectionHasActive(key) ? " has-active" : ""}`;
@@ -480,6 +480,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
           {item("comercial-conversas", "Conversas", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v7H5l-3 3z"/><path d="M5 6h6M5 8h4"/></svg>)}
           {item("comercial-cadencias", "Cadências", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3h8M3 8h6M3 13h10"/><path d="M12 2l2 2-2 2"/></svg>)}
           {item("comercial-tarefas", "Tarefas", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8l2 2 4-4"/></svg>)}
+          {permissao === "comercial" && item("foco-ajustes", "Ajustes de Foco", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5v4l2.5 1.5M12.5 2.5l1 1-2 2"/></svg>)}
           {item("comercial-oportunidades", "Oportunidades", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v8M5 7h6"/></svg>)}
           {item("comercial-relatorios", "Relatórios", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V3M2 13h12"/><path d="M5 10V7M8 10V5M11 10V8"/></svg>)}
           {item("comercial-config", "Configurações", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1"/></svg>)}
@@ -617,6 +618,11 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
               "config-alertas",
               "Configuração de Alertas",
               <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l6 11H2z" /><circle cx="8" cy="9" r="1.3" fill="currentColor" /></svg>
+            )}
+            {permissao === "admin" && item(
+              "feedback-sistema",
+              "Erros e ideias",
+              <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v8H8l-4 3v-3H2z"/><path d="M5 6h6M5 8h4"/></svg>
             )}
           </nav>
         </div>
@@ -785,61 +791,22 @@ function NotificacoesButton() {
 }
 
 function FeedbackSistemaDock({ permissao }) {
-  const admin = permissao === "admin";
   const [aberto, setAberto] = useState(false);
-  const [aba, setAba] = useState(admin ? "recebidos" : "enviar");
   const [tipo, setTipo] = useState("erro");
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [novos, setNovos] = useState(0);
-  const [itens, setItens] = useState([]);
-  const [carregando, setCarregando] = useState(false);
   const [capturando, setCapturando] = useState(false);
   const [capturaBlob, setCapturaBlob] = useState(null);
   const [capturaPreview, setCapturaPreview] = useState("");
   const toast = useToast();
 
-  const carregarNovos = async () => {
-    if (!admin) return;
-    try {
-      const r = await EnvoxersAPI.api("/feedback-sistema/novos-count");
-      setNovos(r.total || 0);
-    } catch (_) {}
-  };
-
-  const carregarItens = async () => {
-    if (!admin) return;
-    setCarregando(true);
-    try {
-      setItens(await EnvoxersAPI.api("/feedback-sistema"));
-    } catch (err) {
-      toast(err.message, "error");
-    } finally {
-      setCarregando(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!admin) return;
-    carregarNovos();
-    const id = setInterval(carregarNovos, 60000);
-    return () => clearInterval(id);
-  }, [admin]);
-
-  useEffect(() => {
-    return () => {
-      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
-    };
+  useEffect(() => () => {
+    if (capturaPreview) URL.revokeObjectURL(capturaPreview);
   }, [capturaPreview]);
 
   const capturarTela = async () => {
-    if (!window.html2canvas) {
-      setCapturaBlob(null);
-      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
-      setCapturaPreview("");
-      return;
-    }
+    if (!window.html2canvas) return;
     setCapturando(true);
     try {
       const canvas = await window.html2canvas(document.body, {
@@ -847,7 +814,7 @@ function FeedbackSistemaDock({ permissao }) {
         useCORS: true,
         logging: false,
         scale: Math.min(window.devicePixelRatio || 1, 1.5),
-        ignoreElements: (el) => el?.dataset?.feedbackUi === "true",
+        ignoreElements: (el) => el && el.dataset && el.dataset.feedbackUi === "true",
       });
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 0.92));
       if (capturaPreview) URL.revokeObjectURL(capturaPreview);
@@ -863,16 +830,8 @@ function FeedbackSistemaDock({ permissao }) {
   };
 
   const abrir = async () => {
-    const destino = admin && novos > 0 ? "recebidos" : "enviar";
-    if (destino === "enviar") await capturarTela();
-    setAba(destino);
-    setAberto(true);
-    if (admin) carregarItens();
-  };
-
-  const mudarParaEnviar = async () => {
     await capturarTela();
-    setAba("enviar");
+    setAberto(true);
   };
 
   const enviar = async () => {
@@ -880,17 +839,12 @@ function FeedbackSistemaDock({ permissao }) {
     setEnviando(true);
     try {
       const contexto =
-        document.querySelector(".topbar-crumb")?.textContent?.trim() ||
-        document.querySelector(".page-title-block h1")?.textContent?.trim() ||
+        (document.querySelector(".topbar-crumb") && document.querySelector(".topbar-crumb").textContent.trim()) ||
+        (document.querySelector(".page-title-block h1") && document.querySelector(".page-title-block h1").textContent.trim()) ||
         window.location.pathname;
       let item = await EnvoxersAPI.api("/feedback-sistema", {
         method: "POST",
-        body: JSON.stringify({
-          tipo,
-          titulo: titulo.trim(),
-          descricao: descricao.trim(),
-          pagina: contexto,
-        }),
+        body: JSON.stringify({ tipo: tipo, titulo: titulo.trim(), descricao: descricao.trim(), pagina: contexto }),
       });
       if (capturaBlob) {
         item = await EnvoxersAPI.upload(
@@ -905,14 +859,8 @@ function FeedbackSistemaDock({ permissao }) {
       setCapturaBlob(null);
       if (capturaPreview) URL.revokeObjectURL(capturaPreview);
       setCapturaPreview("");
-      toast("Recebido! Obrigado por ajudar a melhorar o Envoxers.", "success");
-      if (admin) {
-        await carregarItens();
-        await carregarNovos();
-        setAba("recebidos");
-      } else {
-        setAberto(false);
-      }
+      setAberto(false);
+      toast("Solicitação enviada. Obrigado!", "success");
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -920,132 +868,66 @@ function FeedbackSistemaDock({ permissao }) {
     }
   };
 
-  const atualizarStatus = async (id, status) => {
-    try {
-      await EnvoxersAPI.api("/feedback-sistema/" + id, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      });
-      setItens((prev) => prev.map((x) => x.id === id ? { ...x, status } : x));
-      carregarNovos();
-    } catch (err) {
-      toast(err.message, "error");
-    }
-  };
-
   const drawer = aberto ? (
     <>
-      <div
-        className="feedback-side-backdrop"
-        data-feedback-ui="true"
-        onClick={() => setAberto(false)}
-      ></div>
+      <div className="feedback-side-backdrop" data-feedback-ui="true" onClick={() => setAberto(false)}></div>
       <aside className="feedback-side-drawer" data-feedback-ui="true">
         <div className="feedback-side-head">
           <div>
             <span className="feedback-system-eyebrow">Envoxers</span>
-            <h2>Erros e melhorias</h2>
+            <h2>Enviar erro ou ideia</h2>
           </div>
           <button className="modal-close" onClick={() => setAberto(false)} aria-label="Fechar">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
           </button>
         </div>
 
-        {admin && (
-          <div className="feedback-system-tabs">
-            <button className={aba === "recebidos" ? "active" : ""} onClick={() => { setAba("recebidos"); carregarItens(); }}>
-              Recebidos {novos > 0 ? "(" + novos + " novos)" : ""}
-            </button>
-            <button className={aba === "enviar" ? "active" : ""} onClick={mudarParaEnviar}>Enviar</button>
+        <div className="feedback-side-body">
+          <div className="field">
+            <label>Tipo</label>
+            <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
+              <option value="erro">Encontrei um erro</option>
+              <option value="funcionalidade">Quero sugerir uma funcionalidade</option>
+            </select>
           </div>
-        )}
+          <div className="field">
+            <label>Título</label>
+            <input value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={180} placeholder="Resuma em uma frase" />
+          </div>
+          <div className="field">
+            <label>Explique o que aconteceu ou o que você precisa</label>
+            <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={7} placeholder="Conte o que aconteceu, o que esperava e qualquer detalhe útil." />
+          </div>
 
-        {aba === "enviar" ? (
-          <div className="feedback-side-body">
-            <div className="field">
-              <label>Tipo</label>
-              <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
-                <option value="erro">Encontrei um erro</option>
-                <option value="funcionalidade">Quero sugerir uma funcionalidade</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>Título</label>
-              <input value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={180} placeholder="Resuma em uma frase" />
-            </div>
-            <div className="field">
-              <label>Explique o que aconteceu ou o que você precisa</label>
-              <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={7} placeholder="Conte o que aconteceu, o que esperava e qualquer detalhe útil." />
-            </div>
-
-            <div className="feedback-capture-card">
-              <div className="feedback-capture-head">
-                <div>
-                  <strong>Captura da tela</strong>
-                  <span>{capturando ? "Capturando a tela atual…" : capturaPreview ? "Esta imagem será enviada junto." : "Não foi possível capturar automaticamente."}</span>
-                </div>
-                <button className="btn btn-xs" onClick={capturarTela} disabled={capturando}>
-                  {capturando ? "..." : "Atualizar"}
-                </button>
+          <div className="feedback-capture-card">
+            <div className="feedback-capture-head">
+              <div>
+                <strong>Captura da tela</strong>
+                <span>{capturando ? "Capturando a tela atual…" : capturaPreview ? "A captura será enviada junto." : "Não foi possível capturar automaticamente."}</span>
               </div>
-              {capturaPreview && <img src={capturaPreview} alt="Prévia da captura da tela" />}
+              <button className="btn btn-xs" onClick={capturarTela} disabled={capturando}>{capturando ? "..." : "Atualizar"}</button>
             </div>
+            {capturaPreview && <img src={capturaPreview} alt="Prévia da captura da tela" />}
           </div>
-        ) : (
-          <div className="feedback-system-inbox">
-            {carregando && <div className="empty">Carregando solicitações…</div>}
-            {!carregando && itens.length === 0 && <div className="empty">Nenhuma solicitação registrada.</div>}
-            {!carregando && itens.map((item) => (
-              <div className={"feedback-system-item status-" + item.status} key={item.id}>
-                <div className="feedback-system-item-head">
-                  <span className={"feedback-type " + item.tipo}>{item.tipo === "erro" ? "ERRO" : "MELHORIA"}</span>
-                  <strong>{item.titulo}</strong>
-                  <select value={item.status} onChange={(e) => atualizarStatus(item.id, e.target.value)}>
-                    <option value="novo">Novo</option>
-                    <option value="em_analise">Em análise</option>
-                    <option value="feito">Feito</option>
-                    <option value="descartado">Descartado</option>
-                  </select>
-                </div>
-                <div className="feedback-system-item-meta">
-                  {item.criado_por_nome} · {new Date(item.created_at).toLocaleString("pt-BR")}
-                  {item.pagina ? " · " + item.pagina : ""}
-                </div>
-                <div className="feedback-system-item-text">{item.descricao}</div>
-                {item.screenshot_url && (
-                  <a className="feedback-system-shot" href={item.screenshot_url} target="_blank" rel="noreferrer">
-                    <img src={item.screenshot_url} alt={"Captura de " + item.titulo} />
-                    <span>Abrir captura</span>
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        </div>
 
-        {aba === "enviar" && (
-          <div className="feedback-side-footer">
-            <button className="btn" onClick={() => setAberto(false)}>Cancelar</button>
-            <button className="btn btn-envox" onClick={enviar} disabled={enviando || capturando || !titulo.trim() || !descricao.trim()}>
-              {enviando ? "Enviando…" : "Enviar"}
-            </button>
-          </div>
-        )}
+        <div className="feedback-side-footer">
+          <button className="btn" onClick={() => setAberto(false)}>Cancelar</button>
+          <button className="btn btn-envox" onClick={enviar} disabled={enviando || capturando || !titulo.trim() || !descricao.trim()}>
+            {enviando ? "Enviando…" : "Enviar"}
+          </button>
+        </div>
       </aside>
     </>
   ) : null;
 
   return (
     <>
-      <button
-        type="button"
-        className="feedback-side-tab"
-        data-feedback-ui="true"
-        onClick={abrir}
-        title="Reportar erro ou sugerir melhoria"
-      >
-        <span>ERRO / IDEIA</span>
-        {admin && novos > 0 && <b>{novos > 99 ? "99+" : novos}</b>}
+      <button type="button" className="feedback-fab" data-feedback-ui="true" onClick={abrir} title="Enviar erro ou ideia" aria-label="Enviar erro ou ideia">
+        <svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M3 3.5h12v8H8l-4 3v-3H3z"/>
+          <path d="M6 6.5h6M6 9h4"/>
+        </svg>
       </button>
       {drawer && ReactDOM.createPortal(drawer, document.body)}
     </>

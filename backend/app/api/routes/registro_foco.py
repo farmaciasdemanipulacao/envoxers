@@ -12,6 +12,7 @@ from app.models.cliente import Cliente
 from app.models.tarefa import Tarefa
 from app.models.registro_foco import RegistroFoco
 from app.models.comercial import ComercialTask, ComercialLead
+from app.models.demanda_avulsa import DemandaAvulsa
 from app.schemas.registro_foco import (
     FocoIniciarRequest,
     FocoFinalizarRequest,
@@ -50,6 +51,7 @@ async def _contexto_registro(db: AsyncSession, registro: RegistroFoco):
             "origem": "operacao",
             "tarefa_id": registro.tarefa_id,
             "comercial_task_id": None,
+            "demanda_avulsa_id": None,
             "lead_id": None,
             "titulo": tarefa.titulo if tarefa else None,
             "status": tarefa.status if tarefa else None,
@@ -68,16 +70,34 @@ async def _contexto_registro(db: AsyncSession, registro: RegistroFoco):
                 "origem": "comercial",
                 "tarefa_id": None,
                 "comercial_task_id": task.id,
+                "demanda_avulsa_id": None,
                 "lead_id": lead.id,
                 "titulo": task.titulo,
                 "status": task.status,
                 "contexto": lead.nome_estabelecimento,
             }
 
+    if registro.demanda_avulsa_id is not None:
+        item = (await db.execute(
+            select(DemandaAvulsa).where(DemandaAvulsa.id == registro.demanda_avulsa_id)
+        )).scalar_one_or_none()
+        if item:
+            return {
+                "origem": "avulsa",
+                "tarefa_id": None,
+                "comercial_task_id": None,
+                "demanda_avulsa_id": item.id,
+                "lead_id": None,
+                "titulo": item.titulo,
+                "status": item.status,
+                "contexto": item.contexto,
+            }
+
     return {
         "origem": "operacao",
         "tarefa_id": registro.tarefa_id,
         "comercial_task_id": registro.comercial_task_id,
+        "demanda_avulsa_id": registro.demanda_avulsa_id,
         "lead_id": None,
         "titulo": None,
         "status": None,
@@ -91,6 +111,7 @@ async def _to_response(db: AsyncSession, registro: RegistroFoco, envoxer: Envoxe
         id=registro.id,
         tarefa_id=ctx["tarefa_id"],
         comercial_task_id=ctx["comercial_task_id"],
+        demanda_avulsa_id=ctx.get("demanda_avulsa_id"),
         origem=ctx["origem"],
         lead_id=ctx["lead_id"],
         tarefa_titulo=ctx["titulo"],
@@ -126,8 +147,9 @@ async def iniciar_foco(
     db: Annotated[AsyncSession, Depends(get_db)],
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    if bool(payload.tarefa_id) == bool(payload.comercial_task_id):
-        raise HTTPException(status_code=400, detail="Informe uma tarefa operacional ou uma tarefa comercial")
+    refs = [payload.tarefa_id, payload.comercial_task_id, payload.demanda_avulsa_id]
+    if sum(x is not None for x in refs) != 1:
+        raise HTTPException(status_code=400, detail="Informe exatamente uma tarefa operacional, comercial ou demanda avulsa")
 
     ativo = await _sessao_ativa(db, envoxer.id)
     if ativo is not None:
@@ -145,9 +167,10 @@ async def iniciar_foco(
             envoxer_id=envoxer.id,
             tarefa_id=payload.tarefa_id,
             comercial_task_id=None,
+            demanda_avulsa_id=None,
             inicio=datetime.now(timezone.utc),
         )
-    else:
+    elif payload.comercial_task_id is not None:
         task = (await db.execute(select(ComercialTask).where(ComercialTask.id == payload.comercial_task_id))).scalar_one_or_none()
         if task is None:
             raise HTTPException(status_code=404, detail="Tarefa comercial não encontrada")
@@ -155,6 +178,23 @@ async def iniciar_foco(
             envoxer_id=envoxer.id,
             tarefa_id=None,
             comercial_task_id=payload.comercial_task_id,
+            demanda_avulsa_id=None,
+            inicio=datetime.now(timezone.utc),
+        )
+    else:
+        item = (await db.execute(
+            select(DemandaAvulsa).where(
+                DemandaAvulsa.id == payload.demanda_avulsa_id,
+                DemandaAvulsa.deleted_at.is_(None),
+            )
+        )).scalar_one_or_none()
+        if item is None:
+            raise HTTPException(status_code=404, detail="Demanda avulsa não encontrada")
+        registro = RegistroFoco(
+            envoxer_id=envoxer.id,
+            tarefa_id=None,
+            comercial_task_id=None,
+            demanda_avulsa_id=payload.demanda_avulsa_id,
             inicio=datetime.now(timezone.utc),
         )
 
@@ -233,6 +273,24 @@ async def finalizar_foco_ativo_da_tarefa(
     dono = (await db.execute(select(Envoxer).where(Envoxer.id == registro.envoxer_id))).scalar_one_or_none()
     custo_hora = dono.custo_hora if dono is not None else 0
     _finalizar_registro(registro, custo_hora, comentario)
+    await db.flush()
+    return registro
+
+
+async def finalizar_foco_ativo_da_demanda_avulsa(
+    db: AsyncSession, demanda_avulsa_id: int, comentario: Optional[str] = None
+) -> Optional[RegistroFoco]:
+    result = await db.execute(
+        select(RegistroFoco).where(and_(
+            RegistroFoco.demanda_avulsa_id == demanda_avulsa_id,
+            RegistroFoco.fim.is_(None),
+        ))
+    )
+    registro = result.scalar_one_or_none()
+    if registro is None:
+        return None
+    dono = (await db.execute(select(Envoxer).where(Envoxer.id == registro.envoxer_id))).scalar_one_or_none()
+    _finalizar_registro(registro, dono.custo_hora if dono is not None else 0, comentario)
     await db.flush()
     return registro
 
@@ -341,6 +399,7 @@ async def status_foco_time(
             envoxer_foto=env.foto_url,
             tarefa_id=ctx["tarefa_id"],
             comercial_task_id=ctx["comercial_task_id"],
+            demanda_avulsa_id=ctx.get("demanda_avulsa_id"),
             origem=ctx["origem"],
             tarefa_titulo=ctx["titulo"],
             cliente_nome=ctx["contexto"],

@@ -1,17 +1,58 @@
 from typing import Annotated, Optional
+import os
+import shutil
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_envoxer
+from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
 from app.db.session import get_db
+from app.core.config import settings
 from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
 from app.models.servico import Servico
 from app.models.tarefa import Tarefa
 
 router = APIRouter(prefix="/arquivos", tags=["arquivos"])
+
+def _dir_size_bytes(path: Path) -> int:
+    total = 0
+    if not path.exists():
+        return 0
+    for base, _, files in os.walk(path):
+        for nome in files:
+            try:
+                total += (Path(base) / nome).stat().st_size
+            except OSError:
+                pass
+    return total
+
+@router.get("/storage-status")
+async def storage_status(
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+):
+    upload_dir = Path(settings.UPLOAD_DIR)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    usage = shutil.disk_usage(upload_dir)
+    percent = round((usage.used / usage.total) * 100, 1) if usage.total else 0.0
+    if percent >= 90:
+        level = "critical"
+    elif percent >= 75:
+        level = "warning"
+    else:
+        level = "ok"
+    return {
+        "total_bytes": usage.total,
+        "used_bytes": usage.used,
+        "free_bytes": usage.free,
+        "used_percent": percent,
+        "uploads_bytes": _dir_size_bytes(upload_dir),
+        "warning_percent": 75,
+        "critical_percent": 90,
+        "level": level,
+    }
 
 @router.get("")
 async def listar_arquivos(

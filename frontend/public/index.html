@@ -21,7 +21,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="envox-tokens.css?v=20261006ops2" />
+<link rel="stylesheet" href="envox-tokens.css?v=20261006ops4" />
 <link rel="stylesheet" href="envox-forms.css?v=2" />
 <style>
   /* Ajustes específicos do F0 — não fazem parte do design system do wireframe */
@@ -41,16 +41,19 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
 <script type="text/babel" src="tc-api.jsx?v=20261006ux1"></script>
-<script type="text/babel" src="tc-shared.jsx?v=20261006ops2"></script>
+<script type="text/babel" src="tc-shared.jsx?v=20261006ops4"></script>
 <script type="text/babel" src="tc-auth.jsx"></script>
 <script type="text/babel" src="tc-envoxers.jsx"></script>
 <script type="text/babel" src="tc-servicos.jsx"></script>
 <script type="text/babel" src="tc-clientes.jsx"></script>
-<script type="text/babel" src="tc-kanban.jsx?v=20261006ops2"></script>
+<script type="text/babel" src="tc-kanban.jsx?v=20261006ops4"></script>
 <script type="text/babel" src="tc-dashboard.jsx?v=20260928focus3"></script>
-<script type="text/babel" src="tc-foco.jsx?v=20261006ops2"></script>
+<script type="text/babel" src="tc-foco.jsx?v=20261006ops3"></script>
 <script type="text/babel" src="tc-foco-ativos.jsx?v=20260928focus3"></script>
-<script type="text/babel" src="tc-arquivos.jsx?v=20261006ops2"></script>
+<script type="text/babel" src="tc-arquivos.jsx?v=20261006ops4"></script>
+<script type="text/babel" src="tc-foco-ajustes.jsx?v=20261006ops4"></script>
+<script type="text/babel" src="tc-demandas-avulsas.jsx?v=20261006ops4"></script>
+<script type="text/babel" src="tc-feedback-sistema.jsx?v=20261006ops4"></script>
 <script type="text/babel" src="tc-meu-perfil.jsx"></script>
 <script type="text/babel" src="tc-configuracoes.jsx"></script>
 <script type="text/babel" src="tc-solicitacoes.jsx"></script>
@@ -65,45 +68,51 @@
 <script type="text/babel" src="tc-faturamento.jsx?v=20260928focus3"></script>
 <script type="text/babel" src="tc-churn-lista.jsx"></script>
 <script type="text/babel" src="tc-chat.jsx?v=20260928chat1"></script>
-<script type="text/babel" src="tc-comercial.jsx?v=20261006ops2"></script>
-<script type="text/babel" src="tc-app.jsx?v=20261006ops2"></script>
+<script type="text/babel" src="tc-comercial.jsx?v=20261006ops3"></script>
+<script type="text/babel" src="tc-app.jsx?v=20261006ops4"></script>
 
 <!-- ─── Service Worker + PWA install ─── -->
 <script>
-  // Captura o evento de instalação PWA antes do React montar
+  // Captura o prompt nativo de instalação antes do React precisar dele.
   window._installPrompt = null;
   window.addEventListener('beforeinstallprompt', function(e) {
     e.preventDefault();
     window._installPrompt = e;
-    // Notifica o React caso já esteja montado
     if (window._onInstallPromptReady) window._onInstallPromptReady();
   });
 
-  // iOS (Safari/Chrome/Firefox — todos WebKit) NUNCA dispara beforeinstallprompt.
-  // Precisamos detectar e mostrar instruções manuais (Compartilhar > Adicionar à Tela de Início).
+  window.addEventListener('appinstalled', function() {
+    window._installPrompt = null;
+    if (window._onInstallPromptReady) window._onInstallPromptReady();
+  });
+
   window._isIOS = function() {
-    var ua = navigator.userAgent;
-    var isIOSDevice = /iPad|iPhone|iPod/.test(ua) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS 13+ se identifica como Mac
-    return isIOSDevice;
+    var ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   };
 
   window._isStandalone = function() {
-    return window.navigator.standalone === true ||
-      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    if (window.navigator.standalone === true) return true;
+    if (!window.matchMedia) return false;
+    return [
+      '(display-mode: standalone)',
+      '(display-mode: fullscreen)',
+      '(display-mode: minimal-ui)',
+      '(display-mode: window-controls-overlay)'
+    ].some(function(query) {
+      try { return window.matchMedia(query).matches; } catch (_) { return false; }
+    });
   };
 
-  // Registra o Service Worker (necessário para o PWA ser instalável e para push)
+  // Registra o Service Worker, necessário tanto para instalação quanto para Web Push.
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').then(function(reg) {
       console.log('[SW] Registrado:', reg.scope);
     }).catch(function(err) {
       console.warn('[SW] Falha no registro:', err);
     });
-  }
 
-  // Escuta mensagens do SW (clique em notificação) para navegar a uma tela.
-  // tc-app.jsx?v=20261006ops2'serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', function(event) {
       if (event.data && event.data.type === 'NAVIGATE' && window.envoxersNavigate) {
         window.envoxersNavigate(event.data.view);
@@ -111,14 +120,18 @@
     });
   }
 
-  // Helpers de push expostos globalmente para o React usar (ver PushPermissionBanner em tc-app.jsx?v=20261006ops2'PushManager' in window && 'serviceWorker' in navigator;
+  window.pushHelpers = {
+    isSupported: function() {
+      return window.isSecureContext === true &&
+        'Notification' in window &&
+        'serviceWorker' in navigator &&
+        'PushManager' in window;
     },
 
     getPermission: function() {
-      return Notification.permission; // 'default' | 'granted' | 'denied'
+      return ('Notification' in window) ? Notification.permission : 'unsupported';
     },
 
-    // Converte base64url para Uint8Array (necessário para applicationServerKey)
     _urlBase64ToUint8Array: function(base64String) {
       var padding = '='.repeat((4 - base64String.length % 4) % 4);
       var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -128,9 +141,6 @@
       return arr;
     },
 
-    // Pede permissão e cria subscription; retorna {endpoint, p256dh, auth} ou null.
-    // Reusa window.EnvoxersAPI (tc-api.jsx?v=20261006ux1) pra Authorization + tratamento de 401 —
-    // já carregado nesse ponto (script roda depois de todos os tc-*.jsx no index.html).
     subscribe: async function() {
       if (!this.isSupported()) return null;
 
@@ -139,8 +149,8 @@
 
       var reg = await navigator.serviceWorker.ready;
       var vapidData = await window.EnvoxersAPI.api('/push/vapid-public-key');
-
-      var sub = await reg.pushManager.subscribe({
+      var existing = await reg.pushManager.getSubscription();
+      var sub = existing || await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: this._urlBase64ToUint8Array(vapidData.public_key),
       });
@@ -153,17 +163,24 @@
         user_agent: navigator.userAgent,
       };
 
-      await window.EnvoxersAPI.api('/push/subscribe', { method: 'POST', body: JSON.stringify(body) });
+      await window.EnvoxersAPI.api('/push/subscribe', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
       return body;
     },
 
     unsubscribe: async function() {
+      if (!this.isSupported()) return;
       var reg = await navigator.serviceWorker.ready;
       var sub = await reg.pushManager.getSubscription();
       if (!sub) return;
       var endpoint = sub.endpoint;
       await sub.unsubscribe();
-      await window.EnvoxersAPI.api('/push/unsubscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: endpoint }) });
+      await window.EnvoxersAPI.api('/push/unsubscribe', {
+        method: 'DELETE',
+        body: JSON.stringify({ endpoint: endpoint })
+      });
     },
   };
 </script>

@@ -20,16 +20,37 @@ def _upload_dir() -> Path:
     return p
 
 
+MAX_UPLOAD_BYTES = 250 * 1024 * 1024
+UPLOAD_CHUNK_BYTES = 1024 * 1024
+
+
 async def salvar_upload(file: UploadFile) -> dict:
+    """Salva anexos em streaming para suportar vídeos sem carregar o arquivo inteiro na RAM."""
     ext = Path(file.filename or "").suffix
     nome_arquivo = f"{uuid.uuid4().hex}{ext}"
-    conteudo = await file.read()
-    (_upload_dir() / nome_arquivo).write_bytes(conteudo)
+    destino = _upload_dir() / nome_arquivo
+    total = 0
+    try:
+        with destino.open("wb") as out:
+            while True:
+                chunk = await file.read(UPLOAD_CHUNK_BYTES)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="Arquivo acima do limite de 250 MB")
+                out.write(chunk)
+    except Exception:
+        destino.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
+
     return {
         "nome": file.filename or nome_arquivo,
         "url": f"/api/v1/uploads/{nome_arquivo}",
         "mime_type": file.content_type,
-        "tamanho_kb": len(conteudo) // 1024,
+        "tamanho_kb": total // 1024,
     }
 
 

@@ -3,7 +3,7 @@
 // instrução manual — ver InstallBanner em tc-app.jsx) e Web Push (alerta de farol
 // piorando, mensagem de chat direto — ver app/services/push.py no backend).
 
-const CACHE_NAME = 'envoxers-v3';
+const CACHE_NAME = 'envoxers-v4';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

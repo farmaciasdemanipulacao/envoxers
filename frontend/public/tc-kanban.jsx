@@ -637,6 +637,28 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     }
   };
 
+  const handleResponsavelChange = async (e) => {
+    const valor = e.target.value;
+    setResponsavelId(valor);
+    if (!isEdit) return;
+    const novoId = valor ? Number(valor) : null;
+    const atualId = tarefa?.responsavel_envoxer_id || null;
+    if (novoId === atualId) return;
+    try {
+      const t = await EnvoxersAPI.api("/tarefas/" + tarefaId, {
+        method: "PATCH",
+        body: JSON.stringify({ responsavel_envoxer_id: novoId }),
+      });
+      setTarefa(t);
+      setResponsavelId(t.responsavel_envoxer_id ? String(t.responsavel_envoxer_id) : "");
+      toast("Responsável atualizado", "success");
+      onSaved();
+    } catch (err) {
+      toast(err.message, "error");
+      setResponsavelId(atualId ? String(atualId) : "");
+    }
+  };
+
   const handleExcluir = async () => {
     if (!isEdit) return;
     const aviso = tarefa?.item_escopo_id
@@ -1629,7 +1651,12 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                 <div className="modal-side-label">Responsável</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <EnvoxersShared.Avatar nome={responsavel?.nome} fotoUrl={responsavel?.foto_url} size="sm" className="gray" envoxerId={responsavel?.id} />
-                  <select className="modal-side-select" value={responsavelId} disabled={bloqueado} onChange={(e) => setResponsavelId(e.target.value)}>
+                  <select
+                    className="modal-side-select"
+                    value={responsavelId}
+                    disabled={bloqueado && permissao !== "admin" && permissao !== "gestor"}
+                    onChange={handleResponsavelChange}
+                  >
                     <option value="">—</option>
                     {envoxersList.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
                   </select>
@@ -1713,7 +1740,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                       <>
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4h16v-4"/></svg>
                         <div className="attach-dropzone-title">Arraste arquivos para cá</div>
-                        <div className="attach-dropzone-sub">ou clique para escolher no computador</div>
+                        <div className="attach-dropzone-sub">ou clique para escolher no computador · até 250 MB</div>
                         <label className="btn btn-sm attach-dropzone-button">
                           Escolher arquivo
                           <input type="file" multiple style={{ display: "none" }} onChange={handleUploadAnexo} disabled={anexoUploading} />
