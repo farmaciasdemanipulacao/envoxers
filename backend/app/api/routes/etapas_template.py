@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_gestor_ou_admin
+from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.servico import Servico
@@ -98,7 +98,7 @@ async def _to_response(db: AsyncSession, templates: list[EtapaTemplate]) -> list
 async def listar_templates(
     servico_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+    _: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     await _obter_servico_ou_404(db, servico_id)
     templates = await _listar_templates_ordenados(db, servico_id)

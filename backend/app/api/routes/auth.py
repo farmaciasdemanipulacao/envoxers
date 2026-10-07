@@ -9,6 +9,8 @@ from app.core.security import create_access_token, verify_password
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.acesso_log import AcessoLog
+from app.models.perfil_acesso import PerfilAcesso
+from app.core.perfis_acesso import modulos_padrao
 from app.schemas.auth import LoginRequest, Token, EnvoxerMe
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -44,5 +46,19 @@ async def login(payload: LoginRequest, request: Request, db: Annotated[AsyncSess
 
 
 @router.get("/me", response_model=EnvoxerMe)
-async def me(envoxer: Annotated[Envoxer, Depends(get_current_envoxer)]):
-    return envoxer
+async def me(
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    perfil = await db.get(PerfilAcesso, envoxer.perfil_acesso_id) if envoxer.perfil_acesso_id else None
+    return EnvoxerMe(
+        id=envoxer.id,
+        nome=envoxer.nome,
+        email=envoxer.email,
+        cargo=envoxer.cargo,
+        permissao=envoxer.permissao,
+        foto_url=envoxer.foto_url,
+        perfil_acesso_id=envoxer.perfil_acesso_id,
+        perfil_acesso_nome=perfil.nome if perfil else None,
+        modulos=list(perfil.modulos) if perfil and perfil.ativo else modulos_padrao(envoxer.permissao),
+    )

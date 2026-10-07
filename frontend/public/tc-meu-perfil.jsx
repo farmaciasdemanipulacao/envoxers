@@ -7,6 +7,10 @@ function MeuPerfilScreen({ nome, permissao, fotoUrl, envoxerId, onFotoAtualizada
   const [enviando, setEnviando] = useStateMeuPerfil(false);
   const [arquivoParaRecortar, setArquivoParaRecortar] = useStateMeuPerfil(null);
   const inputRef = useRefMeuPerfil(null);
+  const [senhaAtual, setSenhaAtual] = useStateMeuPerfil("");
+  const [novaSenha, setNovaSenha] = useStateMeuPerfil("");
+  const [confirmarSenha, setConfirmarSenha] = useStateMeuPerfil("");
+  const [salvandoSenha, setSalvandoSenha] = useStateMeuPerfil(false);
 
   const handleFile = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -25,6 +29,37 @@ function MeuPerfilScreen({ nome, permissao, fotoUrl, envoxerId, onFotoAtualizada
       toast(err.message, "error");
     } finally {
       setEnviando(false);
+    }
+  };
+
+  const handleAlterarSenha = async (e) => {
+    e.preventDefault();
+    if (!senhaAtual || !novaSenha || !confirmarSenha) {
+      toast("Preencha os três campos de senha", "error");
+      return;
+    }
+    if (novaSenha.length < 8) {
+      toast("A nova senha precisa ter pelo menos 8 caracteres", "error");
+      return;
+    }
+    if (novaSenha !== confirmarSenha) {
+      toast("A confirmação não confere com a nova senha", "error");
+      return;
+    }
+    setSalvandoSenha(true);
+    try {
+      await EnvoxersAPI.api("/envoxers/me/senha", {
+        method: "POST",
+        body: JSON.stringify({ senha_atual: senhaAtual, nova_senha: novaSenha }),
+      });
+      setSenhaAtual("");
+      setNovaSenha("");
+      setConfirmarSenha("");
+      toast("Senha alterada com sucesso", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSalvandoSenha(false);
     }
   };
 
@@ -56,6 +91,31 @@ function MeuPerfilScreen({ nome, permissao, fotoUrl, envoxerId, onFotoAtualizada
         </label>
         <div className="hint" style={{ marginTop: 8 }}>PNG ou JPG — você escolhe o enquadramento antes de enviar.</div>
       </div>
+
+      <div className="form-section profile-password-section" style={{ maxWidth: 520, marginTop: 18 }}>
+        <div className="form-section-title">Segurança</div>
+        <div className="profile-password-intro">Altere sua senha informando primeiro a senha atual.</div>
+        <form onSubmit={handleAlterarSenha} className="profile-password-form">
+          <div className="field">
+            <label>Senha atual</label>
+            <input type="password" autoComplete="current-password" value={senhaAtual} onChange={(e) => setSenhaAtual(e.target.value)} />
+          </div>
+          <div className="form-grid">
+            <div className="field">
+              <label>Nova senha</label>
+              <input type="password" autoComplete="new-password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} placeholder="mínimo 8 caracteres" />
+            </div>
+            <div className="field">
+              <label>Confirmar nova senha</label>
+              <input type="password" autoComplete="new-password" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} />
+            </div>
+          </div>
+          <button className="btn btn-envox" type="submit" disabled={salvandoSenha}>
+            {salvandoSenha ? "Alterando…" : "Alterar senha"}
+          </button>
+        </form>
+      </div>
+
       {arquivoParaRecortar && (
         <EnvoxersShared.AvatarCropModal
           file={arquivoParaRecortar}

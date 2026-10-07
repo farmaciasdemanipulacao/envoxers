@@ -27,6 +27,9 @@ class Envoxer(Base, TimestampMixin):
         nullable=False,
         default="envoxer",
     )
+    perfil_acesso_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("perfil_acesso.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Adição fora do schema.sql original — necessária para login (o schema não previa autenticação).
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)

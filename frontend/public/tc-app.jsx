@@ -301,6 +301,48 @@ function ImpersonandoBar({ nomeAtual, nomeAdmin, onVoltar }) {
   );
 }
 
+const MODULOS_PADRAO_FRONT = {
+  admin: ["chat","comercial","operacao","entregas","farol","icp","desenvolvimento","admin","configuracoes"],
+  gestor: ["chat","comercial","operacao","entregas","farol","icp","desenvolvimento","admin","configuracoes"],
+  envoxer: ["chat","comercial","operacao","entregas","farol","icp","desenvolvimento","configuracoes"],
+  comercial: ["chat","comercial","operacao"],
+};
+
+function moduloDaView(view) {
+  if (view === "chat") return "chat";
+  if (String(view || "").startsWith("comercial-")) return "comercial";
+  if (["kanban","dashboard","calendario","foco-ativos","foco-ajustes","demandas-avulsas","arquivos"].includes(view)) return "operacao";
+  if (view === "entregaveis") return "entregas";
+  if (["solicitacoes","farol","alertas"].includes(view)) return "farol";
+  if (["icp","churn"].includes(view)) return "icp";
+  if (view === "f4") return "desenvolvimento";
+  if (["config-alertas","relatorio","faturamento","feedback-sistema"].includes(view)) return "admin";
+  if (view === "configuracoes") return "configuracoes";
+  return null;
+}
+
+function primeiraViewPermitida(modulos, permissao) {
+  const m = new Set(modulos || []);
+  if (permissao === "comercial") {
+    if (m.has("comercial")) return "comercial-dashboard";
+    if (m.has("operacao")) return "arquivos";
+    if (m.has("chat")) return "chat";
+  }
+  const ordem = [
+    ["operacao", "dashboard"],
+    ["comercial", "comercial-dashboard"],
+    ["entregas", "entregaveis"],
+    ["farol", "farol"],
+    ["icp", "churn"],
+    ["desenvolvimento", "f4"],
+    ["admin", permissao === "admin" ? "feedback-sistema" : "config-alertas"],
+    ["configuracoes", "configuracoes"],
+    ["chat", "chat"],
+  ];
+  const achou = ordem.find(([mod]) => m.has(mod));
+  return achou ? achou[1] : (permissao === "comercial" ? "comercial-dashboard" : "dashboard");
+}
+
 const VIEWS_PERFIL_COMERCIAL = new Set([
   "chat",
   "comercial-dashboard", "comercial-hoje", "comercial-leads", "comercial-pipeline",
@@ -313,6 +355,27 @@ function AppShell() {
   const permissao = localStorage.getItem("envoxers_permissao") || "envoxer";
   const perfilComercial = permissao === "comercial";
   const envoxerId = EnvoxersAPI.getEnvoxerId();
+  const [modulosAcesso, setModulosAcesso] = useStateApp(() => MODULOS_PADRAO_FRONT[permissao] || MODULOS_PADRAO_FRONT.envoxer);
+  const temModulo = (key) => modulosAcesso.includes(key);
+
+  useEffectApp(() => {
+    let ativo = true;
+    EnvoxersAPI.api("/auth/me")
+      .then((me) => {
+        if (!ativo) return;
+        if (me.permissao && me.permissao !== permissao) {
+          localStorage.setItem("envoxers_permissao", me.permissao);
+          window.location.reload();
+          return;
+        }
+        const mods = Array.isArray(me.modulos) && me.modulos.length ? me.modulos : (MODULOS_PADRAO_FRONT[permissao] || MODULOS_PADRAO_FRONT.envoxer);
+        setModulosAcesso(mods);
+      })
+      .catch(() => {
+        if (ativo) setModulosAcesso(MODULOS_PADRAO_FRONT[permissao] || MODULOS_PADRAO_FRONT.envoxer);
+      });
+    return () => { ativo = false; };
+  }, [envoxerId, permissao]);
 
   // Tela atual persiste em sessionStorage (não localStorage) por envoxer: um F5 na
   // mesma aba mantém a pessoa onde estava, mas uma aba/sessão de navegador nova
@@ -353,14 +416,19 @@ function AppShell() {
   // Telas 100% financeiras (D-090) — se alguém sem ser admin cair aqui (ex.: view
   // presa de uma sessão anterior), volta pro Kanban em vez de bater no 403 da API.
   useEffectApp(() => {
+    const modulo = moduloDaView(view);
+    if (modulo && !temModulo(modulo)) {
+      setView(primeiraViewPermitida(modulosAcesso, permissao));
+      return;
+    }
     if (perfilComercial && !VIEWS_PERFIL_COMERCIAL.has(view)) {
-      setView("comercial-dashboard");
+      setView(primeiraViewPermitida(modulosAcesso, permissao));
       return;
     }
     if ((view === "faturamento" || view === "relatorio" || view === "feedback-sistema") && permissao !== "admin") {
-      setView("kanban");
+      setView(primeiraViewPermitida(modulosAcesso, permissao));
     }
-  }, [view, permissao, perfilComercial]);
+  }, [view, permissao, perfilComercial, modulosAcesso]);
 
   // Estado geral da sidebar também é por usuário. O fallback da chave antiga
   // preserva a preferência existente na primeira abertura após esta atualização.
@@ -388,7 +456,13 @@ function AppShell() {
   // clicar no overlay. Não persiste em localStorage — sempre começa fechado.
   const [mobileMenuOpen, setMobileMenuOpen] = useStateApp(false);
   const navegarEFecharMenu = (v) => {
-    const destino = perfilComercial && !VIEWS_PERFIL_COMERCIAL.has(v) ? "comercial-dashboard" : v;
+    const modulo = moduloDaView(v);
+    let destino = v;
+    if (modulo && !temModulo(modulo)) {
+      destino = primeiraViewPermitida(modulosAcesso, permissao);
+    } else if (perfilComercial && !VIEWS_PERFIL_COMERCIAL.has(v)) {
+      destino = primeiraViewPermitida(modulosAcesso, permissao);
+    }
     setView(destino);
     setMobileMenuOpen(false);
   };
@@ -775,7 +849,7 @@ function AppShell() {
     setView(perfilComercial && !VIEWS_PERFIL_COMERCIAL.has(destino) ? "comercial-dashboard" : destino);
   };
 
-  const configLabel = { clientes: "Cadastros / Clientes", envoxers: "Cadastros / Envoxers", servicos: "Cadastros / Serviços", perfil: "Meu Perfil" }[configItem];
+  const configLabel = { clientes: "Cadastros / Clientes", envoxers: "Cadastros / Envoxers", servicos: "Cadastros / Serviços", "perfis-acesso": "Perfis de acesso", perfil: "Meu Perfil" }[configItem];
   const crumbs = {
     configuracoes: `Configurações / ${configLabel}`,
     "comercial-dashboard": "Comercial / Dashboard",
@@ -872,6 +946,7 @@ function AppShell() {
         mobileOpen={mobileMenuOpen}
         isMobile={isMobile}
         onCloseMobile={() => setMobileMenuOpen(false)}
+        modulosAcesso={modulosAcesso}
       />
       <div
         className={"mobile-overlay" + (mobileMenuOpen ? " open" : "")}
@@ -890,6 +965,7 @@ function AppShell() {
           chatBadge={chatBadgeTotal}
           chatActive={view === "chat"}
           permissao={permissao}
+          showChat={temModulo("chat")}
           leftAction={view === "chat" ? <button className="btn btn-sm topbar-new-chat" onClick={() => setChatNewConversationSignal((v) => v + 1)}>+ Nova conversa</button> : null}
         />
         {view === "comercial-dashboard" && <ComercialScreen mode="dashboard" />}
@@ -962,7 +1038,7 @@ function AppShell() {
             onClienteAberto={() => setClienteParaAbrir(null)}
           />
         )}
-        {view === "chat" && (
+        {view === "chat" && temModulo("chat") && (
           <ChatScreen envoxersList={envoxersList} wsEvent={chatWsEvent} newConversationSignal={chatNewConversationSignal} onLeituraAtualizada={agendarRecalculoBadge} />
         )}
       </main>
@@ -982,8 +1058,6 @@ function AppShell() {
         onCancelar={() => setConfirmandoFinalizar(false)}
         onConfirmar={finalizarFoco}
       />
-
-      <EnvoxersShared.FeedbackSistemaDock permissao={permissao} />
 
       {tarefaAberta !== null && (
         <TaskModal

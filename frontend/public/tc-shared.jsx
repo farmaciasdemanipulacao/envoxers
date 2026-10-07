@@ -359,7 +359,8 @@ function AvatarCropModal({ file, onCancel, onConfirm }) {
 }
 
 // ==================== SIDEBAR ====================
-function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNaoLidas = 0, collapsed = false, onToggleCollapse, mobileOpen = false, isMobile = false, onCloseMobile }) {
+function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNaoLidas = 0, collapsed = false, onToggleCollapse, mobileOpen = false, isMobile = false, onCloseMobile, modulosAcesso = null }) {
+  const temModulo = (key) => !Array.isArray(modulosAcesso) || modulosAcesso.includes(key);
 
   // title=label dá o tooltip nativo do navegador — é o que mostra o nome da seção
   // quando o menu está recolhido e o texto (.nav-label) some.
@@ -470,7 +471,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </button>
       </div>
 
-      <div className={sectionClass("comercial")}>
+      <div className={sectionClass("comercial")} style={{ display: temModulo("comercial") ? undefined : "none" }}>
         {sectionTitle("comercial", "Comercial")}
         <nav className="nav">
           {item("comercial-dashboard", "Dashboard", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V7h3v6M6.5 13V3h3v10M11 13V5h3v8" /></svg>)}
@@ -480,14 +481,14 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
           {item("comercial-conversas", "Conversas", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v7H5l-3 3z"/><path d="M5 6h6M5 8h4"/></svg>)}
           {item("comercial-cadencias", "Cadências", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3h8M3 8h6M3 13h10"/><path d="M12 2l2 2-2 2"/></svg>)}
           {item("comercial-tarefas", "Tarefas", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8l2 2 4-4"/></svg>)}
-          {permissao === "comercial" && item("foco-ajustes", "Ajustes de Foco", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5v4l2.5 1.5M12.5 2.5l1 1-2 2"/></svg>)}
+          {permissao === "comercial" && temModulo("operacao") && item("foco-ajustes", "Ajustes de Foco", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5v4l2.5 1.5M12.5 2.5l1 1-2 2"/></svg>)}
           {item("comercial-oportunidades", "Oportunidades", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4v8M5 7h6"/></svg>)}
           {item("comercial-relatorios", "Relatórios", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V3M2 13h12"/><path d="M5 10V7M8 10V5M11 10V8"/></svg>)}
           {item("comercial-config", "Configurações", <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1"/></svg>)}
         </nav>
       </div>
 
-      {permissao === "comercial" && (
+      {permissao === "comercial" && temModulo("operacao") && (
         <div className="nav-items">
           {item(
             "arquivos",
@@ -498,7 +499,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       )}
 
       {permissao !== "comercial" && <>
-      <div className={sectionClass("operacao")}>
+      <div className={sectionClass("operacao")} style={{ display: temModulo("operacao") ? undefined : "none" }}>
         {sectionTitle("operacao", "Operação")}
         <nav className="nav">
           {item(
@@ -543,7 +544,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      <div className={sectionClass("entregaveis")}>
+      <div className={sectionClass("entregaveis")} style={{ display: temModulo("entregas") ? undefined : "none" }}>
         {sectionTitle("entregaveis", "Entregas")}
         <nav className="nav">
           {item(
@@ -555,7 +556,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      <div className={sectionClass("farol")}>
+      <div className={sectionClass("farol")} style={{ display: temModulo("farol") ? undefined : "none" }}>
         {sectionTitle("farol", "Farol")}
         <nav className="nav">
           {item(
@@ -579,7 +580,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      <div className={sectionClass("icp")}>
+      <div className={sectionClass("icp")} style={{ display: temModulo("icp") ? undefined : "none" }}>
         {sectionTitle("icp", "ICP")}
         <nav className="nav">
           {permissao !== "envoxer" && item(
@@ -597,7 +598,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      <div className={sectionClass("desenvolvimento")}>
+      <div className={sectionClass("desenvolvimento")} style={{ display: temModulo("desenvolvimento") ? undefined : "none" }}>
         {sectionTitle("desenvolvimento", "Desenvolvimento")}
         <nav className="nav">
           {item(
@@ -609,7 +610,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </div>
 
       {(permissao === "admin" || permissao === "gestor") && (
-        <div className={sectionClass("admin")}>
+        <div className={sectionClass("admin")} style={{ display: temModulo("admin") ? undefined : "none" }}>
           {sectionTitle("admin", "Admin")}
           <nav className="nav">
             {permissao === "admin" && item(
@@ -641,9 +642,9 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
       </>}
 
       <div className="sidebar-user"
-        onClick={permissao === "comercial" ? undefined : () => onNavigate("configuracoes")}
-        style={{ cursor: permissao === "comercial" ? "default" : "pointer" }}
-        title={permissao === "comercial" ? "Perfil Comercial" : "Configurações"}
+        onClick={permissao === "comercial" || !temModulo("configuracoes") ? undefined : () => onNavigate("configuracoes")}
+        style={{ cursor: permissao === "comercial" || !temModulo("configuracoes") ? "default" : "pointer" }}
+        title={temModulo("configuracoes") && permissao !== "comercial" ? "Configurações" : "Perfil"}
       >
         <Avatar nome={nome} fotoUrl={fotoUrl} envoxerId={envoxerId} />
         <div className="sidebar-user-info">
@@ -802,18 +803,45 @@ function NotificacoesButton() {
 
 function FeedbackSistemaDock({ permissao }) {
   const [aberto, setAberto] = useState(false);
+  const [aba, setAba] = useState("enviar");
   const [tipo, setTipo] = useState("erro");
+  const [prioridade, setPrioridade] = useState("media");
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [capturando, setCapturando] = useState(false);
   const [capturaBlob, setCapturaBlob] = useState(null);
   const [capturaPreview, setCapturaPreview] = useState("");
+  const [minhas, setMinhas] = useState([]);
+  const [carregandoMinhas, setCarregandoMinhas] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
   const toast = useToast();
 
   useEffect(() => () => {
-    if (capturaPreview) URL.revokeObjectURL(capturaPreview);
+    if (capturaPreview && capturaPreview.startsWith("blob:")) URL.revokeObjectURL(capturaPreview);
   }, [capturaPreview]);
+
+  const limparForm = () => {
+    setTipo("erro");
+    setPrioridade("media");
+    setTitulo("");
+    setDescricao("");
+    setEditandoId(null);
+    setCapturaBlob(null);
+    if (capturaPreview && capturaPreview.startsWith("blob:")) URL.revokeObjectURL(capturaPreview);
+    setCapturaPreview("");
+  };
+
+  const carregarMinhas = async () => {
+    setCarregandoMinhas(true);
+    try {
+      setMinhas(await EnvoxersAPI.api("/feedback-sistema/me"));
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setCarregandoMinhas(false);
+    }
+  };
 
   const capturarTela = async () => {
     if (!window.html2canvas) return;
@@ -827,12 +855,12 @@ function FeedbackSistemaDock({ permissao }) {
         ignoreElements: (el) => el && el.dataset && el.dataset.feedbackUi === "true",
       });
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 0.92));
-      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
+      if (capturaPreview && capturaPreview.startsWith("blob:")) URL.revokeObjectURL(capturaPreview);
       setCapturaBlob(blob);
       setCapturaPreview(blob ? URL.createObjectURL(blob) : "");
     } catch (_) {
       setCapturaBlob(null);
-      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
+      if (capturaPreview && capturaPreview.startsWith("blob:")) URL.revokeObjectURL(capturaPreview);
       setCapturaPreview("");
     } finally {
       setCapturando(false);
@@ -840,22 +868,60 @@ function FeedbackSistemaDock({ permissao }) {
   };
 
   const abrir = async () => {
-    await capturarTela();
+    limparForm();
+    setAba("enviar");
     setAberto(true);
+    await capturarTela();
+  };
+
+  const abrirAcompanhar = async () => {
+    setAba("acompanhar");
+    await carregarMinhas();
+  };
+
+  const editarItem = (item) => {
+    setEditandoId(item.id);
+    setTipo(item.tipo);
+    setPrioridade(item.prioridade || "media");
+    setTitulo(item.titulo);
+    setDescricao(item.descricao);
+    setCapturaBlob(null);
+    setCapturaPreview(item.screenshot_url || "");
+    setAba("enviar");
   };
 
   const enviar = async () => {
     if (!titulo.trim() || !descricao.trim() || enviando) return;
     setEnviando(true);
     try {
-      const contexto =
-        (document.querySelector(".topbar-crumb") && document.querySelector(".topbar-crumb").textContent.trim()) ||
-        (document.querySelector(".page-title-block h1") && document.querySelector(".page-title-block h1").textContent.trim()) ||
-        window.location.pathname;
-      let item = await EnvoxersAPI.api("/feedback-sistema", {
-        method: "POST",
-        body: JSON.stringify({ tipo: tipo, titulo: titulo.trim(), descricao: descricao.trim(), pagina: contexto }),
-      });
+      let item;
+      if (editandoId) {
+        item = await EnvoxersAPI.api("/feedback-sistema/me/" + editandoId, {
+          method: "PATCH",
+          body: JSON.stringify({
+            tipo,
+            prioridade,
+            titulo: titulo.trim(),
+            descricao: descricao.trim(),
+          }),
+        });
+      } else {
+        const contexto =
+          (document.querySelector(".topbar-crumb") && document.querySelector(".topbar-crumb").textContent.trim()) ||
+          (document.querySelector(".page-title-block h1") && document.querySelector(".page-title-block h1").textContent.trim()) ||
+          window.location.pathname;
+        item = await EnvoxersAPI.api("/feedback-sistema", {
+          method: "POST",
+          body: JSON.stringify({
+            tipo,
+            prioridade,
+            titulo: titulo.trim(),
+            descricao: descricao.trim(),
+            pagina: contexto,
+          }),
+        });
+      }
+
       if (capturaBlob) {
         item = await EnvoxersAPI.upload(
           "/feedback-sistema/" + item.id + "/screenshot",
@@ -863,20 +929,38 @@ function FeedbackSistemaDock({ permissao }) {
           "captura-envoxers-" + item.id + ".png"
         );
       }
-      setTitulo("");
-      setDescricao("");
-      setTipo("erro");
-      setCapturaBlob(null);
-      if (capturaPreview) URL.revokeObjectURL(capturaPreview);
-      setCapturaPreview("");
-      setAberto(false);
-      toast("Solicitação enviada. Obrigado!", "success");
+
+      toast(editandoId ? "Solicitação atualizada." : "Solicitação enviada. Obrigado!", "success");
+      limparForm();
+      setAba("acompanhar");
+      await carregarMinhas();
     } catch (err) {
       toast(err.message, "error");
     } finally {
       setEnviando(false);
     }
   };
+
+  const excluir = async (item) => {
+    if (item.status !== "novo") return;
+    if (!confirm('Excluir a solicitação "' + item.titulo + '"?')) return;
+    try {
+      await EnvoxersAPI.api("/feedback-sistema/me/" + item.id, { method: "DELETE" });
+      toast("Solicitação excluída", "success");
+      await carregarMinhas();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const statusLabel = (status) => ({
+    novo: "Recebida",
+    em_analise: "Em análise",
+    feito: "Concluída",
+    descartado: "Descartada",
+  }[status] || status);
+
+  const prioridadeLabel = (p) => ({ alta: "Alta", media: "Média", baixa: "Baixa" }[p] || p);
 
   const drawer = aberto ? (
     <>
@@ -885,56 +969,119 @@ function FeedbackSistemaDock({ permissao }) {
         <div className="feedback-side-head">
           <div>
             <span className="feedback-system-eyebrow">Envoxers</span>
-            <h2>Enviar erro ou ideia</h2>
+            <h2>Erros e ideias</h2>
           </div>
           <button className="modal-close" onClick={() => setAberto(false)} aria-label="Fechar">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
           </button>
         </div>
 
-        <div className="feedback-side-body">
-          <div className="field">
-            <label>Tipo</label>
-            <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
-              <option value="erro">Encontrei um erro</option>
-              <option value="funcionalidade">Quero sugerir uma funcionalidade</option>
-            </select>
-          </div>
-          <div className="field">
-            <label>Título</label>
-            <input value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={180} placeholder="Resuma em uma frase" />
-          </div>
-          <div className="field">
-            <label>Explique o que aconteceu ou o que você precisa</label>
-            <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={7} placeholder="Conte o que aconteceu, o que esperava e qualquer detalhe útil." />
-          </div>
-
-          <div className="feedback-capture-card">
-            <div className="feedback-capture-head">
-              <div>
-                <strong>Captura da tela</strong>
-                <span>{capturando ? "Capturando a tela atual…" : capturaPreview ? "A captura será enviada junto." : "Não foi possível capturar automaticamente."}</span>
-              </div>
-              <button className="btn btn-xs" onClick={capturarTela} disabled={capturando}>{capturando ? "..." : "Atualizar"}</button>
-            </div>
-            {capturaPreview && <img src={capturaPreview} alt="Prévia da captura da tela" />}
-          </div>
-        </div>
-
-        <div className="feedback-side-footer">
-          <button className="btn" onClick={() => setAberto(false)}>Cancelar</button>
-          <button className="btn btn-envox" onClick={enviar} disabled={enviando || capturando || !titulo.trim() || !descricao.trim()}>
-            {enviando ? "Enviando…" : "Enviar"}
+        <div className="feedback-user-tabs">
+          <button className={aba === "enviar" ? "active" : ""} onClick={() => setAba("enviar")}>
+            {editandoId ? "Editando" : "Enviar"}
           </button>
+          <button className={aba === "acompanhar" ? "active" : ""} onClick={abrirAcompanhar}>Status</button>
         </div>
+
+        {aba === "enviar" ? (
+          <>
+            <div className="feedback-side-body">
+              {editandoId && (
+                <div className="feedback-edit-notice">
+                  Você está editando uma solicitação ainda não analisada.
+                  <button type="button" onClick={() => { limparForm(); capturarTela(); }}>Cancelar edição</button>
+                </div>
+              )}
+              <div className="feedback-form-row">
+                <div className="field">
+                  <label>Tipo</label>
+                  <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                    <option value="erro">Encontrei um erro</option>
+                    <option value="funcionalidade">Quero sugerir uma funcionalidade</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Prioridade</label>
+                  <select value={prioridade} onChange={(e) => setPrioridade(e.target.value)}>
+                    <option value="alta">Alta</option>
+                    <option value="media">Média</option>
+                    <option value="baixa">Baixa</option>
+                  </select>
+                </div>
+              </div>
+              <div className="field">
+                <label>Título</label>
+                <input value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={180} placeholder="Resuma em uma frase" />
+              </div>
+              <div className="field">
+                <label>Explique o que aconteceu ou o que você precisa</label>
+                <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={7} placeholder="Conte o que aconteceu, o que esperava e qualquer detalhe útil." />
+              </div>
+
+              <div className="feedback-capture-card">
+                <div className="feedback-capture-head">
+                  <div>
+                    <strong>Captura da tela</strong>
+                    <span>{capturando ? "Capturando a tela atual…" : capturaPreview ? (editandoId && !capturaBlob ? "Captura atual da solicitação." : "A captura será enviada junto.") : "Não foi possível capturar automaticamente."}</span>
+                  </div>
+                  <button className="btn btn-xs" onClick={capturarTela} disabled={capturando}>{capturando ? "..." : "Atualizar"}</button>
+                </div>
+                {capturaPreview && <img src={capturaPreview} alt="Prévia da captura da tela" />}
+              </div>
+            </div>
+
+            <div className="feedback-side-footer">
+              <button className="btn" onClick={() => setAberto(false)}>Cancelar</button>
+              <button className="btn btn-envox" onClick={enviar} disabled={enviando || capturando || !titulo.trim() || !descricao.trim()}>
+                {enviando ? "Salvando…" : editandoId ? "Salvar alterações" : "Enviar"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="feedback-track-body">
+            <div className="feedback-track-intro">
+              <strong>Suas solicitações</strong>
+              <span>As mais prioritárias aparecem primeiro. Você pode editar ou excluir enquanto ainda estiverem como Recebida.</span>
+            </div>
+            {carregandoMinhas ? (
+              <div className="empty compact">Carregando…</div>
+            ) : minhas.length === 0 ? (
+              <div className="empty compact">Você ainda não enviou nenhuma solicitação.</div>
+            ) : (
+              <div className="feedback-track-list">
+                {minhas.map((item) => (
+                  <article className={"feedback-track-item priority-" + (item.prioridade || "media")} key={item.id}>
+                    <div className="feedback-track-top">
+                      <span className={"feedback-priority-chip " + (item.prioridade || "media")}>{prioridadeLabel(item.prioridade || "media")}</span>
+                      <span className={"feedback-status-chip status-" + item.status}>{statusLabel(item.status)}</span>
+                    </div>
+                    <h3>{item.titulo}</h3>
+                    <p>{item.descricao}</p>
+                    <div className="feedback-track-meta">
+                      <span>{item.tipo === "erro" ? "Erro" : "Ideia"}</span>
+                      <span>{new Date(item.created_at).toLocaleString("pt-BR")}</span>
+                    </div>
+                    {item.observacao_admin && <div className="feedback-admin-response">Admin: {item.observacao_admin}</div>}
+                    {item.status === "novo" && (
+                      <div className="feedback-track-actions">
+                        <button className="btn btn-xs" onClick={() => editarItem(item)}>Editar</button>
+                        <button className="btn btn-xs danger-ghost" onClick={() => excluir(item)}>Excluir</button>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </aside>
     </>
   ) : null;
 
   return (
     <>
-      <button type="button" className="feedback-fab" data-feedback-ui="true" onClick={abrir} title="Enviar erro ou ideia" aria-label="Enviar erro ou ideia">
-        <svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <button type="button" className="topbar-feedback-btn" data-feedback-ui="true" onClick={abrir} title="Enviar erro ou ideia" aria-label="Enviar erro ou ideia">
+        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M3 3.5h12v8H8l-4 3v-3H3z"/>
           <path d="M6 6.5h6M6 9h4"/>
         </svg>
@@ -945,7 +1092,7 @@ function FeedbackSistemaDock({ permissao }) {
 }
 
 // ==================== TOPBAR ====================
-function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chatActive = false, leftAction = null, permissao = "envoxer" }) {
+function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chatActive = false, leftAction = null, permissao = "envoxer", showChat = true }) {
   return (
     <div className="topbar">
       <button className="mobile-menu-btn" aria-label="Abrir menu" onClick={onMenuClick}>
@@ -956,11 +1103,14 @@ function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chat
         {leftAction}
       </div>
       <div className="topbar-actions">
-        <button type="button" className={"topbar-chat-btn" + (chatActive ? " active" : "")} onClick={onChatClick} title="Chat interno">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v7H5l-3 3z" /></svg>
-          <span>Chat</span>
-          {chatBadge > 0 && <span className="topbar-chat-badge">{chatBadge > 99 ? "99+" : chatBadge}</span>}
-        </button>
+        {showChat && (
+          <button type="button" className={"topbar-chat-btn" + (chatActive ? " active" : "")} onClick={onChatClick} title="Chat interno">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v7H5l-3 3z" /></svg>
+            <span>Chat</span>
+            {chatBadge > 0 && <span className="topbar-chat-badge">{chatBadge > 99 ? "99+" : chatBadge}</span>}
+          </button>
+        )}
+        <FeedbackSistemaDock permissao={permissao} />
         <NotificacoesButton />
         <button className="btn btn-ghost btn-sm" onClick={onLogout}>Sair</button>
       </div>
@@ -985,7 +1135,7 @@ const HELP_TEXTS = {
 
   // --- Dashboard
   dash_farol_widget: { t: "Farol do topo do Dashboard", b: "<p>Os até 5 clientes com pior health score aparecem aqui todo dia. Se você abrir o sistema só para uma coisa, é esta.</p><p>Clique no cliente para abrir a ficha.</p>" },
-  dash_meu_foco: { t: "Meu Foco", b: "<p>Tempo total que você registrou <strong>hoje</strong> e <strong>esta semana</strong>, com o quanto isso vale em custo gerado.</p><p>A meta de 32h semanais é o benchmark: 4 dias × 8h. Envoxer com gestão registra menos (~120h/mês); operador registra mais (~160h/mês).</p>" },
+  dash_meu_foco: { t: "Meu Foco", b: "<p>Tempo total que você registrou <strong>hoje</strong> e <strong>esta semana</strong>.</p><p>Use este indicador para conferir se o tempo trabalhado está sendo apontado corretamente.</p>" },
   dash_progress: { t: "Em andamento", b: "<p>Tarefas nas colunas <em>Produção</em>, <em>Revisão interna</em> e <em>Ajustes</em>. É o que o time está tocando agora mesmo.</p>" },
   dash_prioridades_cards: { t: "Prioridades de hoje — Cards", b: "<p>Cards atrasados + com prazo hoje (prazo do CARD, não das etapas dele). Ordem automática: atraso primeiro, depois cor do farol do cliente, depois prazo mais próximo.</p><p>Arraste pra reordenar manualmente — a ordem manual sempre vence a automática, e some sozinha quando o card sai da lista.</p><p><strong>Este é o número que precisa ir a zero</strong> — atraso alimenta o sinal 2 do farol.</p>" },
   dash_prioridades_etapas: { t: "Prioridades de hoje — Tarefas/Etapas", b: "<p>Mesma lógica do bloco de Cards, mas olhando o prazo de cada TAREFA/ETAPA (checklist) dentro dos cards, não o prazo do card. Um card pode estar tranquilo com uma etapa dele já atrasada.</p><p>Arraste pra reordenar manualmente.</p>" },
@@ -997,8 +1147,8 @@ const HELP_TEXTS = {
   dash_rel_rapido: { t: "Relatório rápido", b: "<p>Prévia de Custos (menu Admin → Custos). Mostra os clientes com pior situação de margem para você ver antes de abrir a tela cheia.</p>" },
 
   // --- Foco
-  foco_hoje: { t: "Foco de hoje", b: "<p>Soma de todas as sessões de Foco finalizadas hoje, e quanto isso vale em custo gerado (horas × custo/hora do Envoxer).</p>" },
-  foco_semana: { t: "Foco da semana", b: "<p>Soma da semana. A meta média (32h) é o benchmark para operadores; heads e gestores fazem menos por dividir tempo com gestão.</p>" },
+  foco_hoje: { t: "Foco de hoje", b: "<p>Soma de todas as sessões de Foco finalizadas hoje.</p>" },
+  foco_semana: { t: "Foco da semana", b: "<p>Soma das sessões de Foco finalizadas na semana.</p>" },
 
   // --- Solicitações
   solic_tab_novas: { t: "Solicitações novas", b: "<p>Pedidos que ainda não foram vistos por ninguém do time. Meta: zerar em 24h.</p>" },
@@ -1011,7 +1161,7 @@ const HELP_TEXTS = {
   nav_churn: { t: "Cancelamentos", b: "<p>Histórico de churn. Cada cancelamento congela snapshot dos dados do cliente (segmento, ticket, canal, perfil) — sem isso o ICP builder mente.</p>" },
   nav_faturamento: { t: "Painel de Faturamento", b: "<p>MRR real, concentração top 3, receita em risco, projeção 90 dias, curva de retenção por cohort. A previsibilidade que substitui a montanha-russa.</p>" },
   nav_clientes: { t: "Cadastro de clientes", b: "<p>Base viva de contas. Cada cliente carrega dados de contrato + dados de ICP (segmento, canal, ticket, maturidade) — capturados no cadastro para uso em F3.</p>" },
-  nav_envoxers: { t: "Cadastro de Envoxers", b: "<p>Time interno. O <code>custo/hora</code> aqui alimenta a margem em todos os relatórios — use salário + encargos (~1,5-1,8×), não salário puro.</p>" },
+  nav_envoxers: { t: "Cadastro de Envoxers", b: "<p>Time interno, cargos, acessos e responsáveis de gestão.</p>" },
   nav_servicos: { t: "Cadastro de serviços", b: "<p>Catálogo fixo do que a Envox oferece. Editar aqui reflete em contratos históricos — mude com cuidado.</p>" },
 
   // --- Farol

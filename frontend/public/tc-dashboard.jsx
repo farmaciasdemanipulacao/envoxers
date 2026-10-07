@@ -156,7 +156,7 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
       // real pra ordenar por margem, mostra os de maior custo em vez de filtrar tudo.
       const relevantes = podeVerValores
         ? relatorio.itens.filter((i) => i.margem_pct != null)
-        : relatorio.itens.slice().sort((a, b) => b.custo_horas - a.custo_horas);
+        : relatorio.itens.slice().sort((a, b) => b.horas - a.horas);
       setRelatorioRapido(relevantes.slice(0, 4));
       setPendencias(pend);
       setEnvoxersList(envs.filter((e) => e.ativo));
@@ -388,7 +388,7 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
 
         <div className="dash-card full">
           <div className="dash-card-head">
-            <div className="dash-card-title">Relatório rápido — Tempo × Custo (últimos 30 dias) <EnvoxersShared.HelpIcon helpKey="dash_rel_rapido" /></div>
+            <div className="dash-card-title">{podeVerValores ? "Relatório rápido — Tempo × Custo (últimos 30 dias)" : "Relatório rápido — Tempo (últimos 30 dias)"} <EnvoxersShared.HelpIcon helpKey="dash_rel_rapido" /></div>
             {isAdmin && (
               <a onClick={() => onNavigate("relatorio")} className="btn btn-sm btn-ghost" style={{ cursor: "pointer" }}>Ver relatório completo →</a>
             )}
@@ -402,7 +402,7 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
                   <tr>
                     <th>Cliente</th>
                     <th style={{ textAlign: "right" }}>Horas</th>
-                    <th style={{ textAlign: "right" }}>Custo horas</th>
+                    {podeVerValores && <th style={{ textAlign: "right" }}>Custo horas</th>}
                     {podeVerValores && <th style={{ textAlign: "right" }}>Contrato</th>}
                     {podeVerValores && <th style={{ textAlign: "right" }}>Margem</th>}
                     {podeVerValores && <th>Situação</th>}
@@ -416,7 +416,7 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
                       <tr key={r.cliente_id}>
                         <td className="td-primary">{r.cliente_nome}</td>
                         <td className="td-num" style={{ textAlign: "right" }}>{r.horas.toFixed(1)}h</td>
-                        <td className="td-num" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(r.custo_horas)}</td>
+                        {podeVerValores && <td className="td-num" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(r.custo_horas)}</td>}
                         {podeVerValores && <td className="td-num" style={{ textAlign: "right" }}>{EnvoxersShared.formatMoney(r.valor_contrato)}</td>}
                         {podeVerValores && <td className="td-num" style={{ textAlign: "right", color: `var(--farol-${cor})`, fontWeight: 600 }}>{r.margem_pct}%</td>}
                         {podeVerValores && <td><span className={`farol farol-${cor}`}><span className="farol-dot"></span> {situacao}</span></td>}

@@ -1,6 +1,6 @@
 const { useState: useStateSrv, useEffect: useEffectSrv } = React;
 
-function EtapasTemplateModal({ servico, onClose }) {
+function EtapasTemplateModal({ servico, onClose, somenteLeitura = false }) {
   const [templates, setTemplates] = useStateSrv([]);
   const [envoxersList, setEnvoxersList] = useStateSrv([]);
   const [loading, setLoading] = useStateSrv(true);
@@ -221,15 +221,17 @@ function EtapasTemplateModal({ servico, onClose }) {
                   <div
                     className={"etapa-item etapa-item-draggable" + (dragId === template.id ? " dragging" : "")}
                     key={template.id}
-                    draggable={editandoId !== template.id}
+                    draggable={!somenteLeitura && editandoId !== template.id}
                     onDragStart={(e) => handleDragStart(e, template)}
                     onDragOver={(e) => handleDragOverItem(e, template)}
                     onDrop={(e) => e.preventDefault()}
                     onDragEnd={handleDragEnd}
                   >
-                    <span className="etapa-drag-handle" title="Arrastar para reordenar">
-                      <EnvoxersShared.IconArrastar />
-                    </span>
+                    {!somenteLeitura && (
+                      <span className="etapa-drag-handle" title="Arrastar para reordenar">
+                        <EnvoxersShared.IconArrastar />
+                      </span>
+                    )}
                     <div className="etapa-body">
                       {editandoId === template.id ? (
                         <div className="etapa-automacao-form" style={{ marginTop: 0 }}>
@@ -287,17 +289,19 @@ function EtapasTemplateModal({ servico, onClose }) {
                           <span className="etapa-prazo-badge neutro">
                             {template.prazo_dias != null ? `${template.prazo_dias}d após aplicar` : "sem prazo"}
                           </span>
-                          <div className="etapa-actions">
-                            <button className="etapa-icon-btn" title="Editar etapa-modelo" onClick={() => handleAbrirEdicao(template)}>
-                              <EnvoxersShared.IconEditar />
-                            </button>
-                            <button className="etapa-icon-btn" title={template.automacao ? "Editar automação" : "Configurar automação"} onClick={() => handleAbrirAutomacao(template)}>
-                              <EnvoxersShared.IconAutomacao />
-                            </button>
-                            <button className="etapa-icon-btn danger" title="Excluir etapa-modelo" onClick={() => handleExcluir(template)}>
-                              <EnvoxersShared.IconExcluir />
-                            </button>
-                          </div>
+                          {!somenteLeitura && (
+                            <div className="etapa-actions">
+                              <button className="etapa-icon-btn" title="Editar etapa-modelo" onClick={() => handleAbrirEdicao(template)}>
+                                <EnvoxersShared.IconEditar />
+                              </button>
+                              <button className="etapa-icon-btn" title={template.automacao ? "Editar automação" : "Configurar automação"} onClick={() => handleAbrirAutomacao(template)}>
+                                <EnvoxersShared.IconAutomacao />
+                              </button>
+                              <button className="etapa-icon-btn danger" title="Excluir etapa-modelo" onClick={() => handleExcluir(template)}>
+                                <EnvoxersShared.IconExcluir />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                       )}
@@ -328,7 +332,7 @@ function EtapasTemplateModal({ servico, onClose }) {
               </div>
             )}
 
-            {novaAberta ? (
+            {!somenteLeitura && (novaAberta ? (
               <div className="comment-box" style={{ marginTop: 8 }}>
                 <div className="comment-box-form">
                   <div className="field">
@@ -360,7 +364,7 @@ function EtapasTemplateModal({ servico, onClose }) {
               </div>
             ) : (
               <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setNovaAberta(true)}>+ Nova etapa-modelo</button>
-            )}
+            ))}
           </div>
         </div>
       </div>
@@ -632,7 +636,10 @@ function ServicosScreen({ permissao }) {
                           <button className="btn btn-sm" onClick={() => setExcluindoServico(s)}>Excluir</button>
                         </div>
                       ) : (
-                        <span style={{ color: "var(--ink-4)", fontSize: 12 }}>só gestor/admin edita</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <button className="btn btn-sm" onClick={() => setModalServico(s)}>Ver processo</button>
+                          <span style={{ color: "var(--ink-4)", fontSize: 11 }}>somente visualização</span>
+                        </div>
                       )}
                     </td>
                   </>
@@ -643,7 +650,7 @@ function ServicosScreen({ permissao }) {
         </table>
       </div>
 
-      {modalServico && <EtapasTemplateModal servico={modalServico} onClose={() => setModalServico(null)} />}
+      {modalServico && <EtapasTemplateModal servico={modalServico} somenteLeitura={!isAdmin} onClose={() => setModalServico(null)} />}
       {excluindoServico && (
         <ExcluirServicoModal
           servico={excluindoServico}

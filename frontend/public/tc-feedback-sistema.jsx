@@ -28,6 +28,19 @@ function FeedbackSistemaScreen() {
     }
   };
 
+  const atualizarPrioridade = async (id, prioridade) => {
+    try {
+      const atualizado = await EnvoxersAPI.api("/feedback-sistema/" + id, {
+        method: "PATCH",
+        body: JSON.stringify({ prioridade: prioridade }),
+      });
+      setItens((prev) => (prev || []).map((x) => x.id === id ? atualizado : x));
+      await carregar();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
   return (
     <div className="page feedback-admin-page">
       <EnvoxersShared.PageHeader title="Erros e ideias" subtitle="Solicitações enviadas pelo time dentro do Envoxers." />
@@ -53,12 +66,24 @@ function FeedbackSistemaScreen() {
                   <span className={"feedback-type " + item.tipo}>{item.tipo === "erro" ? "ERRO" : "IDEIA"}</span>
                   <h3>{item.titulo}</h3>
                 </div>
-                <select value={item.status} onChange={(e) => atualizarStatus(item.id, e.target.value)}>
-                  <option value="novo">Novo</option>
-                  <option value="em_analise">Em análise</option>
-                  <option value="feito">Feito</option>
-                  <option value="descartado">Descartado</option>
-                </select>
+                <div className="feedback-admin-selects">
+                  <select
+                    className={"priority-select priority-" + (item.prioridade || "media")}
+                    value={item.prioridade || "media"}
+                    onChange={(e) => atualizarPrioridade(item.id, e.target.value)}
+                    title="Prioridade"
+                  >
+                    <option value="alta">Alta</option>
+                    <option value="media">Média</option>
+                    <option value="baixa">Baixa</option>
+                  </select>
+                  <select value={item.status} onChange={(e) => atualizarStatus(item.id, e.target.value)}>
+                    <option value="novo">Novo</option>
+                    <option value="em_analise">Em análise</option>
+                    <option value="feito">Feito</option>
+                    <option value="descartado">Descartado</option>
+                  </select>
+                </div>
               </div>
               <div className="feedback-admin-meta">
                 {item.criado_por_nome} · {new Date(item.created_at).toLocaleString("pt-BR")}

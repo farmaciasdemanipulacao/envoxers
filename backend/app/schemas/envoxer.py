@@ -12,6 +12,7 @@ class EnvoxerBase(BaseModel):
     foto_url: Optional[str] = None
     ativo: bool = True
     gestor_responsavel_id: Optional[int] = None
+    perfil_acesso_id: Optional[int] = None
 
 
 class EnvoxerCreate(EnvoxerBase):
@@ -35,6 +36,7 @@ class EnvoxerUpdate(BaseModel):
     salario_mensal: Optional[float] = Field(default=None, gt=0)
     horas_mes: Optional[int] = Field(default=None, gt=0)
     permissao: Optional[str] = None
+    perfil_acesso_id: Optional[int] = None
     foto_url: Optional[str] = None
     senha: Optional[str] = None
     gestor_responsavel_id: Optional[int] = None
@@ -56,6 +58,7 @@ class TransferenciaResumo(BaseModel):
 
 class EnvoxerResponse(EnvoxerBase):
     id: int
+    perfil_acesso_nome: Optional[str] = None
     pontos: int
     salario_mensal: Optional[float] = None
     horas_mes: int
@@ -66,3 +69,9 @@ class EnvoxerResponse(EnvoxerBase):
 
     class Config:
         from_attributes = True
+
+
+class SenhaAlterarRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    senha_atual: str = Field(min_length=1, max_length=200)
+    nova_senha: str = Field(min_length=8, max_length=200)

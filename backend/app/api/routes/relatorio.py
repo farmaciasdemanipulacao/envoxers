@@ -39,7 +39,7 @@ async def relatorio_tempo_custo(
     # Tela cheia "Relatório de custo" continua 100% admin (nem gestor) — mas o
     # agrupar=cliente também alimenta o widget "Relatório rápido" do Dashboard do
     # dia, que passou a ser visível pra todo mundo (D-10x RBAC), com os valores
-    # redigidos pra quem não é admin/gestor. Por isso a rota abre pra qualquer
+    # redigidos pra quem não é admin. Por isso a rota abre pra qualquer
     # envoxer logado, e quem block/redige é o corpo da função por `agrupar`.
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
     agrupar: str = "cliente",
@@ -98,7 +98,7 @@ async def relatorio_tempo_custo(
         # a ordem continua útil mesmo pra quem não vê o número.
         itens.sort(key=lambda i: (i["margem_pct"] is None, i["margem_pct"]))
         for item in itens:
-            redigir_dict(item, ["valor_contrato", "margem_reais", "margem_pct"], envoxer)
+            redigir_dict(item, ["custo_horas", "valor_contrato", "margem_reais", "margem_pct"], envoxer)
 
     elif agrupar == "servico":
         stmt = (
@@ -129,6 +129,8 @@ async def relatorio_tempo_custo(
                 "pct_custo_total": round(custo_total / custo_geral * 100, 1),
             })
         itens.sort(key=lambda i: i["custo_horas"], reverse=True)
+        for item in itens:
+            redigir_dict(item, ["custo_horas", "pct_custo_total"], envoxer)
 
     else:  # envoxer
         dias_periodo = max(1, (fim_dt - inicio_dt).days)
@@ -164,6 +166,8 @@ async def relatorio_tempo_custo(
                 "utilizacao_pct": utilizacao_pct,
             })
         itens.sort(key=lambda i: i["horas"], reverse=True)
+        for item in itens:
+            redigir_dict(item, ["custo_hora", "custo_gerado"], envoxer)
 
     return {
         "agrupar": agrupar,

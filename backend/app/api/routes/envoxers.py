@@ -6,12 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin, get_current_envoxer, get_current_gestor_ou_admin, oauth2_scheme
-from app.core.security import create_access_token, decode_access_token, hash_password
+from app.core.security import create_access_token, decode_access_token, hash_password, verify_password
 from app.core.uploads import salvar_foto_avatar
 from app.core.valores import redigir
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.impersonacao_log import ImpersonacaoLog
+from app.models.perfil_acesso import PerfilAcesso
 from app.schemas.auth import Token
 from app.schemas.envoxer import (
     EnvoxerCreate,
@@ -19,10 +20,30 @@ from app.schemas.envoxer import (
     EnvoxerResponse,
     EnvoxerDesativarRequest,
     TransferenciaResumo,
+    SenhaAlterarRequest,
 )
 from app.services.transferencia_envoxer import transferir_pendencias
 
 router = APIRouter(prefix="/envoxers", tags=["envoxers"])
+
+
+async def _perfil_ativo(db: AsyncSession, perfil_id: int | None) -> PerfilAcesso | None:
+    if perfil_id is None:
+        return None
+    perfil = await db.get(PerfilAcesso, perfil_id)
+    if perfil is None or not perfil.ativo:
+        raise HTTPException(status_code=422, detail="Perfil de acesso inválido ou inativo")
+    return perfil
+
+
+async def _envoxer_response(db: AsyncSession, alvo: Envoxer, quem_ve: Envoxer | None = None) -> EnvoxerResponse:
+    resp = EnvoxerResponse.model_validate(alvo)
+    if alvo.perfil_acesso_id:
+        perfil = await db.get(PerfilAcesso, alvo.perfil_acesso_id)
+        resp.perfil_acesso_nome = perfil.nome if perfil else None
+    if quem_ve is not None:
+        redigir(resp, ["salario_mensal", "custo_hora"], quem_ve)
+    return resp
 
 _EMAIL_LIBERADO_PREFIXO = "deletado_"
 
@@ -43,9 +64,9 @@ async def listar_envoxers(
     result = await db.execute(
         select(Envoxer).where(Envoxer.deleted_at.is_(None)).order_by(Envoxer.nome)
     )
-    itens = [EnvoxerResponse.model_validate(e) for e in result.scalars().all()]
-    for item in itens:
-        redigir(item, ["salario_mensal", "custo_hora"], envoxer)
+    itens = []
+    for alvo in result.scalars().all():
+        itens.append(await _envoxer_response(db, alvo, envoxer))
     return itens
 
 
@@ -60,12 +81,15 @@ async def criar_envoxer(
         raise HTTPException(status_code=409, detail="Já existe um envoxer com esse e-mail")
 
     data = payload.model_dump(exclude={"senha"})
+    perfil = await _perfil_ativo(db, data.get("perfil_acesso_id"))
+    if perfil is not None:
+        data["permissao"] = perfil.nivel_base
     custo_hora = round(payload.salario_mensal / payload.horas_mes, 2)
     envoxer = Envoxer(**data, senha_hash=hash_password(payload.senha), custo_hora=custo_hora)
     db.add(envoxer)
     await db.flush()
     await db.refresh(envoxer)
-    return envoxer
+    return await _envoxer_response(db, envoxer)
 
 
 @router.patch("/{envoxer_id}", response_model=EnvoxerResponse)
@@ -81,6 +105,10 @@ async def atualizar_envoxer(
         raise HTTPException(status_code=404, detail="Envoxer não encontrado")
 
     updates = payload.model_dump(exclude_unset=True, exclude={"senha"})
+    if "perfil_acesso_id" in updates:
+        perfil = await _perfil_ativo(db, updates.get("perfil_acesso_id"))
+        if perfil is not None:
+            updates["permissao"] = perfil.nivel_base
     for field, value in updates.items():
         setattr(envoxer, field, value)
     if payload.senha:
@@ -94,7 +122,22 @@ async def atualizar_envoxer(
 
     await db.flush()
     await db.refresh(envoxer)
-    return envoxer
+    return await _envoxer_response(db, envoxer)
+
+
+@router.post("/me/senha", status_code=204)
+async def alterar_minha_senha(
+    payload: SenhaAlterarRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    if not verify_password(payload.senha_atual, envoxer.senha_hash):
+        raise HTTPException(status_code=400, detail="Senha atual incorreta")
+    if verify_password(payload.nova_senha, envoxer.senha_hash):
+        raise HTTPException(status_code=400, detail="A nova senha precisa ser diferente da atual")
+    envoxer.senha_hash = hash_password(payload.nova_senha)
+    await db.flush()
+    return None
 
 
 @router.post("/me/status-instalacao", response_model=EnvoxerResponse)
@@ -110,9 +153,7 @@ async def marcar_app_instalado(
         envoxer.app_instalado_em = datetime.now(timezone.utc)
         await db.flush()
         await db.refresh(envoxer)
-    resp = EnvoxerResponse.model_validate(envoxer)
-    redigir(resp, ["salario_mensal", "custo_hora"], envoxer)
-    return resp
+    return await _envoxer_response(db, envoxer, envoxer)
 
 
 @router.post("/{envoxer_id}/impersonar", response_model=Token)
@@ -169,9 +210,7 @@ async def upload_minha_foto(
     envoxer.foto_url = salvo["url"]
     await db.flush()
     await db.refresh(envoxer)
-    resp = EnvoxerResponse.model_validate(envoxer)
-    redigir(resp, ["salario_mensal", "custo_hora"], envoxer)
-    return resp
+    return await _envoxer_response(db, envoxer, envoxer)
 
 
 @router.post("/{envoxer_id}/foto", response_model=EnvoxerResponse)
@@ -190,14 +229,14 @@ async def upload_foto_de(
     alvo.foto_url = salvo["url"]
     await db.flush()
     await db.refresh(alvo)
-    return alvo
+    return await _envoxer_response(db, alvo)
 
 
 @router.post("/{envoxer_id}/ativar", response_model=EnvoxerResponse)
 async def ativar_envoxer(
     envoxer_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+    quem_ativa: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
 ):
     result = await db.execute(select(Envoxer).where(Envoxer.id == envoxer_id))
     envoxer = result.scalar_one_or_none()
@@ -206,7 +245,7 @@ async def ativar_envoxer(
     envoxer.ativo = True
     await db.flush()
     await db.refresh(envoxer)
-    return envoxer
+    return await _envoxer_response(db, envoxer, quem_ativa)
 
 
 @router.post("/{envoxer_id}/desativar", response_model=TransferenciaResumo)

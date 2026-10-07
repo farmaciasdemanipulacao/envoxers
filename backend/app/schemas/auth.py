@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
@@ -24,6 +24,9 @@ class EnvoxerMe(BaseModel):
     cargo: str
     permissao: str
     foto_url: Optional[str] = None
+    perfil_acesso_id: Optional[int] = None
+    perfil_acesso_nome: Optional[str] = None
+    modulos: list[str] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

@@ -89,7 +89,7 @@ function EnvoxersScreen({ permissao }) {
     <div className="page">
       <EnvoxersShared.PageHeader
         title="Envoxers"
-        subtitle="Time interno. Custo/hora aqui é o que alimenta a margem por cliente em F1."
+        subtitle={isAdmin ? "Time interno, acessos e dados administrativos." : "Time interno e informações de acesso."}
         actions={isAdmin && (
           <button className="btn btn-envox" onClick={() => setEditando({})}>
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v10M3 8h10" /></svg> Novo Envoxer
@@ -146,7 +146,7 @@ function EnvoxersScreen({ permissao }) {
                 <td className="table-mobile-hide">{e.cargo}</td>
                 <td className="table-mobile-hide">{e.email}</td>
                 {isAdmin && <td className="table-mobile-hide mono" style={{ textAlign: "right" }}>{e.custo_hora != null ? EnvoxersShared.formatMoney(e.custo_hora) : "—"}</td>}
-                <td>{e.permissao}</td>
+                <td>{e.perfil_acesso_nome || e.permissao}</td>
                 {isGestorOuAdmin && (
                   <td>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -187,12 +187,14 @@ function EnvoxersScreen({ permissao }) {
         </table>
       </div>
 
-      <div style={{ marginTop: 24, padding: "16px 20px", border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--bg-elev)" }}>
-        <div style={{ fontSize: 11, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600, marginBottom: 6 }}>Nota</div>
-        <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>
-          Use <strong>salário + encargos</strong> (multiplicador ~1,5–1,8×) no campo <em>custo/hora</em>.
+      {isAdmin && (
+        <div style={{ marginTop: 24, padding: "16px 20px", border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--bg-elev)" }}>
+          <div style={{ fontSize: 11, color: "var(--ink-3)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600, marginBottom: 6 }}>Nota administrativa</div>
+          <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>
+            Os dados financeiros desta área são exclusivos do perfil Admin.
+          </div>
         </div>
-      </div>
+      )}
       </>
       )}
     </div>
@@ -405,6 +407,8 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
   const [enviandoFoto, setEnviandoFoto] = useStateEnv(false);
   const [arquivoParaRecortar, setArquivoParaRecortar] = useStateEnv(null);
   const [permissao, setPermissao] = useStateEnv(envoxer?.permissao || "envoxer");
+  const [perfilAcessoId, setPerfilAcessoId] = useStateEnv(envoxer?.perfil_acesso_id ?? "");
+  const [perfisAcesso, setPerfisAcesso] = useStateEnv([]);
   const [gestorResponsavelId, setGestorResponsavelId] = useStateEnv(envoxer?.gestor_responsavel_id ?? "");
   const [todosEnvoxers, setTodosEnvoxers] = useStateEnv([]);
   const [salarioMensal, setSalarioMensal] = useStateEnv(envoxer?.salario_mensal ?? "");
@@ -414,7 +418,21 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
   const toast = EnvoxersShared.useToast();
 
   useEffectEnv(() => {
-    EnvoxersAPI.api("/envoxers").then(setTodosEnvoxers).catch(() => {});
+    Promise.all([
+      EnvoxersAPI.api("/envoxers"),
+      EnvoxersAPI.api("/perfis-acesso"),
+    ]).then(([envs, perfis]) => {
+      setTodosEnvoxers(envs);
+      const ativos = perfis.filter((p) => p.ativo);
+      setPerfisAcesso(ativos);
+      if (!perfilAcessoId) {
+        const preferido = ativos.find((p) => p.nivel_base === (envoxer?.permissao || "envoxer")) || ativos.find((p) => p.slug === "envoxer");
+        if (preferido) {
+          setPerfilAcessoId(String(preferido.id));
+          setPermissao(preferido.nivel_base);
+        }
+      }
+    }).catch(() => {});
   }, []);
 
   const handleFotoFile = (e) => {
@@ -442,14 +460,15 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
     : 0;
 
   const handleSave = async () => {
-    if (!nome || !email || !cargo || !salarioMensal || (!isEdit && !senha)) {
+    if (!nome || !email || !cargo || !salarioMensal || !perfilAcessoId || (!isEdit && !senha)) {
       toast("Preencha os campos obrigatórios", "error");
       return;
     }
     setSaving(true);
     try {
       const payload = {
-        nome, email, cargo, foto_url: fotoUrl || null, permissao,
+        nome, email, cargo, foto_url: fotoUrl || null,
+        perfil_acesso_id: Number(perfilAcessoId),
         salario_mensal: Number(salarioMensal), horas_mes: Number(horasMes),
         gestor_responsavel_id: gestorResponsavelId ? Number(gestorResponsavelId) : null,
       };
@@ -512,13 +531,23 @@ function EnvoxerForm({ envoxer, onCancel, onSaved }) {
                 </div>
               </div>
               <div className="field">
-                <label>Permissão <span className="req">*</span></label>
-                <select value={permissao} onChange={(e) => setPermissao(e.target.value)}>
-                  <option value="envoxer">Envoxer — executa e registra tempo</option>
-                  <option value="gestor">Gestor — gerencia e aprova</option>
-                  <option value="comercial">Comercial — somente Chat e Comercial</option>
-                  <option value="admin">Admin — vê e configura tudo</option>
+                <label>Perfil de acesso <span className="req">*</span></label>
+                <select
+                  value={perfilAcessoId}
+                  onChange={(e) => {
+                    setPerfilAcessoId(e.target.value);
+                    const perfil = perfisAcesso.find((p) => String(p.id) === String(e.target.value));
+                    if (perfil) setPermissao(perfil.nivel_base);
+                  }}
+                >
+                  <option value="">Selecione…</option>
+                  {perfisAcesso.map((p) => (
+                    <option value={p.id} key={p.id}>{p.nome} · base {p.nivel_base}</option>
+                  ))}
                 </select>
+                <div className="field-help">
+                  O perfil define os módulos do menu; o nível-base mantém as regras de segurança.
+                </div>
               </div>
               <div className="field">
                 <label>Gestor responsável <span className="hint">opcional</span></label>
