@@ -49,6 +49,7 @@ from app.models.resposta_clima import RespostaClima  # noqa: F401
 
 from app.models.comercial import *  # noqa: F401,F403
 from app.models.feedback_sistema import FeedbackSistema  # noqa: F401
+from app.models.feedback_sistema_interacao import FeedbackSistemaInteracao  # noqa: F401
 from app.models.demanda_avulsa import DemandaAvulsa  # noqa: F401
 from app.models.foco_ajuste import FocoAjuste  # noqa: F401
 from app.models.perfil_acesso import PerfilAcesso  # noqa: F401

@@ -131,6 +131,38 @@ async function upload(path, file, nomeArquivo) {
 }
 
 
+async function uploadWithFields(path, file, nomeArquivo, fields = {}) {
+  const token = getToken();
+  const headers = {};
+  if (token) headers["Authorization"] = "Bearer " + token;
+
+  const formData = new FormData();
+  Object.entries(fields || {}).forEach(([key, value]) => {
+    if (value != null) formData.append(key, String(value));
+  });
+  formData.append("arquivo", file, nomeArquivo || file.name || "arquivo.jpg");
+
+  const res = await fetch(API_BASE + path, { method: "POST", headers, body: formData });
+
+  if (res.status === 401) {
+    clearSession();
+    window.location.reload();
+    throw new Error("Sessão expirada");
+  }
+
+  if (!res.ok) {
+    let detail = "Erro " + res.status;
+    try {
+      const body = await res.json();
+      detail = body.detail || detail;
+    } catch (e) {}
+    throw new Error(detail);
+  }
+
+  return res.json();
+}
+
+
 function uploadWithProgress(path, file, nomeArquivo, onProgress) {
   return new Promise((resolve, reject) => {
     const token = getToken();
@@ -170,6 +202,6 @@ function uploadWithProgress(path, file, nomeArquivo, onProgress) {
 }
 
 window.EnvoxersAPI = {
-  api, upload, uploadWithProgress, getToken, setSession, clearSession, getEnvoxerId,
+  api, upload, uploadWithFields, uploadWithProgress, getToken, setSession, clearSession, getEnvoxerId,
   iniciarImpersonacao, estaImpersonando, encerrarImpersonacao,
 };

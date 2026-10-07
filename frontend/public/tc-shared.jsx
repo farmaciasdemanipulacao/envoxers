@@ -632,7 +632,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
             )}
             {permissao === "admin" && item(
               "feedback-sistema",
-              "Erros e ideias",
+              "Erros e Sugestões",
               <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v8H8l-4 3v-3H2z"/><path d="M5 6h6M5 8h4"/></svg>
             )}
           </nav>
@@ -815,11 +815,24 @@ function FeedbackSistemaDock({ permissao }) {
   const [minhas, setMinhas] = useState([]);
   const [carregandoMinhas, setCarregandoMinhas] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
+  const [pendentesTeste, setPendentesTeste] = useState(0);
+  const [validandoFalhaId, setValidandoFalhaId] = useState(null);
+  const [validacaoDescricao, setValidacaoDescricao] = useState("");
+  const [validacaoBlob, setValidacaoBlob] = useState(null);
+  const [validacaoPreview, setValidacaoPreview] = useState("");
+  const [validacaoCapturando, setValidacaoCapturando] = useState(false);
+  const [validacaoEnviando, setValidacaoEnviando] = useState(false);
   const toast = useToast();
 
-  useEffect(() => () => {
-    if (capturaPreview && capturaPreview.startsWith("blob:")) URL.revokeObjectURL(capturaPreview);
-  }, [capturaPreview]);
+  const revogarPreview = (url) => {
+    if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+  };
+
+  useEffect(() => {
+    carregarPendentesTeste();
+    const timer = setInterval(carregarPendentesTeste, 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   const limparForm = () => {
     setTipo("erro");
@@ -828,14 +841,31 @@ function FeedbackSistemaDock({ permissao }) {
     setDescricao("");
     setEditandoId(null);
     setCapturaBlob(null);
-    if (capturaPreview && capturaPreview.startsWith("blob:")) URL.revokeObjectURL(capturaPreview);
+    revogarPreview(capturaPreview);
     setCapturaPreview("");
   };
+
+  const limparValidacao = () => {
+    setValidandoFalhaId(null);
+    setValidacaoDescricao("");
+    setValidacaoBlob(null);
+    revogarPreview(validacaoPreview);
+    setValidacaoPreview("");
+  };
+
+  async function carregarPendentesTeste() {
+    try {
+      const data = await EnvoxersAPI.api("/feedback-sistema/me/pendentes-teste-count");
+      setPendentesTeste(data.total || 0);
+    } catch (_) {}
+  }
 
   const carregarMinhas = async () => {
     setCarregandoMinhas(true);
     try {
-      setMinhas(await EnvoxersAPI.api("/feedback-sistema/me"));
+      const data = await EnvoxersAPI.api("/feedback-sistema/me");
+      setMinhas(data);
+      setPendentesTeste(data.filter((x) => x.status === "aguardando_teste").length);
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -843,9 +873,10 @@ function FeedbackSistemaDock({ permissao }) {
     }
   };
 
-  const capturarTela = async () => {
+  const capturarTela = async (destino = "solicitacao") => {
     if (!window.html2canvas) return;
-    setCapturando(true);
+    const validacao = destino === "validacao";
+    validacao ? setValidacaoCapturando(true) : setCapturando(true);
     try {
       const canvas = await window.html2canvas(document.body, {
         backgroundColor: "#ffffff",
@@ -855,26 +886,45 @@ function FeedbackSistemaDock({ permissao }) {
         ignoreElements: (el) => el && el.dataset && el.dataset.feedbackUi === "true",
       });
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png", 0.92));
-      if (capturaPreview && capturaPreview.startsWith("blob:")) URL.revokeObjectURL(capturaPreview);
-      setCapturaBlob(blob);
-      setCapturaPreview(blob ? URL.createObjectURL(blob) : "");
+      if (validacao) {
+        revogarPreview(validacaoPreview);
+        setValidacaoBlob(blob);
+        setValidacaoPreview(blob ? URL.createObjectURL(blob) : "");
+      } else {
+        revogarPreview(capturaPreview);
+        setCapturaBlob(blob);
+        setCapturaPreview(blob ? URL.createObjectURL(blob) : "");
+      }
     } catch (_) {
-      setCapturaBlob(null);
-      if (capturaPreview && capturaPreview.startsWith("blob:")) URL.revokeObjectURL(capturaPreview);
-      setCapturaPreview("");
+      if (validacao) {
+        setValidacaoBlob(null);
+        revogarPreview(validacaoPreview);
+        setValidacaoPreview("");
+      } else {
+        setCapturaBlob(null);
+        revogarPreview(capturaPreview);
+        setCapturaPreview("");
+      }
     } finally {
-      setCapturando(false);
+      validacao ? setValidacaoCapturando(false) : setCapturando(false);
     }
   };
 
   const abrir = async () => {
     limparForm();
-    setAba("enviar");
+    limparValidacao();
     setAberto(true);
-    await capturarTela();
+    if (pendentesTeste > 0) {
+      setAba("acompanhar");
+      await carregarMinhas();
+      return;
+    }
+    setAba("enviar");
+    await capturarTela("solicitacao");
   };
 
   const abrirAcompanhar = async () => {
+    limparValidacao();
     setAba("acompanhar");
     await carregarMinhas();
   };
@@ -923,7 +973,7 @@ function FeedbackSistemaDock({ permissao }) {
       }
 
       if (capturaBlob) {
-        item = await EnvoxersAPI.upload(
+        await EnvoxersAPI.upload(
           "/feedback-sistema/" + item.id + "/screenshot",
           capturaBlob,
           "captura-envoxers-" + item.id + ".png"
@@ -953,14 +1003,66 @@ function FeedbackSistemaDock({ permissao }) {
     }
   };
 
+  const confirmarFuncionou = async (item) => {
+    if (!confirm("Confirma que você testou e agora está funcionando corretamente?")) return;
+    try {
+      await EnvoxersAPI.api("/feedback-sistema/me/" + item.id + "/confirmar-teste", { method: "POST" });
+      toast("Teste confirmado. Ticket concluído!", "success");
+      limparValidacao();
+      await carregarMinhas();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  };
+
+  const abrirFalha = async (item) => {
+    limparValidacao();
+    setValidandoFalhaId(item.id);
+    await capturarTela("validacao");
+  };
+
+  const reportarFalha = async (item) => {
+    if (validacaoDescricao.trim().length < 5) {
+      toast("Explique o que ainda não funcionou", "error");
+      return;
+    }
+    if (!validacaoBlob) {
+      toast("Atualize ou gere o print antes de enviar", "error");
+      return;
+    }
+    setValidacaoEnviando(true);
+    try {
+      await EnvoxersAPI.uploadWithFields(
+        "/feedback-sistema/me/" + item.id + "/reportar-falha",
+        validacaoBlob,
+        "teste-nao-funcionou-" + item.id + ".png",
+        { descricao: validacaoDescricao.trim() }
+      );
+      toast("Retorno enviado. O ticket voltou para análise.", "success");
+      limparValidacao();
+      await carregarMinhas();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setValidacaoEnviando(false);
+    }
+  };
+
   const statusLabel = (status) => ({
     novo: "Recebida",
     em_analise: "Em análise",
-    feito: "Concluída",
+    aguardando_teste: "Aguardando seu teste",
+    concluido: "Concluída",
     descartado: "Descartada",
   }[status] || status);
 
   const prioridadeLabel = (p) => ({ alta: "Alta", media: "Média", baixa: "Baixa" }[p] || p);
+
+  const interacaoLabel = (tipoInteracao, autor) => ({
+    admin_enviou_teste: "Ajuste enviado para teste por " + autor,
+    usuario_aprovou: "Teste aprovado por " + autor,
+    usuario_reprovou: "Teste reprovado por " + autor,
+  }[tipoInteracao] || autor);
 
   const drawer = aberto ? (
     <>
@@ -969,7 +1071,7 @@ function FeedbackSistemaDock({ permissao }) {
         <div className="feedback-side-head">
           <div>
             <span className="feedback-system-eyebrow">Envoxers</span>
-            <h2>Erros e ideias</h2>
+            <h2>Erros e Sugestões</h2>
           </div>
           <button className="modal-close" onClick={() => setAberto(false)} aria-label="Fechar">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
@@ -977,10 +1079,12 @@ function FeedbackSistemaDock({ permissao }) {
         </div>
 
         <div className="feedback-user-tabs">
-          <button className={aba === "enviar" ? "active" : ""} onClick={() => setAba("enviar")}>
+          <button className={aba === "enviar" ? "active" : ""} onClick={() => { limparValidacao(); setAba("enviar"); }}>
             {editandoId ? "Editando" : "Enviar"}
           </button>
-          <button className={aba === "acompanhar" ? "active" : ""} onClick={abrirAcompanhar}>Status</button>
+          <button className={aba === "acompanhar" ? "active" : ""} onClick={abrirAcompanhar}>
+            Status {pendentesTeste > 0 ? "(" + pendentesTeste + ")" : ""}
+          </button>
         </div>
 
         {aba === "enviar" ? (
@@ -989,7 +1093,7 @@ function FeedbackSistemaDock({ permissao }) {
               {editandoId && (
                 <div className="feedback-edit-notice">
                   Você está editando uma solicitação ainda não analisada.
-                  <button type="button" onClick={() => { limparForm(); capturarTela(); }}>Cancelar edição</button>
+                  <button type="button" onClick={() => { limparForm(); capturarTela("solicitacao"); }}>Cancelar edição</button>
                 </div>
               )}
               <div className="feedback-form-row">
@@ -997,7 +1101,7 @@ function FeedbackSistemaDock({ permissao }) {
                   <label>Tipo</label>
                   <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
                     <option value="erro">Encontrei um erro</option>
-                    <option value="funcionalidade">Quero sugerir uma funcionalidade</option>
+                    <option value="funcionalidade">Quero fazer uma sugestão</option>
                   </select>
                 </div>
                 <div className="field">
@@ -1024,7 +1128,7 @@ function FeedbackSistemaDock({ permissao }) {
                     <strong>Captura da tela</strong>
                     <span>{capturando ? "Capturando a tela atual…" : capturaPreview ? (editandoId && !capturaBlob ? "Captura atual da solicitação." : "A captura será enviada junto.") : "Não foi possível capturar automaticamente."}</span>
                   </div>
-                  <button className="btn btn-xs" onClick={capturarTela} disabled={capturando}>{capturando ? "..." : "Atualizar"}</button>
+                  <button className="btn btn-xs" onClick={() => capturarTela("solicitacao")} disabled={capturando}>{capturando ? "..." : "Atualizar"}</button>
                 </div>
                 {capturaPreview && <img src={capturaPreview} alt="Prévia da captura da tela" />}
               </div>
@@ -1041,7 +1145,7 @@ function FeedbackSistemaDock({ permissao }) {
           <div className="feedback-track-body">
             <div className="feedback-track-intro">
               <strong>Suas solicitações</strong>
-              <span>As mais prioritárias aparecem primeiro. Você pode editar ou excluir enquanto ainda estiverem como Recebida.</span>
+              <span>Quando um ajuste ficar pronto, ele aparece aqui como Aguardando seu teste. O ticket só é concluído depois da sua confirmação.</span>
             </div>
             {carregandoMinhas ? (
               <div className="empty compact">Carregando…</div>
@@ -1050,7 +1154,7 @@ function FeedbackSistemaDock({ permissao }) {
             ) : (
               <div className="feedback-track-list">
                 {minhas.map((item) => (
-                  <article className={"feedback-track-item priority-" + (item.prioridade || "media")} key={item.id}>
+                  <article className={"feedback-track-item priority-" + (item.prioridade || "media") + " status-" + item.status} key={item.id}>
                     <div className="feedback-track-top">
                       <span className={"feedback-priority-chip " + (item.prioridade || "media")}>{prioridadeLabel(item.prioridade || "media")}</span>
                       <span className={"feedback-status-chip status-" + item.status}>{statusLabel(item.status)}</span>
@@ -1058,14 +1162,77 @@ function FeedbackSistemaDock({ permissao }) {
                     <h3>{item.titulo}</h3>
                     <p>{item.descricao}</p>
                     <div className="feedback-track-meta">
-                      <span>{item.tipo === "erro" ? "Erro" : "Ideia"}</span>
+                      <span>{item.tipo === "erro" ? "Erro" : "Sugestão"}</span>
                       <span>{new Date(item.created_at).toLocaleString("pt-BR")}</span>
                     </div>
-                    {item.observacao_admin && <div className="feedback-admin-response">Admin: {item.observacao_admin}</div>}
+
+                    {item.status === "aguardando_teste" && (
+                      <div className="feedback-validation-box">
+                        <strong>Seu teste é obrigatório para encerrar este ticket</strong>
+                        {item.observacao_admin && <p><b>O que foi feito:</b> {item.observacao_admin}</p>}
+                        {validandoFalhaId !== item.id ? (
+                          <div className="feedback-validation-actions">
+                            <button className="btn btn-xs btn-envox" onClick={() => confirmarFuncionou(item)}>✓ Testei e funcionou</button>
+                            <button className="btn btn-xs" onClick={() => abrirFalha(item)}>✕ Testei e não deu certo</button>
+                          </div>
+                        ) : (
+                          <div className="feedback-validation-fail">
+                            <label>O que ainda não deu certo?</label>
+                            <textarea
+                              value={validacaoDescricao}
+                              onChange={(e) => setValidacaoDescricao(e.target.value)}
+                              rows={4}
+                              placeholder="Explique o que você testou, o resultado esperado e o que aconteceu."
+                            />
+                            <div className="feedback-capture-card">
+                              <div className="feedback-capture-head">
+                                <div>
+                                  <strong>Print obrigatório</strong>
+                                  <span>{validacaoCapturando ? "Capturando…" : validacaoPreview ? "Print pronto para enviar." : "Gere um print mostrando o problema."}</span>
+                                </div>
+                                <button className="btn btn-xs" onClick={() => capturarTela("validacao")} disabled={validacaoCapturando}>
+                                  {validacaoCapturando ? "..." : "Atualizar print"}
+                                </button>
+                              </div>
+                              {validacaoPreview && <img src={validacaoPreview} alt="Print do teste que não funcionou" />}
+                            </div>
+                            <div className="feedback-validation-actions">
+                              <button className="btn btn-xs" onClick={limparValidacao}>Cancelar</button>
+                              <button
+                                className="btn btn-xs btn-envox"
+                                onClick={() => reportarFalha(item)}
+                                disabled={validacaoEnviando || validacaoCapturando || validacaoDescricao.trim().length < 5 || !validacaoBlob}
+                              >
+                                {validacaoEnviando ? "Enviando…" : "Enviar teste e reabrir ticket"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {item.status === "novo" && (
                       <div className="feedback-track-actions">
                         <button className="btn btn-xs" onClick={() => editarItem(item)}>Editar</button>
                         <button className="btn btn-xs danger-ghost" onClick={() => excluir(item)}>Excluir</button>
+                      </div>
+                    )}
+
+                    {Array.isArray(item.interacoes) && item.interacoes.length > 0 && (
+                      <div className="feedback-history">
+                        <div className="feedback-history-title">Histórico do ticket</div>
+                        {item.interacoes.map((interacao) => (
+                          <div className={"feedback-history-item " + interacao.tipo} key={interacao.id}>
+                            <div>
+                              <strong>{interacaoLabel(interacao.tipo, interacao.autor_nome)}</strong>
+                              <span>{new Date(interacao.created_at).toLocaleString("pt-BR")}</span>
+                            </div>
+                            {interacao.descricao && <p>{interacao.descricao}</p>}
+                            {interacao.screenshot_url && (
+                              <a href={interacao.screenshot_url} target="_blank" rel="noreferrer">Ver print enviado</a>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </article>
@@ -1080,11 +1247,19 @@ function FeedbackSistemaDock({ permissao }) {
 
   return (
     <>
-      <button type="button" className="topbar-feedback-btn" data-feedback-ui="true" onClick={abrir} title="Enviar erro ou ideia" aria-label="Enviar erro ou ideia">
+      <button
+        type="button"
+        className="topbar-feedback-btn"
+        data-feedback-ui="true"
+        onClick={abrir}
+        title={pendentesTeste > 0 ? "Você tem solicitação aguardando teste" : "Enviar erro ou sugestão"}
+        aria-label="Erros e Sugestões"
+      >
         <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M3 3.5h12v8H8l-4 3v-3H3z"/>
           <path d="M6 6.5h6M6 9h4"/>
         </svg>
+        {pendentesTeste > 0 && <span className="topbar-feedback-badge">{pendentesTeste > 9 ? "9+" : pendentesTeste}</span>}
       </button>
       {drawer && ReactDOM.createPortal(drawer, document.body)}
     </>

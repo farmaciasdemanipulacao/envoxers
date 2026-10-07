@@ -1,17 +1,24 @@
+from collections import defaultdict
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from sqlalchemy import case, select, func
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_envoxer, get_current_admin
+from app.api.deps import get_current_admin, get_current_envoxer
+from app.core.uploads import excluir_upload_url, salvar_upload
 from app.db.session import get_db
-from app.core.uploads import salvar_upload, excluir_upload_url
 from app.models.envoxer import Envoxer
 from app.models.feedback_sistema import FeedbackSistema
+from app.models.feedback_sistema_interacao import FeedbackSistemaInteracao
 from app.schemas.feedback_sistema import (
-    FeedbackSistemaCreate, FeedbackSistemaUserUpdate, FeedbackSistemaUpdate,
-    FeedbackSistemaResponse, FeedbackSistemaNovosCount,
+    FeedbackSistemaCreate,
+    FeedbackSistemaInteracaoResponse,
+    FeedbackSistemaNovosCount,
+    FeedbackSistemaPendentesTesteCount,
+    FeedbackSistemaResponse,
+    FeedbackSistemaUpdate,
+    FeedbackSistemaUserUpdate,
 )
 
 router = APIRouter(prefix="/feedback-sistema", tags=["feedback-sistema"])
@@ -21,12 +28,51 @@ PRIORIDADE_ORDEM = case(
     (FeedbackSistema.prioridade == "media", 2),
     else_=3,
 )
+TESTE_ORDEM = case(
+    (FeedbackSistema.status == "aguardando_teste", 0),
+    else_=1,
+)
 
-def _assert_editavel_pelo_autor(item: FeedbackSistema, envoxer: Envoxer) -> None:
+
+async def _responses(db: AsyncSession, itens: list[FeedbackSistema]) -> list[FeedbackSistemaResponse]:
+    if not itens:
+        return []
+    ids = [x.id for x in itens]
+    interacoes = list((await db.execute(
+        select(FeedbackSistemaInteracao)
+        .where(FeedbackSistemaInteracao.feedback_id.in_(ids))
+        .order_by(FeedbackSistemaInteracao.created_at.asc(), FeedbackSistemaInteracao.id.asc())
+    )).scalars().all())
+    por_feedback: dict[int, list[FeedbackSistemaInteracaoResponse]] = defaultdict(list)
+    for interacao in interacoes:
+        por_feedback[interacao.feedback_id].append(
+            FeedbackSistemaInteracaoResponse.model_validate(interacao)
+        )
+    respostas = []
+    for item in itens:
+        resp = FeedbackSistemaResponse.model_validate(item)
+        resp.interacoes = por_feedback.get(item.id, [])
+        respostas.append(resp)
+    return respostas
+
+
+async def _response(db: AsyncSession, item: FeedbackSistema) -> FeedbackSistemaResponse:
+    return (await _responses(db, [item]))[0]
+
+
+def _assert_autor(item: FeedbackSistema, envoxer: Envoxer) -> None:
     if item.criado_por_envoxer_id != envoxer.id:
         raise HTTPException(status_code=403, detail="Solicitação pertence a outro usuário")
+
+
+def _assert_editavel_pelo_autor(item: FeedbackSistema, envoxer: Envoxer) -> None:
+    _assert_autor(item, envoxer)
     if item.status != "novo":
-        raise HTTPException(status_code=409, detail="A solicitação não pode mais ser alterada porque já foi analisada pelo admin")
+        raise HTTPException(
+            status_code=409,
+            detail="A solicitação não pode mais ser alterada porque já foi analisada pelo admin",
+        )
+
 
 @router.post("", response_model=FeedbackSistemaResponse, status_code=201)
 async def criar_feedback(
@@ -47,18 +93,35 @@ async def criar_feedback(
     db.add(item)
     await db.flush()
     await db.refresh(item)
-    return item
+    return await _response(db, item)
+
+
+@router.get("/me/pendentes-teste-count", response_model=FeedbackSistemaPendentesTesteCount)
+async def contar_meus_pendentes_teste(
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    total = (await db.execute(
+        select(func.count()).select_from(FeedbackSistema).where(
+            FeedbackSistema.criado_por_envoxer_id == envoxer.id,
+            FeedbackSistema.status == "aguardando_teste",
+        )
+    )).scalar_one()
+    return FeedbackSistemaPendentesTesteCount(total=total)
+
 
 @router.get("/me", response_model=list[FeedbackSistemaResponse])
 async def minhas_solicitacoes(
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return list((await db.execute(
+    itens = list((await db.execute(
         select(FeedbackSistema)
         .where(FeedbackSistema.criado_por_envoxer_id == envoxer.id)
-        .order_by(PRIORIDADE_ORDEM, FeedbackSistema.created_at.desc())
+        .order_by(TESTE_ORDEM, PRIORIDADE_ORDEM, FeedbackSistema.created_at.desc())
     )).scalars().all())
+    return await _responses(db, itens)
+
 
 @router.patch("/me/{feedback_id}", response_model=FeedbackSistemaResponse)
 async def editar_minha_solicitacao(
@@ -80,7 +143,8 @@ async def editar_minha_solicitacao(
         setattr(item, campo, valor)
     await db.flush()
     await db.refresh(item)
-    return item
+    return await _response(db, item)
+
 
 @router.delete("/me/{feedback_id}", status_code=204)
 async def excluir_minha_solicitacao(
@@ -98,6 +162,69 @@ async def excluir_minha_solicitacao(
     await db.flush()
     return None
 
+
+@router.post("/me/{feedback_id}/confirmar-teste", response_model=FeedbackSistemaResponse)
+async def confirmar_teste_funcionou(
+    feedback_id: int,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    item = await db.get(FeedbackSistema, feedback_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+    _assert_autor(item, envoxer)
+    if item.status != "aguardando_teste":
+        raise HTTPException(status_code=409, detail="Esta solicitação não está aguardando seu teste")
+
+    db.add(FeedbackSistemaInteracao(
+        feedback_id=item.id,
+        tipo="usuario_aprovou",
+        autor_envoxer_id=envoxer.id,
+        autor_nome=envoxer.nome,
+        descricao="Testei e funcionou.",
+    ))
+    item.status = "concluido"
+    await db.flush()
+    await db.refresh(item)
+    return await _response(db, item)
+
+
+@router.post("/me/{feedback_id}/reportar-falha", response_model=FeedbackSistemaResponse)
+async def reportar_teste_nao_funcionou(
+    feedback_id: int,
+    descricao: Annotated[str, Form(min_length=5, max_length=5000)],
+    arquivo: UploadFile = File(...),
+    envoxer: Envoxer = Depends(get_current_envoxer),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await db.get(FeedbackSistema, feedback_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+    _assert_autor(item, envoxer)
+    if item.status != "aguardando_teste":
+        raise HTTPException(status_code=409, detail="Esta solicitação não está aguardando seu teste")
+    if not (arquivo.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="Envie um print/imagem mostrando o que não funcionou")
+
+    detalhe = descricao.strip()
+    if len(detalhe) < 5:
+        raise HTTPException(status_code=422, detail="Descreva com mais detalhes o que não funcionou")
+
+    salvo = await salvar_upload(arquivo)
+    db.add(FeedbackSistemaInteracao(
+        feedback_id=item.id,
+        tipo="usuario_reprovou",
+        autor_envoxer_id=envoxer.id,
+        autor_nome=envoxer.nome,
+        descricao=detalhe,
+        screenshot_url=salvo["url"],
+    ))
+    item.status = "em_analise"
+    await db.flush()
+    await db.refresh(item)
+    return await _response(db, item)
+
+
 @router.get("", response_model=list[FeedbackSistemaResponse])
 async def listar_feedbacks(
     _: Annotated[Envoxer, Depends(get_current_admin)],
@@ -108,8 +235,11 @@ async def listar_feedbacks(
     stmt = select(FeedbackSistema)
     if status:
         stmt = stmt.where(FeedbackSistema.status == status)
-    stmt = stmt.order_by(PRIORIDADE_ORDEM, FeedbackSistema.created_at.desc()).limit(limit)
-    return list((await db.execute(stmt)).scalars().all())
+    itens = list((await db.execute(
+        stmt.order_by(TESTE_ORDEM, PRIORIDADE_ORDEM, FeedbackSistema.created_at.desc()).limit(limit)
+    )).scalars().all())
+    return await _responses(db, itens)
+
 
 @router.get("/novos-count", response_model=FeedbackSistemaNovosCount)
 async def contar_novos(
@@ -121,22 +251,51 @@ async def contar_novos(
     )).scalar_one()
     return FeedbackSistemaNovosCount(total=total)
 
+
 @router.patch("/{feedback_id}", response_model=FeedbackSistemaResponse)
 async def atualizar_feedback(
     feedback_id: int,
     payload: FeedbackSistemaUpdate,
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    admin: Annotated[Envoxer, Depends(get_current_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     item = await db.get(FeedbackSistema, feedback_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+
     dados = payload.model_dump(exclude_unset=True)
-    for campo, valor in dados.items():
-        setattr(item, campo, valor)
+    status_novo = dados.get("status")
+    observacao = dados.get("observacao_admin")
+
+    if observacao is not None:
+        observacao = observacao.strip() or None
+        item.observacao_admin = observacao
+
+    if status_novo == "aguardando_teste" and item.status != "aguardando_teste":
+        nota = observacao if observacao is not None else item.observacao_admin
+        if not nota:
+            raise HTTPException(
+                status_code=422,
+                detail="Explique o que foi feito antes de enviar a solicitação para teste",
+            )
+        db.add(FeedbackSistemaInteracao(
+            feedback_id=item.id,
+            tipo="admin_enviou_teste",
+            autor_envoxer_id=admin.id,
+            autor_nome=admin.nome,
+            descricao=nota,
+        ))
+
+    if status_novo is not None:
+        item.status = status_novo
+
+    if "prioridade" in dados:
+        item.prioridade = dados["prioridade"]
+
     await db.flush()
     await db.refresh(item)
-    return item
+    return await _response(db, item)
+
 
 @router.post("/{feedback_id}/screenshot", response_model=FeedbackSistemaResponse)
 async def anexar_screenshot(
@@ -158,4 +317,4 @@ async def anexar_screenshot(
     item.screenshot_url = salvo["url"]
     await db.flush()
     await db.refresh(item)
-    return item
+    return await _response(db, item)

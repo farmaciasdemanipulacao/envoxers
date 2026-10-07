@@ -5964,3 +5964,78 @@ body.kanban-fullscreen-active .main {
   .access-profile-grid{grid-template-columns:1fr}
   .access-module-grid{grid-template-columns:1fr 1fr}
 }
+
+
+/* ===== 2026-10-07 · ciclo de validação de Erros e Sugestões ===== */
+.feedback-side-body select,
+.feedback-admin-toolbar select,
+.feedback-admin-selects select{
+  -webkit-appearance:none;
+  appearance:none;
+  padding-right:30px!important;
+  background-color:var(--bg-elev);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5.5 7.5L10 12L14.5 7.5' stroke='%23515C6C' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important;
+  background-position:right 9px center!important;
+  background-size:14px 14px!important;
+}
+.feedback-admin-toolbar select,
+.feedback-admin-selects select{background-color:var(--bg)!important}
+
+.feedback-status-chip.status-aguardando_teste{
+  color:#8b5a00;
+  background:var(--farol-amarelo-bg);
+  border-color:rgba(196,132,0,.2);
+}
+.feedback-status-chip.status-concluido{
+  color:var(--farol-verde);
+  background:var(--farol-verde-bg);
+}
+.feedback-track-item.status-aguardando_teste{
+  box-shadow:0 0 0 2px rgba(196,132,0,.08);
+}
+.feedback-validation-box{
+  margin-top:10px;
+  padding:10px;
+  border:1px solid rgba(196,132,0,.28);
+  border-radius:9px;
+  background:var(--farol-amarelo-bg);
+}
+.feedback-validation-box>strong{display:block;font-size:9.5px;color:#7a5100;margin-bottom:5px}
+.feedback-validation-box>p{font-size:9px;color:#6b4d12;margin:0 0 8px;line-height:1.45}
+.feedback-validation-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.feedback-validation-fail{display:flex;flex-direction:column;gap:7px;margin-top:9px}
+.feedback-validation-fail>label{font-size:9px;font-weight:700;color:var(--ink-2)}
+.feedback-validation-fail>textarea{
+  width:100%;resize:vertical;border:1px solid var(--line-2);border-radius:8px;
+  background:var(--bg-elev);padding:8px 9px;font:inherit;font-size:10px;outline:none;
+}
+.feedback-validation-fail>textarea:focus{border-color:var(--envox);box-shadow:0 0 0 3px var(--envox-soft)}
+
+.feedback-history{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.feedback-history-title{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-4)}
+.feedback-history-item{padding:7px 8px;border-radius:7px;background:var(--bg-inset);border-left:2px solid var(--line-2)}
+.feedback-history-item.admin_enviou_teste{border-left-color:var(--farol-amarelo)}
+.feedback-history-item.usuario_aprovou{border-left-color:var(--farol-verde)}
+.feedback-history-item.usuario_reprovou{border-left-color:var(--farol-vermelho)}
+.feedback-history-item>div{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.feedback-history-item strong{font-size:8.5px;color:var(--ink-2)}
+.feedback-history-item span{font-size:7.5px;color:var(--ink-4);white-space:nowrap}
+.feedback-history-item p{margin:5px 0 0!important;font-size:8.8px!important;line-height:1.42!important;color:var(--ink-3)!important}
+.feedback-history-item a{display:inline-block;margin-top:5px;font-size:8.5px;font-weight:700;color:var(--envox);text-decoration:none}
+
+.feedback-admin-card.status-aguardando_teste{border-left:3px solid var(--farol-amarelo)}
+.feedback-admin-card.status-concluido{border-left:3px solid var(--farol-verde);opacity:.9}
+.feedback-admin-note{margin-top:11px;padding-top:10px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.feedback-admin-note label{font-size:8.5px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
+.feedback-admin-note textarea{width:100%;resize:vertical;border:1px solid var(--line-2);border-radius:8px;background:var(--bg);padding:8px 9px;font:inherit;font-size:10px;outline:none}
+.feedback-admin-note textarea:focus{border-color:var(--envox);box-shadow:0 0 0 3px var(--envox-soft)}
+.feedback-admin-note .btn{align-self:flex-start}
+.feedback-admin-awaiting{margin-top:9px;padding:8px 9px;border-radius:7px;background:var(--farol-amarelo-bg);font-size:9px;line-height:1.4;color:#7a5100}
+.feedback-history-admin{margin-top:12px}
+
+@media(max-width:700px){
+  .feedback-history-item>div{flex-direction:column;gap:2px}
+  .feedback-history-item span{white-space:normal}
+  .feedback-validation-actions .btn{width:100%}
+}

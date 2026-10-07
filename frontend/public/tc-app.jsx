@@ -879,7 +879,7 @@ function AppShell() {
     "foco-ajustes": "Operação / Ajustes de Foco",
     "demandas-avulsas": "Operação / Demandas avulsas",
     arquivos: "Operação / Arquivos",
-    "feedback-sistema": "Admin / Erros e ideias",
+    "feedback-sistema": "Admin / Erros e Sugestões",
     f4: "Desenvolvimento / PDI, 360, 180, 1:1 e Clima",
   };
 
