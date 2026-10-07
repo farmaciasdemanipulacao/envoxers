@@ -614,6 +614,11 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
           {sectionTitle("admin", "Admin")}
           <nav className="nav">
             {permissao === "admin" && item(
+              "foco-relatorio",
+              "Focos",
+              <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5v4l2.5 1.5"/><path d="M11.5 2.5l1.2 1.2"/></svg>
+            )}
+            {permissao === "admin" && item(
               "relatorio",
               "Custos",
               <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13V3M2 13h12" /><path d="M5 10V7M8 10V5M11 10V8" /></svg>,

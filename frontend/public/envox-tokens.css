@@ -6151,3 +6151,93 @@ body.kanban-fullscreen-active .main {
   .feedback-detail-modal{width:calc(100vw - 20px);max-height:calc(100vh - 20px)}
   .feedback-detail-control-row{grid-template-columns:1fr}
 }
+
+
+/* ===== 2026-10-07 · Admin Focos report ===== */
+.foco-report-page{max-width:none}
+.foco-report-filters{
+  display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap;margin:0 0 18px;padding:11px 12px;
+  border:1px solid var(--line);border-radius:10px;background:var(--bg-elev);
+}
+.foco-report-filters .field{margin:0;min-width:135px}
+.foco-report-filters .field select{min-width:165px}
+.foco-report-presets{display:flex;align-items:center;gap:4px;margin-right:5px;padding-bottom:1px}
+.foco-report-presets button{
+  border:1px solid var(--line);background:var(--bg);border-radius:7px;padding:7px 8px;font-size:8.5px;
+  color:var(--ink-3);font-weight:700;cursor:pointer;
+}
+.foco-report-presets button:hover{border-color:var(--envox);color:var(--envox)}
+.foco-report-filters select{
+  -webkit-appearance:none;appearance:none;padding-right:30px!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5.5 7.5L10 12L14.5 7.5' stroke='%23515C6C' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important;background-position:right 9px center!important;background-size:14px 14px!important;
+}
+
+.foco-report-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-bottom:16px}
+.foco-report-kpi{border:1px solid var(--line);border-radius:10px;background:var(--bg-elev);padding:12px 13px;min-width:0}
+.foco-report-kpi>span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-4);font-weight:800}
+.foco-report-kpi>strong{display:block;font-family:var(--font-serif);font-size:25px;font-weight:400;line-height:1.05;margin:7px 0 4px;color:var(--ink)}
+.foco-report-kpi>small{display:block;font-size:8px;color:var(--ink-4);line-height:1.35}
+
+.foco-report-panels{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.8fr);gap:10px;margin-bottom:10px}
+.foco-report-panel{border:1px solid var(--line);border-radius:11px;background:var(--bg-elev);padding:13px;margin-bottom:10px;min-width:0}
+.foco-report-panel-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:12px}
+.foco-report-panel-head h2{font-size:11px;margin:0 0 3px}
+.foco-report-panel-head p{font-size:8.5px;color:var(--ink-4);margin:0}
+
+.foco-day-chart{display:flex;gap:5px;align-items:flex-end;overflow-x:auto;min-height:180px;padding:8px 2px 2px}
+.foco-day-col{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:38px;height:160px}
+.foco-day-value{height:18px;font-size:7.5px;color:var(--ink-4);white-space:nowrap}
+.foco-day-track{height:116px;width:18px;background:var(--bg-inset);border-radius:5px;display:flex;align-items:flex-end;overflow:hidden}
+.foco-day-bar{width:100%;background:var(--envox);border-radius:5px 5px 0 0;min-height:4px}
+.foco-day-label{font-size:7.5px;color:var(--ink-4);white-space:nowrap}
+
+.foco-origin-list{display:flex;flex-direction:column;gap:14px}
+.foco-origin-row{display:flex;flex-direction:column;gap:5px}
+.foco-origin-top{display:flex;justify-content:space-between;gap:10px;font-size:9px}
+.foco-origin-top strong{color:var(--ink-2)}
+.foco-origin-top span{color:var(--ink-4);font-family:var(--font-mono)}
+.foco-origin-track{height:7px;border-radius:99px;background:var(--bg-inset);overflow:hidden}
+.foco-origin-track span{display:block;height:100%;background:var(--envox);border-radius:99px}
+.foco-origin-row.origin-comercial .foco-origin-track span{background:var(--farol-amarelo)}
+.foco-origin-row.origin-avulsa .foco-origin-track span{background:var(--farol-verde)}
+.foco-origin-row small{font-size:7.5px;color:var(--ink-4)}
+
+.foco-context-list{display:flex;flex-direction:column;gap:8px}
+.foco-context-row{display:grid;grid-template-columns:24px minmax(0,1fr) 85px;gap:9px;align-items:center}
+.foco-context-rank{width:22px;height:22px;border-radius:7px;background:var(--bg-inset);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:8px;color:var(--ink-4)}
+.foco-context-main>div:first-child{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:5px}
+.foco-context-main strong{font-size:9px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.foco-context-main span{font-size:7.5px;color:var(--ink-4);white-space:nowrap}
+.foco-context-track{height:5px;border-radius:99px;background:var(--bg-inset);overflow:hidden}
+.foco-context-track span{display:block;height:100%;border-radius:99px;background:var(--envox)}
+.foco-context-value{text-align:right}
+.foco-context-value strong{display:block;font-size:9px}
+.foco-context-value span{font-size:7.5px;color:var(--ink-4)}
+
+.foco-report-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:18px 0 10px}
+.foco-report-tabs button{border:0;border-bottom:2px solid transparent;background:transparent;padding:8px 10px;font-size:9px;font-weight:700;color:var(--ink-4);cursor:pointer}
+.foco-report-tabs button.active{color:var(--envox);border-bottom-color:var(--envox)}
+
+.foco-person{display:flex;align-items:center;gap:8px;min-width:150px}
+.foco-person .avatar{width:28px;height:28px;flex:0 0 28px}
+.foco-person strong{display:block;font-size:9.5px}
+.foco-person span{display:block;font-size:7.5px;color:var(--ink-4);margin-top:2px}
+.foco-origin-chip,.foco-adjusted-chip{display:inline-flex;align-items:center;border-radius:99px;padding:3px 6px;font-size:7px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;background:var(--bg-inset);color:var(--ink-3)}
+.foco-origin-chip.operacao{color:var(--envox);background:var(--envox-soft)}
+.foco-origin-chip.comercial{color:#8b5a00;background:var(--farol-amarelo-bg)}
+.foco-origin-chip.avulsa{color:var(--farol-verde);background:var(--farol-verde-bg)}
+.foco-adjusted-chip{color:#7b4ab4;background:#f1e9fb}
+.foco-team-table table,.foco-register-table table{min-width:900px}
+.foco-register-table td:nth-child(4),.foco-register-table td:nth-child(5){max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+@media(max-width:1100px){
+  .foco-report-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .foco-report-panels{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+  .foco-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .foco-report-filters{align-items:stretch}
+  .foco-report-filters .field,.foco-report-filters .field select{width:100%;min-width:0}
+  .foco-report-presets{width:100%;overflow-x:auto}
+}

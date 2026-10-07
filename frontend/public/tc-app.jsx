@@ -316,7 +316,7 @@ function moduloDaView(view) {
   if (["solicitacoes","farol","alertas"].includes(view)) return "farol";
   if (["icp","churn"].includes(view)) return "icp";
   if (view === "f4") return "desenvolvimento";
-  if (["config-alertas","relatorio","faturamento","feedback-sistema"].includes(view)) return "admin";
+  if (["config-alertas","relatorio","faturamento","feedback-sistema","foco-relatorio"].includes(view)) return "admin";
   if (view === "configuracoes") return "configuracoes";
   return null;
 }
@@ -425,7 +425,7 @@ function AppShell() {
       setView(primeiraViewPermitida(modulosAcesso, permissao));
       return;
     }
-    if ((view === "faturamento" || view === "relatorio" || view === "feedback-sistema") && permissao !== "admin") {
+    if ((view === "faturamento" || view === "relatorio" || view === "feedback-sistema" || view === "foco-relatorio") && permissao !== "admin") {
       setView(primeiraViewPermitida(modulosAcesso, permissao));
     }
   }, [view, permissao, perfilComercial, modulosAcesso]);
@@ -880,6 +880,7 @@ function AppShell() {
     "demandas-avulsas": "Operação / Demandas avulsas",
     arquivos: "Operação / Arquivos",
     "feedback-sistema": "Admin / Erros e Sugestões",
+    "foco-relatorio": "Admin / Focos",
     f4: "Desenvolvimento / PDI, 360, 180, 1:1 e Clima",
   };
 
@@ -1002,6 +1003,7 @@ function AppShell() {
         {view === "solicitacoes" && <SolicitacoesScreen onAbrirTarefa={abrirTarefa} />}
         {view === "calendario" && <CalendarioScreen />}
         {view === "relatorio" && permissao === "admin" && <RelatorioScreen />}
+        {view === "foco-relatorio" && permissao === "admin" && <FocoRelatorioScreen />}
         {view === "farol" && <FarolScreen permissao={permissao} />}
         {view === "alertas" && <AlertasScreen permissao={permissao} onAbrirCliente={abrirCliente} />}
         {view === "entregaveis" && <EntregaveisScreen onAbrirCliente={abrirCliente} />}
