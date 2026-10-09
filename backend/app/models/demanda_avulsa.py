@@ -27,6 +27,7 @@ class DemandaAvulsa(Base, TimestampMixin):
     comentarios: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     checklist: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     historico: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    anexos: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     qtd_alteracoes_prazo: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tenant_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=1)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

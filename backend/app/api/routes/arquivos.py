@@ -14,6 +14,7 @@ from app.models.envoxer import Envoxer
 from app.models.cliente import Cliente
 from app.models.servico import Servico
 from app.models.tarefa import Tarefa
+from app.models.demanda_avulsa import DemandaAvulsa
 
 router = APIRouter(prefix="/arquivos", tags=["arquivos"])
 
@@ -60,36 +61,58 @@ async def listar_arquivos(
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
     q: Optional[str] = Query(None),
 ):
-    stmt = (
+    tarefa_stmt = (
         select(Tarefa, Cliente.nome, Servico.nome)
         .join(Cliente, Cliente.id == Tarefa.cliente_id)
         .outerjoin(Servico, Servico.id == Tarefa.servico_id)
         .where(Tarefa.deleted_at.is_(None))
         .order_by(Cliente.nome, Tarefa.titulo, Tarefa.id)
     )
-    rows = (await db.execute(stmt)).all()
+    tarefa_rows = (await db.execute(tarefa_stmt)).all()
+
+    avulsa_rows = list(
+        (
+            await db.execute(
+                select(DemandaAvulsa)
+                .where(DemandaAvulsa.deleted_at.is_(None))
+                .order_by(DemandaAvulsa.contexto, DemandaAvulsa.titulo, DemandaAvulsa.id)
+            )
+        ).scalars().all()
+    )
+
     uploader_ids = {
         int(a.get("enviado_por_envoxer_id"))
-        for tarefa, _, _ in rows
+        for tarefa, _, _ in tarefa_rows
         for a in (tarefa.anexos or [])
         if a.get("enviado_por_envoxer_id")
+    } | {
+        int(a.get("enviado_por_envoxer_id"))
+        for demanda in avulsa_rows
+        for a in (demanda.anexos or [])
+        if a.get("enviado_por_envoxer_id")
     }
+
     nomes = {}
     if uploader_ids:
         nomes = {
             e.id: e.nome
-            for e in (await db.execute(select(Envoxer).where(Envoxer.id.in_(uploader_ids)))).scalars().all()
+            for e in (
+                await db.execute(select(Envoxer).where(Envoxer.id.in_(uploader_ids)))
+            ).scalars().all()
         }
 
     termo = (q or "").strip().lower()
     out = []
-    for tarefa, cliente_nome, servico_nome in rows:
+
+    for tarefa, cliente_nome, servico_nome in tarefa_rows:
         for anexo in tarefa.anexos or []:
             registro = {
                 "contexto_tipo": "cliente",
                 "contexto_nome": cliente_nome,
                 "cliente_id": tarefa.cliente_id,
+                "card_tipo": "tarefa",
                 "card_id": tarefa.id,
+                "card_chave": f"tarefa:{tarefa.id}",
                 "card_titulo": tarefa.titulo,
                 "servico_nome": servico_nome,
                 "nome": anexo.get("nome"),
@@ -102,8 +125,48 @@ async def listar_arquivos(
                 "pode_excluir": envoxer.permissao in ("admin", "gestor"),
             }
             if termo:
-                hay = " ".join(str(registro.get(k) or "") for k in ("contexto_nome", "card_titulo", "servico_nome", "nome")).lower()
+                hay = " ".join(
+                    str(registro.get(k) or "")
+                    for k in ("contexto_nome", "card_titulo", "servico_nome", "nome")
+                ).lower()
                 if termo not in hay:
                     continue
             out.append(registro)
+
+    for demanda in avulsa_rows:
+        for anexo in demanda.anexos or []:
+            registro = {
+                "contexto_tipo": "demanda_avulsa",
+                "contexto_nome": demanda.contexto,
+                "cliente_id": None,
+                "card_tipo": "demanda_avulsa",
+                "card_id": demanda.id,
+                "card_chave": f"demanda_avulsa:{demanda.id}",
+                "card_titulo": demanda.titulo,
+                "servico_nome": "Demanda avulsa",
+                "nome": anexo.get("nome"),
+                "url": anexo.get("url"),
+                "mime_type": anexo.get("mime_type"),
+                "tamanho_kb": anexo.get("tamanho_kb"),
+                "enviado_por_envoxer_id": anexo.get("enviado_por_envoxer_id"),
+                "enviado_por_nome": nomes.get(anexo.get("enviado_por_envoxer_id")),
+                "criado_em": anexo.get("criado_em"),
+                "pode_excluir": envoxer.permissao in ("admin", "gestor"),
+            }
+            if termo:
+                hay = " ".join(
+                    str(registro.get(k) or "")
+                    for k in ("contexto_nome", "card_titulo", "servico_nome", "nome")
+                ).lower()
+                if termo not in hay:
+                    continue
+            out.append(registro)
+
+    out.sort(
+        key=lambda x: (
+            str(x.get("contexto_nome") or "").lower(),
+            str(x.get("card_titulo") or "").lower(),
+            str(x.get("nome") or "").lower(),
+        )
+    )
     return out

@@ -30,6 +30,12 @@ function avFmtDateTime(v) {
   }).replace(",", " às");
 }
 
+function avFmtFileSize(kb) {
+  if (kb == null) return "—";
+  if (kb < 1024) return kb + " KB";
+  return (kb / 1024).toFixed(kb > 10240 ? 0 : 1) + " MB";
+}
+
 function avFmtTimer(seg) {
   const s = Math.max(0, Math.floor(seg || 0));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
@@ -192,6 +198,13 @@ function DemandaAvulsaDetalheModal({
   const [busy, setBusy] = useStateAv(false);
   const [editando, setEditando] = useStateAv(false);
   const [form, setForm] = useStateAv({});
+  const [anexoUploading, setAnexoUploading] = useStateAv(false);
+  const [anexoProgresso, setAnexoProgresso] = useStateAv(0);
+  const [anexoNome, setAnexoNome] = useStateAv("");
+  const [anexoDragAtivo, setAnexoDragAtivo] = useStateAv(false);
+  const [anexoEditandoUrl, setAnexoEditandoUrl] = useStateAv("");
+  const [anexoEditNome, setAnexoEditNome] = useStateAv("");
+  const [anexoAcao, setAnexoAcao] = useStateAv("");
 
   const focoAqui =
     focoAtivo &&
@@ -339,6 +352,83 @@ function DemandaAvulsaDetalheModal({
       toast(err.message, "error");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const enviarAnexoArquivo = async (file) => {
+    if (!file || anexoUploading) return;
+    setAnexoUploading(true);
+    setAnexoProgresso(0);
+    setAnexoNome(file.name || "arquivo");
+    try {
+      const d = await EnvoxersAPI.uploadWithProgress(
+        "/demandas-avulsas/" + item.id + "/anexos",
+        file,
+        file.name,
+        (pct) => setAnexoProgresso(pct)
+      );
+      aplicarDetalhe(d);
+      if (onChanged) onChanged(d);
+      toast("Arquivo anexado!", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setAnexoUploading(false);
+      setAnexoProgresso(0);
+      setAnexoNome("");
+    }
+  };
+
+  const handleUploadAnexo = async (e) => {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) await enviarAnexoArquivo(file);
+    e.target.value = "";
+  };
+
+  const handleDropAnexo = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setAnexoDragAtivo(false);
+    const files = Array.from(e.dataTransfer.files || []);
+    for (const file of files) await enviarAnexoArquivo(file);
+  };
+
+  const renomearAnexo = async (anexo) => {
+    const nome = anexoEditNome.trim();
+    if (!nome || anexoAcao) return;
+    setAnexoAcao(anexo.url);
+    try {
+      const d = await EnvoxersAPI.api("/demandas-avulsas/" + item.id + "/anexos", {
+        method: "PATCH",
+        body: JSON.stringify({ url: anexo.url, nome }),
+      });
+      aplicarDetalhe(d);
+      setAnexoEditandoUrl("");
+      setAnexoEditNome("");
+      if (onChanged) onChanged(d);
+      toast("Arquivo renomeado", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setAnexoAcao("");
+    }
+  };
+
+  const excluirAnexo = async (anexo) => {
+    if (!manager || !confirm('Excluir "' + anexo.nome + '" definitivamente?')) return;
+    setAnexoAcao(anexo.url);
+    try {
+      const d = await EnvoxersAPI.api(
+        "/demandas-avulsas/" + item.id + "/anexos?url=" + encodeURIComponent(anexo.url),
+        { method: "DELETE" }
+      );
+      aplicarDetalhe(d);
+      if (onChanged) onChanged(d);
+      toast("Arquivo excluído", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setAnexoAcao("");
     }
   };
 
@@ -497,6 +587,90 @@ function DemandaAvulsaDetalheModal({
                         )}
                       </>
                     )}
+                  </section>
+
+                  <section className="avulsa-work-block">
+                    <div className="avulsa-work-head">
+                      <div>
+                        <h3>Arquivos</h3>
+                        <p>{(detalhe.anexos || []).length} arquivo(s) anexado(s) · até 250 MB por arquivo</p>
+                      </div>
+                    </div>
+
+                    {(detalhe.anexos || []).length > 0 && (
+                      <div className="attach-managed-list avulsa-attach-list">
+                        {(detalhe.anexos || []).map((a) => {
+                          const editandoAnexo = anexoEditandoUrl === a.url;
+                          return (
+                            <div className="attach-managed-row" key={a.url}>
+                              <div className="avulsa-attach-icon">↗</div>
+                              <div className="avulsa-attach-main">
+                                {editandoAnexo ? (
+                                  <input
+                                    className="attach-rename-input"
+                                    value={anexoEditNome}
+                                    onChange={(e) => setAnexoEditNome(e.target.value)}
+                                    onKeyDown={(e) => e.key === "Enter" && renomearAnexo(a)}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <a className="attach-managed-name" href={a.url} target="_blank" rel="noreferrer">{a.nome}</a>
+                                )}
+                                <div className="avulsa-attach-meta">
+                                  <span>{avFmtFileSize(a.tamanho_kb)}</span>
+                                  <span>{avFmtDateTime(a.criado_em)}</span>
+                                  {a.enviado_por_nome && <span>{a.enviado_por_nome}</span>}
+                                </div>
+                              </div>
+                              <div className="attach-managed-actions">
+                                {editandoAnexo ? (
+                                  <>
+                                    <button className="attach-action-btn" disabled={!anexoEditNome.trim() || anexoAcao === a.url} onClick={() => renomearAnexo(a)}>Salvar</button>
+                                    <button className="attach-action-btn" onClick={() => { setAnexoEditandoUrl(""); setAnexoEditNome(""); }}>Cancelar</button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button className="attach-action-btn" onClick={() => { setAnexoEditandoUrl(a.url); setAnexoEditNome(a.nome || ""); }}>Renomear</button>
+                                    {manager && <button className="attach-action-btn danger" disabled={anexoAcao === a.url} onClick={() => excluirAnexo(a)}>Excluir</button>}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div
+                      className={"attach-dropzone avulsa-attach-dropzone" + (anexoDragAtivo ? " drag-active" : "") + (anexoUploading ? " uploading" : "")}
+                      onDragEnter={(e) => { e.preventDefault(); setAnexoDragAtivo(true); }}
+                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setAnexoDragAtivo(true); }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        if (!e.currentTarget.contains(e.relatedTarget)) setAnexoDragAtivo(false);
+                      }}
+                      onDrop={handleDropAnexo}
+                    >
+                      {anexoUploading ? (
+                        <>
+                          <div className="attach-dropzone-title">Enviando {anexoNome}</div>
+                          <div className="attach-progress-track">
+                            <div className="attach-progress-bar" style={{ width: String(anexoProgresso) + "%" }}></div>
+                          </div>
+                          <div className="attach-progress-label">{anexoProgresso}%</div>
+                        </>
+                      ) : (
+                        <>
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4h16v-4"/></svg>
+                          <div className="attach-dropzone-title">Arraste arquivos para cá</div>
+                          <div className="attach-dropzone-sub">ou clique para escolher · múltiplos arquivos · até 250 MB cada</div>
+                          <label className="btn btn-sm attach-dropzone-button">
+                            Escolher arquivos
+                            <input type="file" multiple style={{ display: "none" }} onChange={handleUploadAnexo} disabled={anexoUploading} />
+                          </label>
+                        </>
+                      )}
+                    </div>
                   </section>
 
                   <section className="avulsa-work-block">
@@ -709,6 +883,7 @@ function DemandasAvulsasScreen({ permissao, envoxerId, focoAtivo, focoElapsed, o
                       <div className="avulsa-card-footer">
                         <span>{(item.checklist || []).filter((x) => x.concluido).length}/{(item.checklist || []).length} checklist</span>
                         <span>{(item.comentarios || []).length} comentários</span>
+                        {(item.anexos || []).length > 0 && <span>📎 {(item.anexos || []).length}</span>}
                         {focoAqui && <strong className="avulsa-card-focus-live">● {avFmtTimer(focoElapsed)}</strong>}
                       </div>
                     </article>

@@ -67,7 +67,8 @@ function ArquivosScreen({ permissao, onAbrirTarefa }) {
     const nome = window.prompt("Novo nome do arquivo", a.nome || "");
     if (!nome || nome.trim() === a.nome) return;
     try {
-      await EnvoxersAPI.api("/tarefas/" + a.card_id + "/anexos", {
+      const base = a.card_tipo === "demanda_avulsa" ? "/demandas-avulsas/" : "/tarefas/";
+      await EnvoxersAPI.api(base + a.card_id + "/anexos", {
         method: "PATCH",
         body: JSON.stringify({ url: a.url, nome: nome.trim() }),
       });
@@ -82,7 +83,8 @@ function ArquivosScreen({ permissao, onAbrirTarefa }) {
     if (!podeExcluir) return;
     if (!confirm('Excluir "' + a.nome + '" definitivamente?')) return;
     try {
-      await EnvoxersAPI.api("/tarefas/" + a.card_id + "/anexos?url=" + encodeURIComponent(a.url), { method: "DELETE" });
+      const base = a.card_tipo === "demanda_avulsa" ? "/demandas-avulsas/" : "/tarefas/";
+      await EnvoxersAPI.api(base + a.card_id + "/anexos?url=" + encodeURIComponent(a.url), { method: "DELETE" });
       toast("Arquivo excluído", "success");
       carregar();
     } catch (err) {
@@ -103,10 +105,18 @@ function ArquivosScreen({ permissao, onAbrirTarefa }) {
     const key = a.contexto_nome || "Sem contexto";
     if (!contextos[key]) contextos[key] = { arquivos: 0, cards: {} };
     contextos[key].arquivos += 1;
-    if (!contextos[key].cards[a.card_id]) {
-      contextos[key].cards[a.card_id] = { id: a.card_id, titulo: a.card_titulo, servico: a.servico_nome, arquivos: [] };
+    const cardKey = a.card_chave || ((a.card_tipo || "tarefa") + ":" + a.card_id);
+    if (!contextos[key].cards[cardKey]) {
+      contextos[key].cards[cardKey] = {
+        key: cardKey,
+        id: a.card_id,
+        tipo: a.card_tipo || "tarefa",
+        titulo: a.card_titulo,
+        servico: a.servico_nome,
+        arquivos: [],
+      };
     }
-    contextos[key].cards[a.card_id].arquivos.push(a);
+    contextos[key].cards[cardKey].arquivos.push(a);
   });
 
   const cardAtual = contexto && cardId && contextos[contexto] ? contextos[contexto].cards[cardId] : null;
@@ -187,7 +197,7 @@ function ArquivosScreen({ permissao, onAbrirTarefa }) {
           <div className="files-explorer-caption">{Object.keys(contextos[contexto].cards).length} pasta(s) dentro de {contexto}</div>
           <div className="windows-folder-grid">
             {Object.values(contextos[contexto].cards).sort((a,b) => a.titulo.localeCompare(b.titulo)).map((card) => (
-              <button className="windows-folder-tile" key={card.id} onClick={() => setCardId(card.id)}>
+              <button className="windows-folder-tile" key={card.key} onClick={() => setCardId(card.key)}>
                 <FolderIcon />
                 <strong>{card.titulo}</strong>
                 <span>{card.servico || "Sem serviço"} · {card.arquivos.length} arquivo(s)</span>
@@ -199,7 +209,11 @@ function ArquivosScreen({ permissao, onAbrirTarefa }) {
         <>
           <div className="files-card-actions-bar">
             <div className="files-explorer-caption">{cardAtual.arquivos.length} arquivo(s)</div>
-            <button className="btn btn-sm" onClick={() => onAbrirTarefa && onAbrirTarefa(Number(cardAtual.id))}>Abrir card</button>
+            {cardAtual.tipo === "tarefa" ? (
+              <button className="btn btn-sm" onClick={() => onAbrirTarefa && onAbrirTarefa(Number(cardAtual.id))}>Abrir card</button>
+            ) : (
+              <button className="btn btn-sm" onClick={() => window.envoxersNavigate && window.envoxersNavigate("demandas-avulsas")}>Ir para Demandas Avulsas</button>
+            )}
           </div>
           <div className="windows-files-grid">{cardAtual.arquivos.map((a) => <FileTile a={a} key={a.url} />)}</div>
         </>

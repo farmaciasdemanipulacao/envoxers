@@ -2,17 +2,19 @@ from datetime import date, datetime, timezone
 from typing import Annotated, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_envoxer, get_current_gestor_ou_admin
 from app.db.session import get_db
+from app.core.uploads import excluir_upload_url, salvar_upload
 from app.models.demanda_avulsa import DemandaAvulsa
 from app.models.envoxer import Envoxer
 from app.api.routes.registro_foco import finalizar_foco_ativo_da_demanda_avulsa
 from app.schemas.demanda_avulsa import (
     DemandaAvulsaChecklistCreate,
+    DemandaAvulsaAnexoRename,
     DemandaAvulsaChecklistUpdate,
     DemandaAvulsaComentarioCreate,
     DemandaAvulsaCreate,
@@ -120,7 +122,16 @@ def _evento_historico(
 
 
 async def _serialize(db: AsyncSession, item: DemandaAvulsa) -> DemandaAvulsaResponse:
-    ids = [x for x in (item.responsavel_envoxer_id, item.criado_por_envoxer_id) if x]
+    uploader_ids = {
+        int(a.get("enviado_por_envoxer_id"))
+        for a in (item.anexos or [])
+        if a.get("enviado_por_envoxer_id")
+    }
+    ids = {
+        int(x)
+        for x in (item.responsavel_envoxer_id, item.criado_por_envoxer_id)
+        if x
+    } | uploader_ids
     pessoas = {}
     if ids:
         pessoas = {
@@ -131,6 +142,17 @@ async def _serialize(db: AsyncSession, item: DemandaAvulsa) -> DemandaAvulsaResp
         }
     resp = pessoas.get(item.responsavel_envoxer_id)
     criador = pessoas.get(item.criado_por_envoxer_id)
+    anexos = [
+        {
+            **a,
+            "enviado_por_nome": (
+                pessoas.get(a.get("enviado_por_envoxer_id")).nome
+                if pessoas.get(a.get("enviado_por_envoxer_id"))
+                else None
+            ),
+        }
+        for a in (item.anexos or [])
+    ]
     return DemandaAvulsaResponse(
         id=item.id,
         contexto=item.contexto,
@@ -148,6 +170,7 @@ async def _serialize(db: AsyncSession, item: DemandaAvulsa) -> DemandaAvulsaResp
         comentarios=_ordenar_por_data_desc(item.comentarios or []),
         checklist=list(item.checklist or []),
         historico=_ordenar_por_data_desc(item.historico or []),
+        anexos=anexos,
         qtd_alteracoes_prazo=item.qtd_alteracoes_prazo or 0,
         alerta_alteracoes=(item.qtd_alteracoes_prazo or 0) > 2,
         created_at=item.created_at,
@@ -216,6 +239,7 @@ async def criar(
         status="nova",
         comentarios=[],
         checklist=[],
+        anexos=[],
         historico=[
             _evento_historico(
                 envoxer,
@@ -450,6 +474,109 @@ async def excluir_checklist(
     )
     item.historico = historico
     await db.flush()
+    await db.refresh(item)
+    return await _serialize(db, item)
+
+
+@router.post("/{demanda_id}/anexos", response_model=DemandaAvulsaResponse)
+async def anexar_arquivo(
+    demanda_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    arquivo: UploadFile = File(...),
+):
+    item = await _obter_ou_404(db, demanda_id)
+    salvo = await salvar_upload(arquivo)
+    anexos = list(item.anexos or [])
+    anexo = {
+        **salvo,
+        "enviado_por_envoxer_id": envoxer.id,
+        "criado_em": _agora_iso(),
+    }
+    anexos.append(anexo)
+    item.anexos = anexos
+
+    historico = list(item.historico or [])
+    historico.append(
+        _evento_historico(
+            envoxer,
+            "anexo",
+            f'Arquivo anexado: "{salvo.get("nome") or "arquivo"}"',
+        )
+    )
+    item.historico = historico
+    await db.flush()
+    await db.refresh(item)
+    return await _serialize(db, item)
+
+
+@router.patch("/{demanda_id}/anexos", response_model=DemandaAvulsaResponse)
+async def renomear_anexo(
+    demanda_id: int,
+    payload: DemandaAvulsaAnexoRename,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    item = await _obter_ou_404(db, demanda_id)
+    novo_nome = payload.nome.strip()
+    anexos = [dict(a) for a in (item.anexos or [])]
+    alvo = next((a for a in anexos if a.get("url") == payload.url), None)
+    if alvo is None:
+        raise HTTPException(status_code=404, detail="Anexo não encontrado")
+
+    nome_anterior = alvo.get("nome") or "arquivo"
+    if novo_nome == nome_anterior:
+        return await _serialize(db, item)
+
+    alvo["nome"] = novo_nome
+    item.anexos = anexos
+
+    historico = list(item.historico or [])
+    historico.append(
+        _evento_historico(
+            envoxer,
+            "anexo",
+            "Arquivo renomeado",
+            [{
+                "campo": "anexo",
+                "label": "Arquivo",
+                "de": nome_anterior,
+                "para": novo_nome,
+            }],
+        )
+    )
+    item.historico = historico
+    await db.flush()
+    await db.refresh(item)
+    return await _serialize(db, item)
+
+
+@router.delete("/{demanda_id}/anexos", response_model=DemandaAvulsaResponse)
+async def excluir_anexo(
+    demanda_id: int,
+    url: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    gestor: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
+):
+    item = await _obter_ou_404(db, demanda_id)
+    anexos = [dict(a) for a in (item.anexos or [])]
+    alvo = next((a for a in anexos if a.get("url") == url), None)
+    if alvo is None:
+        raise HTTPException(status_code=404, detail="Anexo não encontrado")
+
+    item.anexos = [a for a in anexos if a.get("url") != url]
+
+    historico = list(item.historico or [])
+    historico.append(
+        _evento_historico(
+            gestor,
+            "anexo",
+            f'Arquivo excluído: "{alvo.get("nome") or "arquivo"}"',
+        )
+    )
+    item.historico = historico
+    await db.flush()
+    excluir_upload_url(url)
     await db.refresh(item)
     return await _serialize(db, item)
 

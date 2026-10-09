@@ -6684,3 +6684,24 @@ body:has(.foco-bar.active) .feedback-floating-fab{
   .kb-card-id{font-size:7px}
   .modal-card-link span{display:none}
 }
+
+
+/* ===== 2026-10-09 · anexos em demandas avulsas ===== */
+.avulsa-attach-list{margin-bottom:10px}
+.avulsa-attach-list .attach-managed-row{
+  grid-template-columns:28px minmax(0,1fr) auto;
+  align-items:center;
+}
+.avulsa-attach-icon{
+  width:28px;height:28px;border-radius:7px;background:var(--bg-inset);display:flex;align-items:center;justify-content:center;
+  color:var(--ink-3);font-size:13px;
+}
+.avulsa-attach-main{min-width:0}
+.avulsa-attach-meta{
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:3px;font-size:7.5px;color:var(--ink-4);
+}
+.avulsa-attach-dropzone{margin-top:8px;min-height:112px}
+@media(max-width:700px){
+  .avulsa-attach-list .attach-managed-row{grid-template-columns:24px minmax(0,1fr)}
+  .avulsa-attach-list .attach-managed-actions{grid-column:2;justify-content:flex-start}
+}

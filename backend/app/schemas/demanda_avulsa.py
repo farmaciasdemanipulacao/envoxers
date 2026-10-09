@@ -42,6 +42,14 @@ class DemandaAvulsaChecklistUpdate(BaseModel):
     concluido: Optional[bool] = None
 
 
+
+
+class DemandaAvulsaAnexoRename(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    url: str = Field(min_length=1, max_length=1000)
+    nome: str = Field(min_length=1, max_length=300)
+
+
 class DemandaAvulsaResponse(BaseModel):
     id: int
     contexto: str
@@ -59,6 +67,7 @@ class DemandaAvulsaResponse(BaseModel):
     comentarios: list[dict] = Field(default_factory=list)
     checklist: list[dict] = Field(default_factory=list)
     historico: list[dict] = Field(default_factory=list)
+    anexos: list[dict] = Field(default_factory=list)
     qtd_alteracoes_prazo: int = 0
     alerta_alteracoes: bool = False
     created_at: datetime
