@@ -24,6 +24,24 @@ class DemandaAvulsaUpdate(BaseModel):
     prioridade: Optional[str] = None
     status: Optional[str] = None
 
+
+
+class DemandaAvulsaComentarioCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    texto: str = Field(min_length=1, max_length=5000)
+
+
+class DemandaAvulsaChecklistCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    titulo: str = Field(min_length=1, max_length=300)
+
+
+class DemandaAvulsaChecklistUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    titulo: Optional[str] = Field(default=None, min_length=1, max_length=300)
+    concluido: Optional[bool] = None
+
+
 class DemandaAvulsaResponse(BaseModel):
     id: int
     contexto: str
@@ -38,6 +56,11 @@ class DemandaAvulsaResponse(BaseModel):
     prioridade: str
     status: str
     concluida_em: Optional[datetime] = None
+    comentarios: list[dict] = Field(default_factory=list)
+    checklist: list[dict] = Field(default_factory=list)
+    historico: list[dict] = Field(default_factory=list)
+    qtd_alteracoes_prazo: int = 0
+    alerta_alteracoes: bool = False
     created_at: datetime
     updated_at: datetime
 
