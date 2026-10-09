@@ -37,7 +37,7 @@ function FocoBar({ focoAtivo, focoElapsed, onPausarFoco, onFinalizarFoco, onAbri
 
 window.FocoBar = FocoBar;
 
-const { useState: useStateFoco } = React;
+const { useState: useStateFoco, useEffect: useEffectFoco } = React;
 
 // Confirmação ao finalizar — mostra resumo (tarefa + tempo) e permite comentário opcional
 // antes de encerrar o registro de verdade.
@@ -45,11 +45,21 @@ function FocoFinalizarModal({ aberto, focoAtivo, focoElapsed, onCancelar, onConf
   const [comentario, setComentario] = useStateFoco("");
   const [enviando, setEnviando] = useStateFoco(false);
 
+  useEffectFoco(() => {
+    if (aberto) {
+      setComentario("");
+      setEnviando(false);
+    }
+  }, [aberto, focoAtivo?.id]);
+
   if (!aberto || !focoAtivo) return null;
 
   const confirmar = async (comComentario) => {
     setEnviando(true);
-    await onConfirmar(comComentario ? comentario.trim() || null : null);
+    const ok = await onConfirmar(comComentario ? comentario.trim() || null : null);
+    if (ok !== false) {
+      setComentario("");
+    }
     setEnviando(false);
   };
 

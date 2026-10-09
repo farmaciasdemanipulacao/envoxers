@@ -861,7 +861,7 @@ function AppShell() {
   };
 
   const finalizarFoco = async (comentario) => {
-    if (!focoAtivo) return;
+    if (!focoAtivo) return false;
     try {
       await EnvoxersAPI.api(`/foco/${focoAtivo.id}/finalizar`, {
         method: "POST",
@@ -869,8 +869,10 @@ function AppShell() {
       });
       setFocoAtivo(null);
       setConfirmandoFinalizar(false);
+      return true;
     } catch (err) {
       toast(err.message, "error");
+      return false;
     }
   };
 
