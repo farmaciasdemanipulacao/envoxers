@@ -1250,22 +1250,26 @@ function FeedbackSistemaDock({ permissao }) {
     </>
   ) : null;
 
+  const trigger = (
+    <button
+      type="button"
+      className="feedback-floating-fab"
+      data-feedback-ui="true"
+      onClick={abrir}
+      title={pendentesTeste > 0 ? "Você tem solicitação aguardando teste" : "Enviar erro ou sugestão"}
+      aria-label="Erros e Sugestões"
+    >
+      <svg width="19" height="19" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M3 3.5h12v8H8l-4 3v-3H3z"/>
+        <path d="M6 6.5h6M6 9h4"/>
+      </svg>
+      {pendentesTeste > 0 && <span className="feedback-floating-badge">{pendentesTeste > 9 ? "9+" : pendentesTeste}</span>}
+    </button>
+  );
+
   return (
     <>
-      <button
-        type="button"
-        className="topbar-feedback-btn"
-        data-feedback-ui="true"
-        onClick={abrir}
-        title={pendentesTeste > 0 ? "Você tem solicitação aguardando teste" : "Enviar erro ou sugestão"}
-        aria-label="Erros e Sugestões"
-      >
-        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M3 3.5h12v8H8l-4 3v-3H3z"/>
-          <path d="M6 6.5h6M6 9h4"/>
-        </svg>
-        {pendentesTeste > 0 && <span className="topbar-feedback-badge">{pendentesTeste > 9 ? "9+" : pendentesTeste}</span>}
-      </button>
+      {ReactDOM.createPortal(trigger, document.body)}
       {drawer && ReactDOM.createPortal(drawer, document.body)}
     </>
   );
