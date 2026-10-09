@@ -6499,3 +6499,15 @@ body.kanban-fullscreen-active .main {
     min-width:0;
   }
 }
+
+
+/* ===== 2026-10-09 · feedback flutuante evita barra de Foco ===== */
+body:has(.foco-bar.active) .feedback-floating-fab{
+  bottom:calc(82px + env(safe-area-inset-bottom));
+}
+
+@media(max-width:900px){
+  body:has(.foco-bar.active) .feedback-floating-fab{
+    bottom:calc(86px + env(safe-area-inset-bottom));
+  }
+}
