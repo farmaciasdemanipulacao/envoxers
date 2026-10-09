@@ -74,6 +74,7 @@ class AnexoRenameRequest(BaseModel):
 
 class TarefaResponse(TarefaBase):
     id: int
+    codigo: str
     ordem: int
     comentarios: list[ComentarioItem] = []
     anexos: list[AnexoItem] = []

@@ -67,6 +67,7 @@ def _to_response(
     atrasada = bool(tarefa.prazo and tarefa.prazo < hoje and tarefa.status != "finalizado")
     return TarefaResponse(
         id=tarefa.id,
+        codigo=f"ENV-{tarefa.id:06d}",
         cliente_id=tarefa.cliente_id,
         servico_id=tarefa.servico_id,
         item_escopo_id=tarefa.item_escopo_id,

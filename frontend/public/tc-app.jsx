@@ -351,6 +351,27 @@ const VIEWS_PERFIL_COMERCIAL = new Set([
   "comercial-oportunidades", "comercial-relatorios", "comercial-config", "arquivos", "foco-ajustes",
 ]);
 
+function tarefaIdCompartilhadaDaUrl() {
+  const valor = new URLSearchParams(window.location.search).get("card");
+  if (!valor) return null;
+  const match = String(valor).trim().match(/^(?:ENV-)?0*(\d+)$/i);
+  if (!match) return null;
+  const id = Number(match[1]);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+function atualizarUrlCard(id) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("card", "ENV-" + String(id).padStart(6, "0"));
+  window.history.replaceState(window.history.state, "", url.toString());
+}
+
+function limparUrlCard() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("card");
+  window.history.replaceState(window.history.state, "", url.toString());
+}
+
 function AppShell() {
   const nome = localStorage.getItem("envoxers_nome") || "";
   const permissao = localStorage.getItem("envoxers_permissao") || "envoxer";
@@ -544,6 +565,7 @@ function AppShell() {
   const [clientes, setClientes] = useStateApp([]);
   const [envoxersList, setEnvoxersList] = useStateApp([]);
   const [dataVersion, setDataVersion] = useStateApp(0); // incrementa a cada save — Kanban/Dashboard refazem fetch
+  const cardLinkProcessadoRef = useRefApp(false);
 
   // "Abrir ficha" do Farol/Alertas navega pra tela Clientes já com o form aberto
   // (não existe view-cliente-ficha separada — decisão já tomada no D-063).
@@ -735,12 +757,31 @@ function AppShell() {
 
   useEffectApp(() => { carregarListasBase(); }, []);
 
-  const abrirTarefa = (id) => setTarefaAberta({ id });
+  const abrirTarefa = (id) => {
+    const tarefaId = Number(id);
+    if (!tarefaId) return;
+    atualizarUrlCard(tarefaId);
+    setTarefaAberta({ id: tarefaId });
+  };
+  const fecharTarefa = () => {
+    limparUrlCard();
+    setTarefaAberta(null);
+  };
   const abrirNovaTarefa = (statusInicial) => {
+    limparUrlCard();
     setNovaStatusInicial(statusInicial || "nova");
     carregarListasBase(); // garante dropdown de Cliente/Responsável atualizado, não só após salvar
     setTarefaAberta({});
   };
+
+  useEffectApp(() => {
+    if (cardLinkProcessadoRef.current) return;
+    const tarefaId = tarefaIdCompartilhadaDaUrl();
+    cardLinkProcessadoRef.current = true;
+    if (!tarefaId) return;
+    if (!perfilComercial && temModulo("operacao")) setView("kanban");
+    setTarefaAberta({ id: tarefaId });
+  }, [modulosAcesso, perfilComercial]);
 
   const carregarFocoAtivo = async () => {
     try {
@@ -1096,8 +1137,8 @@ function AppShell() {
           onIniciarFoco={iniciarFoco}
           onPausarFoco={pausarRetomarFoco}
           onFinalizarFoco={() => setConfirmandoFinalizar(true)}
-          onClose={() => setTarefaAberta(null)}
-          onSaved={() => { setTarefaAberta(null); setDataVersion((v) => v + 1); carregarListasBase(); }}
+          onClose={fecharTarefa}
+          onSaved={() => { fecharTarefa(); setDataVersion((v) => v + 1); carregarListasBase(); }}
         />
       )}
     </div>

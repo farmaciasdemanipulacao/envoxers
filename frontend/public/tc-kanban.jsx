@@ -37,6 +37,37 @@ function fmtHMS(totalSegundos) {
   return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
+function codigoCardKb(tarefaOuId) {
+  if (tarefaOuId && typeof tarefaOuId === "object" && tarefaOuId.codigo) return tarefaOuId.codigo;
+  const id = typeof tarefaOuId === "object" ? tarefaOuId?.id : tarefaOuId;
+  return id ? "ENV-" + String(id).padStart(6, "0") : "ENV-—";
+}
+
+function linkCompartilhavelCardKb(tarefaOuId) {
+  const codigo = codigoCardKb(tarefaOuId);
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set("card", codigo);
+  return url.toString();
+}
+
+async function copiarLinkCardKb(tarefaOuId) {
+  const link = linkCompartilhavelCardKb(tarefaOuId);
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(link);
+    return link;
+  }
+  const area = document.createElement("textarea");
+  area.value = link;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  document.execCommand("copy");
+  area.remove();
+  return link;
+}
+
 function formatComentarioDataHora(valor) {
   if (!valor) return "";
   const data = new Date(valor);
@@ -149,7 +180,11 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
       }
       if (filtroStatus && t.status !== filtroStatus) return false;
       if (filtroAtrasadas && (t.status === "finalizado" || fmtPrazoKb(t.prazo).cls !== "atrasada")) return false;
-      if (busca && !t.titulo.toLowerCase().includes(busca.toLowerCase())) return false;
+      if (busca) {
+        const q = busca.trim().toLowerCase();
+        const haystack = [t.titulo, t.cliente_nome, codigoCardKb(t)].filter(Boolean).join(" ").toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
   }, [tarefas, busca, filtroCliente, filtroResponsavel, filtroResponsavelModo, filtroStatus, filtroAtrasadas, ocultarFinalizadas]);
@@ -201,7 +236,7 @@ function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersio
       <div className="kanban-toolbar">
         <div className="search">
           <svg className="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
-          <input type="text" placeholder="Buscar demanda…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <input type="text" placeholder="Buscar demanda, cliente ou ID…" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
         <div className="filter-group">
           <select className="chip" value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)}>
@@ -315,6 +350,7 @@ function KanbanColuna({ col, tarefas, focoAtivo, focoElapsed, onDropTarefa, onAb
 }
 
 function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
+  const toast = EnvoxersShared.useToast();
   const farol = t.cliente_farol || "verde";
   const p = fmtPrazoKb(t.prazo);
   return (
@@ -327,7 +363,29 @@ function TaskCard({ tarefa: t, onClick, focoAtivo, focoElapsed }) {
     >
       <div className="kb-card-client">
         <span className="dot"></span>
-        <span>{t.cliente_nome}</span>
+        <span className="kb-card-client-name">{t.cliente_nome}</span>
+        <button
+          type="button"
+          className="kb-card-share"
+          title={"Copiar link do card " + codigoCardKb(t)}
+          draggable="false"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+              await copiarLinkCardKb(t);
+              toast("Link do " + codigoCardKb(t) + " copiado", "success");
+            } catch (_) {
+              toast("Não foi possível copiar o link", "error");
+            }
+          }}
+        >
+          <span className="kb-card-id">{codigoCardKb(t)}</span>
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M6.5 9.5l3-3"/><path d="M5 11H3.5a2.5 2.5 0 010-5H6"/><path d="M10 5h2.5a2.5 2.5 0 010 5H10"/>
+          </svg>
+        </button>
       </div>
       <div className="kb-card-title">{t.titulo}</div>
       <div className="kb-card-meta">
@@ -1137,6 +1195,15 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
 
   // Botão fica clicável mesmo com Foco em outra tarefa — clique gera alerta explícito
   // em vez de só desabilitar silenciosamente (Gus pediu feedback visível na tentativa).
+  const handleCopiarLinkCard = async () => {
+    try {
+      await copiarLinkCardKb(tarefa || tarefaId);
+      toast("Link do " + codigoCardKb(tarefa || tarefaId) + " copiado", "success");
+    } catch (_) {
+      toast("Não foi possível copiar o link", "error");
+    }
+  };
+
   const handleIniciarFoco = () => {
     if (focoEmOutraTarefa) {
       toast(`Você já está com um timer aberto em "${focoAtivo.tarefa_titulo || "outra tarefa"}". Finalize-o antes de iniciar outro.`, "error");
@@ -1157,6 +1224,14 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                 <span style={{ color: "var(--ink-4)" }}>·</span>
                 <span>{servicosList.find((s) => String(s.id) === servicoId).nome}</span>
               </>
+            )}
+            {isEdit && (
+              <button type="button" className="modal-card-link" onClick={handleCopiarLinkCard} title="Copiar link único deste card">
+                <span>{codigoCardKb(tarefa || tarefaId)}</span>
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M6.5 9.5l3-3"/><path d="M5 11H3.5a2.5 2.5 0 010-5H6"/><path d="M10 5h2.5a2.5 2.5 0 010 5H10"/>
+                </svg>
+              </button>
             )}
             {isEdit && (
               <span className={`status-pill status-pill-${(STATUS_COLS.find((c) => c.key === status) || {}).phase || "entrada"}`} style={{ marginLeft: "auto" }}>
