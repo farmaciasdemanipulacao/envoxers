@@ -33,6 +33,26 @@ _JOIN_STMT = (
 )
 
 
+def _comentarios_ordenados(comentarios: list) -> list:
+    """Comentários do card sempre do mais recente para o mais antigo."""
+    def chave(item: dict) -> datetime:
+        valor = item.get("criado_em")
+        if isinstance(valor, datetime):
+            dt = valor
+        elif isinstance(valor, str):
+            try:
+                dt = datetime.fromisoformat(valor.replace("Z", "+00:00"))
+            except ValueError:
+                dt = datetime.min.replace(tzinfo=timezone.utc)
+        else:
+            dt = datetime.min.replace(tzinfo=timezone.utc)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    return sorted(list(comentarios or []), key=chave, reverse=True)
+
+
 def _to_response(
     tarefa: Tarefa,
     cliente_nome: str,
@@ -57,7 +77,7 @@ def _to_response(
         prazo=tarefa.prazo,
         etiqueta=tarefa.etiqueta,
         etiqueta_cor=tarefa.etiqueta_cor,
-        comentarios=tarefa.comentarios or [],
+        comentarios=_comentarios_ordenados(tarefa.comentarios or []),
         anexos=tarefa.anexos or [],
         cliente_nome=cliente_nome,
         cliente_farol=cliente_farol,

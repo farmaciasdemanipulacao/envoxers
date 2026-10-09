@@ -37,6 +37,19 @@ function fmtHMS(totalSegundos) {
   return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
+function formatComentarioDataHora(valor) {
+  if (!valor) return "";
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return "";
+  return data.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).replace(",", " às");
+}
+
 function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAbrirNovaTarefa, onNavigate }) {
   // Card manual (fora do que nasce automático da cota contratada) só pode ser
   // criado por gestor/admin — mesma trava que já existe no backend (POST
@@ -1440,6 +1453,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                           <div className="comment-body">
                             <div className="comment-head">
                               <span className="comment-author">{c.envoxer_nome}</span>
+                              <span className="comment-time">{formatComentarioDataHora(c.criado_em)}</span>
                               {c.editado_em && <span className="comment-edited">editado</span>}
                               {podeAlterar && !editando && (
                                 <span className="comment-inline-actions">
