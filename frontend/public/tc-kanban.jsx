@@ -490,6 +490,9 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   const [etiquetaCor, setEtiquetaCor] = useStateKb("cinza");
   const [novoComentario, setNovoComentario] = useStateKb("");
   const [comentando, setComentando] = useStateKb(false);
+  const [comentarioArquivos, setComentarioArquivos] = useStateKb([]);
+  const [comentarioUploadPct, setComentarioUploadPct] = useStateKb(0);
+  const comentarioArquivosRef = useRefKb([]);
   const comentarioEnviandoRef = useRefKb(false);
   const [anexoUploading, setAnexoUploading] = useStateKb(false);
   const [anexoProgresso, setAnexoProgresso] = useStateKb(0);
@@ -532,6 +535,16 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   // Resumo básico do cliente — usado só na visão bloqueada (sem Foco ativo nesta tarefa).
   const [tarefasConcluidas, setTarefasConcluidas] = useStateKb([]);
   const [tarefasProximas, setTarefasProximas] = useStateKb([]);
+
+  useEffectKb(() => {
+    comentarioArquivosRef.current = comentarioArquivos;
+  }, [comentarioArquivos]);
+
+  useEffectKb(() => () => {
+    comentarioArquivosRef.current.forEach((item) => {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    });
+  }, []);
 
   useEffectKb(() => {
     (async () => {
@@ -745,30 +758,109 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     }
   };
 
+  const adicionarArquivosComentario = (files) => {
+    const entrada = Array.from(files || []).filter(Boolean);
+    if (!entrada.length) return;
+
+    const disponiveis = Math.max(0, 10 - comentarioArquivos.length);
+    if (disponiveis <= 0) {
+      toast("Máximo de 10 arquivos por comentário", "error");
+      return;
+    }
+
+    const validos = [];
+    for (const file of entrada.slice(0, disponiveis)) {
+      if (file.size > 250 * 1024 * 1024) {
+        toast('"' + (file.name || "Arquivo") + '" passa do limite de 250 MB', "error");
+        continue;
+      }
+      validos.push({
+        id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
+        file,
+        previewUrl: (file.type || "").startsWith("image/") ? URL.createObjectURL(file) : "",
+      });
+    }
+
+    if (entrada.length > disponiveis) {
+      toast("Máximo de 10 arquivos por comentário", "error");
+    }
+    if (validos.length) setComentarioArquivos((prev) => [...prev, ...validos]);
+  };
+
+  const removerArquivoComentario = (id) => {
+    setComentarioArquivos((prev) => {
+      const alvo = prev.find((x) => x.id === id);
+      if (alvo?.previewUrl) URL.revokeObjectURL(alvo.previewUrl);
+      return prev.filter((x) => x.id !== id);
+    });
+  };
+
+  const limparArquivosComentario = () => {
+    comentarioArquivosRef.current.forEach((item) => {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    });
+    comentarioArquivosRef.current = [];
+    setComentarioArquivos([]);
+    setComentarioUploadPct(0);
+  };
+
+  const handlePasteComentario = (e) => {
+    const files = Array.from(e.clipboardData?.files || []);
+    if (!files.length) return;
+    e.preventDefault();
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const normalizados = files.map((file, i) => {
+      if (!(file.type || "").startsWith("image/")) return file;
+      const ext = (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
+      return new File([file], "print-" + stamp + (i ? "-" + (i + 1) : "") + "." + ext, { type: file.type });
+    });
+    adicionarArquivosComentario(normalizados);
+    toast(files.length === 1 ? "Print anexado ao comentário" : files.length + " prints anexados", "success");
+  };
+
+  const handleSelecionarArquivoComentario = (e) => {
+    adicionarArquivosComentario(e.target.files);
+    e.target.value = "";
+  };
+
   const handleComentar = async () => {
     const textoEnvio = novoComentario.trim();
-    if (!textoEnvio || comentarioEnviandoRef.current) return;
+    const files = comentarioArquivos.map((x) => x.file);
+    if ((!textoEnvio && files.length === 0) || comentarioEnviandoRef.current) return;
     comentarioEnviandoRef.current = true;
     setComentando(true);
+    setComentarioUploadPct(0);
 
     const idsMencionados = mencoesSelecionadas
       .filter((m) => textoEnvio.includes("@" + m.nome))
       .map((m) => m.id);
 
     try {
-      const t = await EnvoxersAPI.api("/tarefas/" + tarefaId + "/comentarios", {
-        method: "POST",
-        body: JSON.stringify({ texto: textoEnvio, mencoes: idsMencionados }),
-      });
+      let t;
+      if (files.length > 0) {
+        t = await EnvoxersAPI.uploadMultipleWithProgress(
+          "/tarefas/" + tarefaId + "/comentarios-com-anexos",
+          files,
+          { texto: textoEnvio, mencoes: JSON.stringify(idsMencionados) },
+          (pct) => setComentarioUploadPct(pct)
+        );
+      } else {
+        t = await EnvoxersAPI.api("/tarefas/" + tarefaId + "/comentarios", {
+          method: "POST",
+          body: JSON.stringify({ texto: textoEnvio, mencoes: idsMencionados }),
+        });
+      }
       setTarefa(t);
       setNovoComentario("");
       setMencoesSelecionadas([]);
       setMencaoAberta(false);
+      limparArquivosComentario();
     } catch (err) {
       toast(err.message, "error");
     } finally {
       comentarioEnviandoRef.current = false;
       setComentando(false);
+      setComentarioUploadPct(0);
     }
   };
 
@@ -1541,12 +1633,32 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                               <div className="comment-edit-box">
                                 <textarea value={comentarioEditTexto} onChange={(e) => setComentarioEditTexto(e.target.value)} autoFocus />
                                 <div>
-                                  <button className="btn btn-envox btn-xs" disabled={!comentarioEditTexto.trim() || comentarioAcao === String(c.criado_em)} onClick={() => handleSalvarComentarioEditado(c)}>Salvar</button>
+                                  <button className="btn btn-envox btn-xs" disabled={(!comentarioEditTexto.trim() && !(c.anexos || []).length) || comentarioAcao === String(c.criado_em)} onClick={() => handleSalvarComentarioEditado(c)}>Salvar</button>
                                   <button className="btn btn-xs" onClick={() => { setComentarioEditandoCriadoEm(""); setComentarioEditTexto(""); }}>Cancelar</button>
                                 </div>
                               </div>
                             ) : (
-                              <div className="comment-text">{destacarMencoes(c.texto)}</div>
+                              <>
+                                {c.texto && <div className="comment-text">{destacarMencoes(c.texto)}</div>}
+                                {(c.anexos || []).length > 0 && (
+                                  <div className="comment-attachments">
+                                    {(c.anexos || []).map((a, ai) => {
+                                      const imagem = (a.mime_type || "").startsWith("image/");
+                                      return imagem ? (
+                                        <a className="comment-attachment-image" href={a.url} target="_blank" rel="noreferrer" key={(a.url || "img") + ai} title={a.nome}>
+                                          <img src={a.url} alt={a.nome || "Imagem anexada"} />
+                                          <span>{a.nome}</span>
+                                        </a>
+                                      ) : (
+                                        <a className="comment-attachment-file" href={a.url} target="_blank" rel="noreferrer" key={(a.url || "file") + ai}>
+                                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M11 3l-7 7a3 3 0 004 4l6-6a2 2 0 00-3-3L5 11" /></svg>
+                                          <span>{a.nome}</span>
+                                        </a>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -1564,8 +1676,30 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                       onChange={handleComentarioChange}
                       onKeyUp={handleComentarioChange}
                       onBlur={() => setTimeout(() => setMencaoAberta(false), 150)}
+                      onPaste={handlePasteComentario}
                       onKeyDown={(e) => { if (e.key === "Escape") setMencaoAberta(false); }}
                     ></textarea>
+                    {comentarioArquivos.length > 0 && (
+                      <div className="comment-draft-attachments">
+                        {comentarioArquivos.map((item) => (
+                          <div className={"comment-draft-file" + (item.previewUrl ? " image" : "")} key={item.id}>
+                            {item.previewUrl ? (
+                              <img src={item.previewUrl} alt={item.file.name || "Print"} />
+                            ) : (
+                              <div className="comment-draft-file-icon">📎</div>
+                            )}
+                            <div className="comment-draft-file-name" title={item.file.name}>{item.file.name}</div>
+                            <button type="button" onClick={() => removerArquivoComentario(item.id)} disabled={comentando} title="Remover">×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {comentando && comentarioArquivos.length > 0 && (
+                      <div className="comment-upload-progress">
+                        <div><span style={{ width: String(comentarioUploadPct) + "%" }}></span></div>
+                        <small>Enviando anexos · {comentarioUploadPct}%</small>
+                      </div>
+                    )}
                     {mencaoAberta && mencaoOpcoes.length > 0 && (
                       <div className="mencao-dropdown">
                         {mencaoOpcoes.map((env) => (
@@ -1581,8 +1715,16 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                         ))}
                       </div>
                     )}
-                    <div className="comment-box-actions">
-                      <button className="btn btn-envox btn-sm" onClick={handleComentar} disabled={comentando || !novoComentario.trim()}>
+                    <div className="comment-box-actions comment-box-actions-with-attach">
+                      <div className="comment-attach-actions">
+                        <label className="comment-attach-btn" title="Anexar arquivo ou imagem">
+                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M11 3l-7 7a3 3 0 004 4l6-6a2 2 0 00-3-3L5 11" /></svg>
+                          Anexar
+                          <input type="file" multiple style={{ display: "none" }} onChange={handleSelecionarArquivoComentario} disabled={comentando} />
+                        </label>
+                        <span className="comment-paste-hint">ou cole um print com Ctrl+V</span>
+                      </div>
+                      <button className="btn btn-envox btn-sm" onClick={handleComentar} disabled={comentando || (!novoComentario.trim() && comentarioArquivos.length === 0)}>
                         {comentando ? "Enviando…" : "Comentar"}
                       </button>
                     </div>

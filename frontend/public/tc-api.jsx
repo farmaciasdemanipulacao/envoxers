@@ -163,6 +163,50 @@ async function uploadWithFields(path, file, nomeArquivo, fields = {}) {
 }
 
 
+function uploadMultipleWithProgress(path, files, fields = {}, onProgress) {
+  return new Promise((resolve, reject) => {
+    const token = getToken();
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", API_BASE + path);
+    if (token) xhr.setRequestHeader("Authorization", "Bearer " + token);
+
+    xhr.upload.onprogress = (evt) => {
+      if (!evt.lengthComputable || !onProgress) return;
+      onProgress(Math.max(0, Math.min(100, Math.round((evt.loaded / evt.total) * 100))));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        clearSession();
+        window.location.reload();
+        reject(new Error("Sessão expirada"));
+        return;
+      }
+      let body = null;
+      try { body = xhr.responseText ? JSON.parse(xhr.responseText) : null; } catch (_) {}
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error((body && body.detail) || ("Erro " + xhr.status)));
+        return;
+      }
+      if (onProgress) onProgress(100);
+      resolve(body);
+    };
+
+    xhr.onerror = () => reject(new Error("Falha de rede durante o upload"));
+    xhr.onabort = () => reject(new Error("Upload cancelado"));
+
+    const formData = new FormData();
+    Object.entries(fields || {}).forEach(([key, value]) => {
+      if (value != null) formData.append(key, String(value));
+    });
+    (files || []).forEach((file) => {
+      formData.append("arquivos", file, file.name || "arquivo");
+    });
+    xhr.send(formData);
+  });
+}
+
+
 function uploadWithProgress(path, file, nomeArquivo, onProgress) {
   return new Promise((resolve, reject) => {
     const token = getToken();
@@ -202,6 +246,6 @@ function uploadWithProgress(path, file, nomeArquivo, onProgress) {
 }
 
 window.EnvoxersAPI = {
-  api, upload, uploadWithFields, uploadWithProgress, getToken, setSession, clearSession, getEnvoxerId,
+  api, upload, uploadWithFields, uploadWithProgress, uploadMultipleWithProgress, getToken, setSession, clearSession, getEnvoxerId,
   iniciarImpersonacao, estaImpersonando, encerrarImpersonacao,
 };

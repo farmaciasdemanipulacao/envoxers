@@ -4,15 +4,6 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
-class ComentarioItem(BaseModel):
-    envoxer_id: int
-    envoxer_nome: str
-    texto: str
-    mencoes: list[int] = []
-    criado_em: datetime
-    editado_em: Optional[datetime] = None
-
-
 class AnexoItem(BaseModel):
     nome: str
     url: str
@@ -20,6 +11,16 @@ class AnexoItem(BaseModel):
     tamanho_kb: Optional[int] = None
     enviado_por_envoxer_id: Optional[int] = None
     criado_em: datetime
+
+
+class ComentarioItem(BaseModel):
+    envoxer_id: int
+    envoxer_nome: str
+    texto: str
+    mencoes: list[int] = []
+    anexos: list[AnexoItem] = []
+    criado_em: datetime
+    editado_em: Optional[datetime] = None
 
 
 class TarefaBase(BaseModel):

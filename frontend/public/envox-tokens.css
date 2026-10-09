@@ -6705,3 +6705,167 @@ body:has(.foco-bar.active) .feedback-floating-fab{
   .avulsa-attach-list .attach-managed-row{grid-template-columns:24px minmax(0,1fr)}
   .avulsa-attach-list .attach-managed-actions{grid-column:2;justify-content:flex-start}
 }
+
+
+/* ===== 2026-10-09 · anexos nos comentários dos cards ===== */
+.comment-attachments{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-top:8px;
+}
+.comment-attachment-image{
+  width:150px;
+  max-width:100%;
+  border:1px solid var(--line);
+  border-radius:8px;
+  overflow:hidden;
+  background:var(--bg-inset);
+  color:var(--ink-3);
+  text-decoration:none;
+}
+.comment-attachment-image img{
+  display:block;
+  width:100%;
+  height:100px;
+  object-fit:cover;
+  background:var(--bg);
+}
+.comment-attachment-image span{
+  display:block;
+  padding:5px 7px;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  font-size:9px;
+}
+.comment-attachment-file{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  max-width:260px;
+  padding:7px 9px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:var(--bg-inset);
+  color:var(--ink-2);
+  text-decoration:none;
+  font-size:10px;
+}
+.comment-attachment-file span{
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.comment-draft-attachments{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  padding:8px 10px;
+  border-top:1px solid var(--line);
+  background:var(--bg);
+}
+.comment-draft-file{
+  position:relative;
+  display:grid;
+  grid-template-columns:28px minmax(0,1fr) 20px;
+  align-items:center;
+  gap:6px;
+  width:min(220px,100%);
+  min-height:38px;
+  padding:4px 5px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:var(--bg-elev);
+}
+.comment-draft-file.image img{
+  width:28px;
+  height:28px;
+  object-fit:cover;
+  border-radius:5px;
+}
+.comment-draft-file-icon{
+  width:28px;
+  height:28px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:5px;
+  background:var(--bg-inset);
+  font-size:12px;
+}
+.comment-draft-file-name{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:9px;
+  color:var(--ink-2);
+}
+.comment-draft-file button{
+  border:0;
+  background:transparent;
+  color:var(--ink-4);
+  cursor:pointer;
+  font-size:15px;
+  line-height:1;
+}
+.comment-draft-file button:hover{color:var(--farol-vermelho)}
+.comment-upload-progress{
+  padding:6px 10px;
+  border-top:1px solid var(--line);
+  background:var(--bg-inset);
+}
+.comment-upload-progress>div{
+  height:4px;
+  border-radius:99px;
+  overflow:hidden;
+  background:var(--line);
+}
+.comment-upload-progress>div>span{
+  display:block;
+  height:100%;
+  background:var(--envox);
+  transition:width .15s ease;
+}
+.comment-upload-progress small{
+  display:block;
+  margin-top:4px;
+  font-size:8px;
+  color:var(--ink-4);
+}
+.comment-box-actions-with-attach{
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+.comment-attach-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.comment-attach-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 6px;
+  border-radius:5px;
+  color:var(--envox);
+  font-size:9px;
+  font-weight:650;
+  cursor:pointer;
+}
+.comment-attach-btn:hover{background:var(--envox-soft)}
+.comment-paste-hint{
+  font-size:8px;
+  color:var(--ink-4);
+  white-space:nowrap;
+}
+@media(max-width:620px){
+  .comment-box-actions-with-attach{align-items:stretch;flex-direction:column}
+  .comment-box-actions-with-attach .btn{width:100%;justify-content:center}
+  .comment-attach-actions{justify-content:space-between}
+  .comment-paste-hint{white-space:normal}
+  .comment-attachment-image{width:130px}
+}

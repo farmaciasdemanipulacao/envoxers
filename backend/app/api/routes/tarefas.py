@@ -1,7 +1,8 @@
+import json
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy import select, and_, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,7 +88,7 @@ def _to_response(
         responsavel_foto=responsavel_foto,
         atrasada=atrasada,
         qtd_comentarios=len(tarefa.comentarios or []),
-        qtd_anexos=len(tarefa.anexos or []),
+        qtd_anexos=len(tarefa.anexos or []) + sum(len(c.get("anexos") or []) for c in (tarefa.comentarios or [])),
         qtd_alteracoes=tarefa.qtd_alteracoes,
         aprovada_interna=tarefa.aprovada_interna,
         aprovada_cliente=tarefa.aprovada_cliente,
@@ -631,6 +632,7 @@ async def comentar_tarefa(
         "envoxer_nome": envoxer.nome,
         "texto": texto_limpo,
         "mencoes": ids_mencionados,
+        "anexos": [],
         "criado_em": agora.isoformat(),
     })
     tarefa.comentarios = comentarios
@@ -659,6 +661,99 @@ async def comentar_tarefa(
     return _to_response(*row)
 
 
+
+@router.post("/{tarefa_id}/comentarios-com-anexos", response_model=TarefaResponse)
+async def comentar_tarefa_com_anexos(
+    tarefa_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    texto: str = Form(""),
+    mencoes: str = Form("[]"),
+    arquivos: list[UploadFile] = File(default=[]),
+):
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
+    texto_limpo = (texto or "").strip()
+    arquivos_validos = [a for a in (arquivos or []) if a and (a.filename or "").strip()]
+    if not texto_limpo and not arquivos_validos:
+        raise HTTPException(status_code=400, detail="Escreva um comentário ou anexe um arquivo")
+    if len(arquivos_validos) > 10:
+        raise HTTPException(status_code=400, detail="Máximo de 10 arquivos por comentário")
+
+    try:
+        mencoes_payload = json.loads(mencoes or "[]")
+        if not isinstance(mencoes_payload, list):
+            mencoes_payload = []
+        mencoes_payload = [int(x) for x in mencoes_payload]
+    except (ValueError, TypeError, json.JSONDecodeError):
+        mencoes_payload = []
+
+    ids_mencionados = []
+    if mencoes_payload:
+        result_mencoes = await db.execute(
+            select(Envoxer.id).where(
+                Envoxer.id.in_(mencoes_payload),
+                Envoxer.ativo.is_(True),
+            )
+        )
+        ids_mencionados = [row[0] for row in result_mencoes.all() if row[0] != envoxer.id]
+
+    agora = datetime.now(timezone.utc)
+    anexos_salvos = []
+    try:
+        for arquivo in arquivos_validos:
+            salvo = await salvar_upload(arquivo)
+            anexos_salvos.append({
+                **salvo,
+                "enviado_por_envoxer_id": envoxer.id,
+                "criado_em": agora.isoformat(),
+            })
+    except Exception:
+        for anexo in anexos_salvos:
+            excluir_upload_url(anexo.get("url"))
+        raise
+
+    comentarios = list(tarefa.comentarios or [])
+    comentarios.append({
+        "envoxer_id": envoxer.id,
+        "envoxer_nome": envoxer.nome,
+        "texto": texto_limpo,
+        "mencoes": ids_mencionados,
+        "anexos": anexos_salvos,
+        "criado_em": agora.isoformat(),
+    })
+    tarefa.comentarios = comentarios
+    await db.flush()
+    await db.refresh(tarefa)
+
+    if ids_mencionados:
+        from app.models.pendencia import Pendencia
+        from app.services.push import broadcast_push
+
+        resumo = texto_limpo[:140] if texto_limpo else f"Anexou {len(anexos_salvos)} arquivo(s)"
+        for destinatario_id in ids_mencionados:
+            db.add(
+                Pendencia(
+                    envoxer_id=destinatario_id,
+                    tarefa_id=tarefa.id,
+                    mensagem=f'{envoxer.nome} te mencionou num comentário na tarefa "{tarefa.titulo}": "{resumo}"',
+                )
+            )
+        await db.flush()
+        for destinatario_id in ids_mencionados:
+            await broadcast_push(
+                db,
+                destinatario_id,
+                title=f"{envoxer.nome} te mencionou",
+                body=resumo[:180],
+                tag="envoxers-mencao",
+            )
+
+    result = await db.execute(_JOIN_STMT.where(Tarefa.id == tarefa.id))
+    row = result.one()
+    await notificar_tarefa_atualizada(db, tarefa.id)
+    return _to_response(*row)
+
+
 @router.patch("/{tarefa_id}/comentarios", response_model=TarefaResponse)
 async def editar_comentario(
     tarefa_id: int,
@@ -669,8 +764,6 @@ async def editar_comentario(
     tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
     await _validar_foco_para_comentario(db, tarefa_id, envoxer.id)
     texto = payload.texto.strip()
-    if not texto:
-        raise HTTPException(status_code=400, detail="Comentário não pode ficar vazio")
 
     comentarios = list(tarefa.comentarios or [])
     encontrado = False
@@ -679,6 +772,8 @@ async def editar_comentario(
             continue
         if not _mesmo_instante_comentario(item.get("criado_em"), payload.criado_em):
             continue
+        if not texto and not (item.get("anexos") or []):
+            raise HTTPException(status_code=400, detail="Comentário não pode ficar vazio")
         comentarios[i] = {**item, "texto": texto, "editado_em": datetime.now(timezone.utc).isoformat()}
         encontrado = True
         break
@@ -714,6 +809,8 @@ async def excluir_comentario(
             and _mesmo_instante_comentario(item.get("criado_em"), payload.criado_em)
         ):
             removido = True
+            for anexo in item.get("anexos") or []:
+                excluir_upload_url(anexo.get("url"))
             continue
         novo.append(item)
     if not removido:
