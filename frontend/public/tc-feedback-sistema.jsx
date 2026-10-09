@@ -117,11 +117,16 @@ function FeedbackSistemaScreen({ abrirTicketId = null, onTicketAberto = null }) 
 
   const prioridadeLabel = (p) => ({ alta: "Alta", media: "Média", baixa: "Baixa" }[p] || p);
 
-  const abertos = (itens || []).filter((x) => ["novo", "em_analise", "aguardando_teste"].includes(x.status));
+  const abertos = (itens || []).filter((x) => ["novo", "em_analise"].includes(x.status));
+  const emTeste = (itens || []).filter((x) => x.status === "aguardando_teste");
   const concluidos = (itens || []).filter((x) => x.status === "concluido");
   const descartados = (itens || []).filter((x) => x.status === "descartado");
 
-  const listaAtual = aba === "concluidos" ? concluidos : aba === "descartados" ? descartados : abertos;
+  const listaAtual =
+    aba === "teste" ? emTeste :
+    aba === "concluidos" ? concluidos :
+    aba === "descartados" ? descartados :
+    abertos;
 
   const TicketCard = ({ item }) => (
     <button
@@ -145,12 +150,15 @@ function FeedbackSistemaScreen({ abrirTicketId = null, onTicketAberto = null }) 
     <div className="page feedback-admin-page feedback-admin-compact-page">
       <EnvoxersShared.PageHeader
         title="Erros e Sugestões"
-        subtitle="Acompanhe o que ainda precisa de ação. Tickets concluídos e descartados ficam separados do backlog."
+        subtitle="Separe o que precisa de análise do que já foi enviado para teste do solicitante."
       />
 
       <div className="feedback-board-tabs">
         <button className={aba === "abertos" ? "active" : ""} onClick={() => setAba("abertos")}>
           Em aberto <span>{abertos.length}</span>
+        </button>
+        <button className={aba === "teste" ? "active" : ""} onClick={() => setAba("teste")}>
+          Em teste <span>{emTeste.length}</span>
         </button>
         <button className={aba === "concluidos" ? "active" : ""} onClick={() => setAba("concluidos")}>
           Concluídos <span>{concluidos.length}</span>
@@ -167,10 +175,12 @@ function FeedbackSistemaScreen({ abrirTicketId = null, onTicketAberto = null }) 
       ) : listaAtual.length === 0 ? (
         <div className="feedback-board-empty">
           {aba === "abertos"
-            ? "Nenhum ticket pendente. Tudo resolvido por aqui."
-            : aba === "concluidos"
-              ? "Nenhum ticket concluído."
-              : "Nenhum ticket descartado."}
+            ? "Nenhum ticket pendente de análise."
+            : aba === "teste"
+              ? "Nenhum ticket aguardando teste do solicitante."
+              : aba === "concluidos"
+                ? "Nenhum ticket concluído."
+                : "Nenhum ticket descartado."}
         </div>
       ) : (
         <div className="feedback-compact-grid">

@@ -827,6 +827,10 @@ function FeedbackSistemaDock({ permissao }) {
   const [validacaoPreview, setValidacaoPreview] = useState("");
   const [validacaoCapturando, setValidacaoCapturando] = useState(false);
   const [validacaoEnviando, setValidacaoEnviando] = useState(false);
+  const [testePendente, setTestePendente] = useState(null);
+  const [testeAlertaVisivel, setTesteAlertaVisivel] = useState(false);
+  const testePendenteIdRef = useRef(null);
+  const testeReminderTimerRef = useRef(null);
   const toast = useToast();
 
   const revogarPreview = (url) => {
@@ -834,9 +838,12 @@ function FeedbackSistemaDock({ permissao }) {
   };
 
   useEffect(() => {
-    carregarPendentesTeste();
-    const timer = setInterval(carregarPendentesTeste, 60000);
-    return () => clearInterval(timer);
+    carregarTestePendente(true);
+    const timer = setInterval(() => carregarTestePendente(false), 30000);
+    return () => {
+      clearInterval(timer);
+      if (testeReminderTimerRef.current) clearTimeout(testeReminderTimerRef.current);
+    };
   }, []);
 
   const limparForm = () => {
@@ -858,12 +865,48 @@ function FeedbackSistemaDock({ permissao }) {
     setValidacaoPreview("");
   };
 
-  async function carregarPendentesTeste() {
+  async function carregarTestePendente(forcarExibicao = false) {
     try {
-      const data = await EnvoxersAPI.api("/feedback-sistema/me/pendentes-teste-count");
-      setPendentesTeste(data.total || 0);
+      const data = await EnvoxersAPI.api("/feedback-sistema/me");
+      const pendentes = (data || []).filter((x) => x.status === "aguardando_teste");
+      const primeiro = pendentes[0] || null;
+      const idAnterior = testePendenteIdRef.current;
+
+      setPendentesTeste(pendentes.length);
+      setTestePendente(primeiro);
+      testePendenteIdRef.current = primeiro ? primeiro.id : null;
+
+      if (!primeiro) {
+        setTesteAlertaVisivel(false);
+        if (testeReminderTimerRef.current) {
+          clearTimeout(testeReminderTimerRef.current);
+          testeReminderTimerRef.current = null;
+        }
+        return;
+      }
+
+      if (forcarExibicao || idAnterior !== primeiro.id) {
+        setTesteAlertaVisivel(true);
+      }
     } catch (_) {}
   }
+
+  const adiarAlertaTeste = () => {
+    setTesteAlertaVisivel(false);
+    if (testeReminderTimerRef.current) clearTimeout(testeReminderTimerRef.current);
+    testeReminderTimerRef.current = setTimeout(() => {
+      carregarTestePendente(true);
+    }, 5 * 60 * 1000);
+  };
+
+  const abrirTestePendente = async () => {
+    adiarAlertaTeste();
+    limparForm();
+    limparValidacao();
+    setAberto(true);
+    setAba("acompanhar");
+    await carregarMinhas();
+  };
 
   const carregarMinhas = async () => {
     setCarregandoMinhas(true);
@@ -1014,7 +1057,12 @@ function FeedbackSistemaDock({ permissao }) {
       await EnvoxersAPI.api("/feedback-sistema/me/" + item.id + "/confirmar-teste", { method: "POST" });
       toast("Teste confirmado. Ticket concluído!", "success");
       limparValidacao();
+      if (testeReminderTimerRef.current) {
+        clearTimeout(testeReminderTimerRef.current);
+        testeReminderTimerRef.current = null;
+      }
       await carregarMinhas();
+      await carregarTestePendente(true);
     } catch (err) {
       toast(err.message, "error");
     }
@@ -1045,7 +1093,12 @@ function FeedbackSistemaDock({ permissao }) {
       );
       toast("Retorno enviado. O ticket voltou para análise.", "success");
       limparValidacao();
+      if (testeReminderTimerRef.current) {
+        clearTimeout(testeReminderTimerRef.current);
+        testeReminderTimerRef.current = null;
+      }
       await carregarMinhas();
+      await carregarTestePendente(true);
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -1159,7 +1212,7 @@ function FeedbackSistemaDock({ permissao }) {
             ) : (
               <div className="feedback-track-list">
                 {minhas.map((item) => (
-                  <article className={"feedback-track-item priority-" + (item.prioridade || "media") + " status-" + item.status} key={item.id}>
+                  <article className={"feedback-track-item priority-" + (item.prioridade || "media") + " status-" + item.status + (testePendente && testePendente.id === item.id ? " forced-test-target" : "")} key={item.id}>
                     <div className="feedback-track-top">
                       <span className={"feedback-priority-chip " + (item.prioridade || "media")}>{prioridadeLabel(item.prioridade || "media")}</span>
                       <span className={"feedback-status-chip status-" + item.status}>{statusLabel(item.status)}</span>
@@ -1250,6 +1303,31 @@ function FeedbackSistemaDock({ permissao }) {
     </>
   ) : null;
 
+  const testeObrigatorioAlert = testeAlertaVisivel && testePendente ? (
+    <div className="feedback-test-reminder-wrap" data-feedback-ui="true" role="alert" aria-live="assertive">
+      <div className="feedback-test-reminder">
+        <div className="feedback-test-reminder-icon">✓?</div>
+        <div className="feedback-test-reminder-copy">
+          <div className="feedback-test-reminder-eyebrow">TESTE PENDENTE · AÇÃO NECESSÁRIA</div>
+          <h2>Você precisa testar uma correção agora</h2>
+          <p><strong>{testePendente.titulo}</strong></p>
+          {testePendente.observacao_admin && (
+            <span>O que foi feito: {testePendente.observacao_admin}</span>
+          )}
+          {pendentesTeste > 1 && <small>Você tem {pendentesTeste} solicitações aguardando seu teste.</small>}
+        </div>
+        <div className="feedback-test-reminder-actions">
+          <button type="button" className="feedback-test-now-btn" onClick={abrirTestePendente}>
+            Testar agora
+          </button>
+          <button type="button" className="feedback-test-later-btn" onClick={adiarAlertaTeste}>
+            Fechar por 5 min
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const trigger = (
     <button
       type="button"
@@ -1270,6 +1348,7 @@ function FeedbackSistemaDock({ permissao }) {
   return (
     <>
       {ReactDOM.createPortal(trigger, document.body)}
+      {testeObrigatorioAlert && ReactDOM.createPortal(testeObrigatorioAlert, document.body)}
       {drawer && ReactDOM.createPortal(drawer, document.body)}
     </>
   );

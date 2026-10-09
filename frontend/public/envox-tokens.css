@@ -6361,3 +6361,141 @@ body.kanban-fullscreen-active .main {
     height:44px;
   }
 }
+
+
+/* ===== 2026-10-09 · alerta recorrente de teste obrigatório ===== */
+.feedback-test-reminder-wrap{
+  position:fixed;
+  z-index:975;
+  top:18px;
+  left:50%;
+  transform:translateX(-50%);
+  width:min(820px,calc(100vw - 32px));
+  pointer-events:none;
+}
+.feedback-test-reminder{
+  pointer-events:auto;
+  display:grid;
+  grid-template-columns:54px minmax(0,1fr) auto;
+  align-items:center;
+  gap:14px;
+  padding:14px 15px;
+  border:2px solid #c97900;
+  border-radius:14px;
+  background:#fff9ea;
+  box-shadow:0 18px 54px rgba(133,85,0,.28),0 0 0 6px rgba(217,142,0,.12);
+  animation:feedbackTestPulse 1.4s ease-in-out infinite;
+}
+.feedback-test-reminder-icon{
+  width:50px;
+  height:50px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#d98e00;
+  color:#fff;
+  font-family:var(--font-serif);
+  font-size:20px;
+  font-weight:700;
+}
+.feedback-test-reminder-copy{min-width:0}
+.feedback-test-reminder-eyebrow{
+  margin-bottom:3px;
+  color:#8a5800;
+  font-size:8.5px;
+  font-weight:900;
+  letter-spacing:.11em;
+}
+.feedback-test-reminder-copy h2{
+  margin:0;
+  font-size:15px;
+  line-height:1.2;
+  color:#3d2a08;
+}
+.feedback-test-reminder-copy p{
+  margin:4px 0 0;
+  font-size:9.5px;
+  color:#6f4a08;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.feedback-test-reminder-copy>span{
+  display:block;
+  margin-top:3px;
+  font-size:8.5px;
+  color:#7a5a1c;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.feedback-test-reminder-copy small{
+  display:block;
+  margin-top:5px;
+  font-size:8px;
+  font-weight:700;
+  color:#9b6500;
+}
+.feedback-test-reminder-actions{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:122px;
+}
+.feedback-test-now-btn,
+.feedback-test-later-btn{
+  min-height:34px;
+  border-radius:8px;
+  font-size:8.5px;
+  font-weight:800;
+  cursor:pointer;
+  padding:8px 10px;
+}
+.feedback-test-now-btn{
+  border:1px solid #b97500;
+  background:#d98e00;
+  color:#fff;
+}
+.feedback-test-now-btn:hover{background:#bc7900}
+.feedback-test-later-btn{
+  border:1px solid rgba(139,90,0,.22);
+  background:transparent;
+  color:#7d5408;
+}
+.feedback-test-later-btn:hover{background:rgba(217,142,0,.08)}
+.feedback-track-item.forced-test-target{
+  box-shadow:0 0 0 2px rgba(217,142,0,.24),0 8px 22px rgba(133,85,0,.10);
+}
+@keyframes feedbackTestPulse{
+  0%,100%{box-shadow:0 18px 54px rgba(133,85,0,.24),0 0 0 5px rgba(217,142,0,.09)}
+  50%{box-shadow:0 20px 62px rgba(133,85,0,.34),0 0 0 10px rgba(217,142,0,.16)}
+}
+@media(prefers-reduced-motion:reduce){
+  .feedback-test-reminder{animation:none}
+}
+@media(max-width:720px){
+  .feedback-test-reminder-wrap{
+    top:8px;
+    width:calc(100vw - 16px);
+  }
+  .feedback-test-reminder{
+    grid-template-columns:42px minmax(0,1fr);
+    gap:10px;
+    padding:11px;
+  }
+  .feedback-test-reminder-icon{
+    width:40px;
+    height:40px;
+    font-size:17px;
+  }
+  .feedback-test-reminder-copy h2{font-size:13px}
+  .feedback-test-reminder-copy p,
+  .feedback-test-reminder-copy>span{white-space:normal}
+  .feedback-test-reminder-actions{
+    grid-column:1/-1;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    min-width:0;
+  }
+}
