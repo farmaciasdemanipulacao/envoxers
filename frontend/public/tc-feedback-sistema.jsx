@@ -1,6 +1,6 @@
 const { useState: useStateFeedbackPage, useEffect: useEffectFeedbackPage } = React;
 
-function FeedbackSistemaScreen() {
+function FeedbackSistemaScreen({ abrirTicketId = null, onTicketAberto = null }) {
   const toast = EnvoxersShared.useToast();
   const [itens, setItens] = useStateFeedbackPage(null);
   const [aba, setAba] = useStateFeedbackPage("abertos");
@@ -27,6 +27,23 @@ function FeedbackSistemaScreen() {
   useEffectFeedbackPage(() => { carregar(); }, []);
 
   const selecionado = (itens || []).find((x) => x.id === selecionadoId) || null;
+
+  const visualizarTicket = async (item) => {
+    if (!item) return;
+    try {
+      await EnvoxersAPI.api("/feedback-sistema/" + item.id + "/visualizar-alerta", { method: "POST" });
+      window.dispatchEvent(new CustomEvent("feedback-alert-viewed", { detail: { id: item.id } }));
+    } catch (_) {}
+    setSelecionadoId(item.id);
+  };
+
+  useEffectFeedbackPage(() => {
+    if (!abrirTicketId || !itens) return;
+    const alvo = itens.find((x) => x.id === Number(abrirTicketId));
+    if (!alvo) return;
+    visualizarTicket(alvo);
+    if (onTicketAberto) onTicketAberto();
+  }, [abrirTicketId, itens]);
 
   const atualizarNaLista = (atualizado) => {
     setItens((prev) => (prev || []).map((x) => x.id === atualizado.id ? atualizado : x));
@@ -110,7 +127,7 @@ function FeedbackSistemaScreen() {
     <button
       type="button"
       className={"feedback-compact-card priority-" + (item.prioridade || "media") + " status-" + item.status}
-      onClick={() => setSelecionadoId(item.id)}
+      onClick={() => visualizarTicket(item)}
     >
       <div className="feedback-compact-top">
         <span className={"feedback-type " + item.tipo}>{item.tipo === "erro" ? "ERRO" : "SUGESTÃO"}</span>

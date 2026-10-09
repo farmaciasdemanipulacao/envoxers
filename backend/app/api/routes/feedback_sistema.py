@@ -2,16 +2,18 @@ from collections import defaultdict
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_admin, get_current_envoxer
+from app.api.deps import get_current_admin, get_current_admin_ou_tecnico, get_current_envoxer
 from app.core.uploads import excluir_upload_url, salvar_upload
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.feedback_sistema import FeedbackSistema
 from app.models.feedback_sistema_interacao import FeedbackSistemaInteracao
+from app.models.feedback_sistema_visualizacao import FeedbackSistemaVisualizacao
 from app.schemas.feedback_sistema import (
+    FeedbackSistemaAlertasResponse,
     FeedbackSistemaCreate,
     FeedbackSistemaInteracaoResponse,
     FeedbackSistemaNovosCount,
@@ -87,6 +89,7 @@ async def criar_feedback(
         pagina=(payload.pagina or "").strip() or None,
         prioridade=payload.prioridade,
         status="novo",
+        alertavel=True,
         criado_por_envoxer_id=envoxer.id,
         criado_por_nome=envoxer.nome,
     )
@@ -219,15 +222,82 @@ async def reportar_teste_nao_funcionou(
         descricao=detalhe,
         screenshot_url=salvo["url"],
     ))
+    # Falha no reteste precisa reacender o alerta para todos os responsáveis técnicos.
     item.status = "em_analise"
+    item.alertavel = True
+    await db.execute(
+        delete(FeedbackSistemaVisualizacao).where(
+            FeedbackSistemaVisualizacao.feedback_id == item.id
+        )
+    )
     await db.flush()
     await db.refresh(item)
     return await _response(db, item)
 
 
+@router.get("/alertas-nao-vistos", response_model=FeedbackSistemaAlertasResponse)
+async def listar_alertas_nao_vistos(
+    responsavel: Annotated[Envoxer, Depends(get_current_admin_ou_tecnico)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    visualizacao = FeedbackSistemaVisualizacao
+    stmt = (
+        select(FeedbackSistema)
+        .outerjoin(
+            visualizacao,
+            and_(
+                visualizacao.feedback_id == FeedbackSistema.id,
+                visualizacao.envoxer_id == responsavel.id,
+            ),
+        )
+        .where(
+            FeedbackSistema.alertavel.is_(True),
+            FeedbackSistema.status.in_(("novo", "em_analise", "aguardando_teste")),
+            visualizacao.id.is_(None),
+        )
+        .order_by(
+            case((FeedbackSistema.tipo == "erro", 0), else_=1),
+            PRIORIDADE_ORDEM,
+            FeedbackSistema.created_at.desc(),
+        )
+        .limit(50)
+    )
+    itens = list((await db.execute(stmt)).scalars().all())
+    respostas = await _responses(db, itens)
+    return FeedbackSistemaAlertasResponse(
+        erros=[x for x in respostas if x.tipo == "erro"],
+        sugestoes=[x for x in respostas if x.tipo != "erro"],
+    )
+
+
+@router.post("/{feedback_id}/visualizar-alerta", status_code=204)
+async def visualizar_alerta(
+    feedback_id: int,
+    responsavel: Annotated[Envoxer, Depends(get_current_admin_ou_tecnico)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    item = await db.get(FeedbackSistema, feedback_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+
+    existente = (await db.execute(
+        select(FeedbackSistemaVisualizacao.id).where(
+            FeedbackSistemaVisualizacao.feedback_id == feedback_id,
+            FeedbackSistemaVisualizacao.envoxer_id == responsavel.id,
+        )
+    )).scalar_one_or_none()
+    if existente is None:
+        db.add(FeedbackSistemaVisualizacao(
+            feedback_id=feedback_id,
+            envoxer_id=responsavel.id,
+        ))
+        await db.flush()
+    return None
+
+
 @router.get("", response_model=list[FeedbackSistemaResponse])
 async def listar_feedbacks(
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_admin_ou_tecnico)],
     db: Annotated[AsyncSession, Depends(get_db)],
     status: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=300),
@@ -243,7 +313,7 @@ async def listar_feedbacks(
 
 @router.get("/novos-count", response_model=FeedbackSistemaNovosCount)
 async def contar_novos(
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_admin_ou_tecnico)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     total = (await db.execute(
@@ -256,7 +326,7 @@ async def contar_novos(
 async def atualizar_feedback(
     feedback_id: int,
     payload: FeedbackSistemaUpdate,
-    admin: Annotated[Envoxer, Depends(get_current_admin)],
+    admin: Annotated[Envoxer, Depends(get_current_admin_ou_tecnico)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     item = await db.get(FeedbackSistema, feedback_id)

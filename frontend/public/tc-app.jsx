@@ -306,6 +306,7 @@ const MODULOS_PADRAO_FRONT = {
   gestor: ["chat","comercial","operacao","entregas","farol","icp","desenvolvimento","admin","configuracoes"],
   envoxer: ["chat","comercial","operacao","entregas","farol","icp","desenvolvimento","configuracoes"],
   comercial: ["chat","comercial","operacao"],
+  tecnico: ["chat","admin","configuracoes"],
 };
 
 function moduloDaView(view) {
@@ -335,7 +336,7 @@ function primeiraViewPermitida(modulos, permissao) {
     ["farol", "farol"],
     ["icp", "churn"],
     ["desenvolvimento", "f4"],
-    ["admin", permissao === "admin" ? "feedback-sistema" : "config-alertas"],
+    ["admin", (permissao === "admin" || permissao === "tecnico") ? "feedback-sistema" : "config-alertas"],
     ["configuracoes", "configuracoes"],
     ["chat", "chat"],
   ];
@@ -387,6 +388,7 @@ function AppShell() {
     if (perfilComercial) return salva && VIEWS_PERFIL_COMERCIAL.has(salva) ? salva : "comercial-dashboard";
     return salva || "dashboard";
   });
+  const [feedbackAbrirId, setFeedbackAbrirId] = useStateApp(null);
   useEffectApp(() => {
     if (viewStorageKey) sessionStorage.setItem(viewStorageKey, view);
   }, [view, viewStorageKey]);
@@ -425,7 +427,14 @@ function AppShell() {
       setView(primeiraViewPermitida(modulosAcesso, permissao));
       return;
     }
-    if ((view === "faturamento" || view === "relatorio" || view === "feedback-sistema" || view === "foco-relatorio") && permissao !== "admin") {
+    const adminFinanceiroBloqueado =
+      (view === "faturamento" || view === "relatorio" || view === "foco-relatorio") &&
+      permissao !== "admin";
+    const feedbackBloqueado =
+      view === "feedback-sistema" &&
+      permissao !== "admin" &&
+      permissao !== "tecnico";
+    if (adminFinanceiroBloqueado || feedbackBloqueado) {
       setView(primeiraViewPermitida(modulosAcesso, permissao));
     }
   }, [view, permissao, perfilComercial, modulosAcesso]);
@@ -849,6 +858,12 @@ function AppShell() {
     setView(perfilComercial && !VIEWS_PERFIL_COMERCIAL.has(destino) ? "comercial-dashboard" : destino);
   };
 
+  const abrirFeedbackAdmin = (feedbackId) => {
+    if (permissao !== "admin" && permissao !== "tecnico") return;
+    setFeedbackAbrirId(Number(feedbackId) || null);
+    setView("feedback-sistema");
+  };
+
   const configLabel = { clientes: "Cadastros / Clientes", envoxers: "Cadastros / Envoxers", servicos: "Cadastros / Serviços", "perfis-acesso": "Perfis de acesso", perfil: "Meu Perfil" }[configItem];
   const crumbs = {
     configuracoes: `Configurações / ${configLabel}`,
@@ -968,6 +983,7 @@ function AppShell() {
           permissao={permissao}
           showChat={temModulo("chat")}
           leftAction={view === "chat" ? <button className="btn btn-sm topbar-new-chat" onClick={() => setChatNewConversationSignal((v) => v + 1)}>+ Nova conversa</button> : null}
+          onOpenFeedback={abrirFeedbackAdmin}
         />
         {view === "comercial-dashboard" && <ComercialScreen mode="dashboard" />}
         {view === "comercial-hoje" && <ComercialScreen mode="hoje" />}
@@ -1025,7 +1041,7 @@ function AppShell() {
           />
         )}
         {view === "arquivos" && <ArquivosScreen permissao={permissao} onAbrirTarefa={abrirTarefa} />}
-        {view === "feedback-sistema" && permissao === "admin" && <FeedbackSistemaScreen />}
+        {view === "feedback-sistema" && (permissao === "admin" || permissao === "tecnico") && <FeedbackSistemaScreen abrirTicketId={feedbackAbrirId} onTicketAberto={() => setFeedbackAbrirId(null)} />}
         {view === "f4" && <F4Screen permissao={permissao} envoxerId={envoxerId} />}
         {view === "configuracoes" && (
           <ConfiguracoesScreen

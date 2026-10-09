@@ -112,3 +112,17 @@ async def get_current_gestor_ou_admin(
     if envoxer.permissao not in ("admin", "gestor"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas gestor ou admin")
     return envoxer
+
+
+
+async def get_current_admin_ou_tecnico(
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+) -> Envoxer:
+    # "tecnico" será habilitado como perfil persistível em uma etapa futura.
+    # A fronteira já fica preparada para os alertas/triagem de desenvolvimento.
+    if envoxer.permissao not in ("admin", "tecnico"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas admin ou técnico",
+        )
+    return envoxer

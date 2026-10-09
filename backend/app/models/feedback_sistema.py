@@ -1,6 +1,6 @@
 """Feedback do sistema: erros e sugestões enviados por usuários internos."""
 from typing import Optional
-from sqlalchemy import BigInteger, String, Text, ForeignKey
+from sqlalchemy import BigInteger, Boolean, String, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, TimestampMixin
 
@@ -15,6 +15,7 @@ class FeedbackSistema(Base, TimestampMixin):
     screenshot_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="novo")
     prioridade: Mapped[str] = mapped_column(String(20), nullable=False, default="media")
+    alertavel: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     criado_por_envoxer_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("envoxer.id", ondelete="SET NULL"), nullable=True
     )

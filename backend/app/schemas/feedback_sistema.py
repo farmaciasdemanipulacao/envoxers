@@ -70,3 +70,9 @@ class FeedbackSistemaNovosCount(BaseModel):
 
 class FeedbackSistemaPendentesTesteCount(BaseModel):
     total: int
+
+
+
+class FeedbackSistemaAlertasResponse(BaseModel):
+    erros: list[FeedbackSistemaResponse] = Field(default_factory=list)
+    sugestoes: list[FeedbackSistemaResponse] = Field(default_factory=list)

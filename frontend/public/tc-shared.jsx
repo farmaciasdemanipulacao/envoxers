@@ -609,7 +609,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
         </nav>
       </div>
 
-      {(permissao === "admin" || permissao === "gestor") && (
+      {(permissao === "admin" || permissao === "gestor" || permissao === "tecnico") && (
         <div className={sectionClass("admin")} style={{ display: temModulo("admin") ? undefined : "none" }}>
           {sectionTitle("admin", "Admin")}
           <nav className="nav">
@@ -630,12 +630,12 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
               <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 13l4-6 3 3 5-7" /><path d="M9 3h5v5" /></svg>,
               "nav_faturamento"
             )}
-            {item(
+            {permissao !== "tecnico" && item(
               "config-alertas",
               "Configuração de Alertas",
               <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2l6 11H2z" /><circle cx="8" cy="9" r="1.3" fill="currentColor" /></svg>
             )}
-            {permissao === "admin" && item(
+            {(permissao === "admin" || permissao === "tecnico") && item(
               "feedback-sistema",
               "Erros e Sugestões",
               <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v8H8l-4 3v-3H2z"/><path d="M5 6h6M5 8h4"/></svg>
@@ -1271,8 +1271,113 @@ function FeedbackSistemaDock({ permissao }) {
   );
 }
 
+
+function FeedbackAdminAlerts({ permissao, onOpenFeedback }) {
+  const elegivel = permissao === "admin" || permissao === "tecnico";
+  const [alertas, setAlertas] = useState({ erros: [], sugestoes: [] });
+  const [carregandoId, setCarregandoId] = useState(null);
+
+  const carregar = useCallback(async () => {
+    if (!elegivel) return;
+    try {
+      const data = await EnvoxersAPI.api("/feedback-sistema/alertas-nao-vistos");
+      setAlertas({
+        erros: Array.isArray(data.erros) ? data.erros : [],
+        sugestoes: Array.isArray(data.sugestoes) ? data.sugestoes : [],
+      });
+    } catch (_) {}
+  }, [elegivel]);
+
+  useEffect(() => {
+    if (!elegivel) return;
+    carregar();
+    const timer = setInterval(carregar, 15000);
+    const onViewed = (e) => {
+      const id = Number(e?.detail?.id || 0);
+      if (!id) return;
+      setAlertas((prev) => ({
+        erros: prev.erros.filter((x) => x.id !== id),
+        sugestoes: prev.sugestoes.filter((x) => x.id !== id),
+      }));
+    };
+    window.addEventListener("feedback-alert-viewed", onViewed);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("feedback-alert-viewed", onViewed);
+    };
+  }, [elegivel, carregar]);
+
+  const visualizar = async (item) => {
+    if (!item || carregandoId) return;
+    setCarregandoId(item.id);
+    try {
+      await EnvoxersAPI.api("/feedback-sistema/" + item.id + "/visualizar-alerta", { method: "POST" });
+      setAlertas((prev) => ({
+        erros: prev.erros.filter((x) => x.id !== item.id),
+        sugestoes: prev.sugestoes.filter((x) => x.id !== item.id),
+      }));
+      window.dispatchEvent(new CustomEvent("feedback-alert-viewed", { detail: { id: item.id } }));
+      if (onOpenFeedback) onOpenFeedback(item.id);
+    } catch (_) {
+      // O polling tenta novamente; não esconder um alerta que o backend não confirmou como visto.
+    } finally {
+      setCarregandoId(null);
+    }
+  };
+
+  if (!elegivel) return null;
+
+  const erro = alertas.erros[0];
+  const sugestao = alertas.sugestoes[0];
+
+  return (
+    <>
+      {sugestao && (
+        <button
+          type="button"
+          className="feedback-suggestion-alert-btn"
+          onClick={() => visualizar(sugestao)}
+          title={alertas.sugestoes.length > 1 ? alertas.sugestoes.length + " novas sugestões" : "Nova sugestão"}
+        >
+          <span className="feedback-suggestion-alert-dot"></span>
+          <span>Sugestão</span>
+          <b>{alertas.sugestoes.length}</b>
+        </button>
+      )}
+
+      {erro && ReactDOM.createPortal(
+        <div className="feedback-critical-alert-wrap" role="alert" aria-live="assertive">
+          <div className="feedback-critical-alert">
+            <div className="feedback-critical-icon">!</div>
+            <div className="feedback-critical-copy">
+              <div className="feedback-critical-eyebrow">
+                NOVO ERRO REPORTADO
+                {alertas.erros.length > 1 && <span>{alertas.erros.length} pendentes de visualização</span>}
+              </div>
+              <h2>{erro.titulo}</h2>
+              <p>
+                <strong>{erro.criado_por_nome}</strong>
+                {erro.pagina ? " · " + erro.pagina : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="feedback-critical-open"
+              onClick={() => visualizar(erro)}
+              disabled={carregandoId === erro.id}
+            >
+              {carregandoId === erro.id ? "Abrindo…" : "Visualizar erro agora"}
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 // ==================== TOPBAR ====================
-function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chatActive = false, leftAction = null, permissao = "envoxer", showChat = true }) {
+function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chatActive = false, leftAction = null, permissao = "envoxer", showChat = true, onOpenFeedback = null }) {
   return (
     <div className="topbar">
       <button className="mobile-menu-btn" aria-label="Abrir menu" onClick={onMenuClick}>
@@ -1290,6 +1395,7 @@ function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chat
             {chatBadge > 0 && <span className="topbar-chat-badge">{chatBadge > 99 ? "99+" : chatBadge}</span>}
           </button>
         )}
+        <FeedbackAdminAlerts permissao={permissao} onOpenFeedback={onOpenFeedback} />
         <FeedbackSistemaDock permissao={permissao} />
         <NotificacoesButton />
         <button className="btn btn-ghost btn-sm" onClick={onLogout}>Sair</button>
@@ -1545,6 +1651,6 @@ function HelpIcon({ helpKey, onDark }) {
 }
 
 window.EnvoxersShared = {
-  formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, FeedbackSistemaDock, HelpIcon, initials, Avatar,
+  formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, FeedbackSistemaDock, FeedbackAdminAlerts, HelpIcon, initials, Avatar,
   IconEditar, IconAutomacao, IconExcluir, IconArrastar, ComoFazerModal, corPrazoEtapa, AvatarCropModal,
 };
