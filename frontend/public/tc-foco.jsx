@@ -39,8 +39,7 @@ window.FocoBar = FocoBar;
 
 const { useState: useStateFoco, useEffect: useEffectFoco } = React;
 
-// Confirmação ao finalizar — mostra resumo (tarefa + tempo) e permite comentário opcional
-// antes de encerrar o registro de verdade.
+// Confirmação ao finalizar — observação passa a ser obrigatória quando o Foco líquido ultrapassa 5 minutos.
 function FocoFinalizarModal({ aberto, focoAtivo, focoElapsed, onCancelar, onConfirmar }) {
   const [comentario, setComentario] = useStateFoco("");
   const [enviando, setEnviando] = useStateFoco(false);
@@ -54,7 +53,11 @@ function FocoFinalizarModal({ aberto, focoAtivo, focoElapsed, onCancelar, onConf
 
   if (!aberto || !focoAtivo) return null;
 
+  const observacaoObrigatoria = Number(focoElapsed || 0) > 300;
+  const observacaoValida = !!comentario.trim();
+
   const confirmar = async (comComentario) => {
+    if (observacaoObrigatoria && !observacaoValida) return;
     setEnviando(true);
     const ok = await onConfirmar(comComentario ? comentario.trim() || null : null);
     if (ok !== false) {
@@ -82,32 +85,43 @@ function FocoFinalizarModal({ aberto, focoAtivo, focoElapsed, onCancelar, onConf
               tempo total registrado
             </div>
           </div>
-          <div className="field" style={{ marginBottom: 20 }}>
-            <label>Adicionar comentário (opcional)</label>
+          <div className="field foco-finalizar-observacao" style={{ marginBottom: 20 }}>
+            <label>
+              Observação da sessão
+              {observacaoObrigatoria ? <span className="req"> *</span> : <span className="foco-finalizar-opcional"> (opcional)</span>}
+            </label>
             <textarea
               value={comentario}
               onChange={(e) => setComentario(e.target.value)}
-              placeholder="O que foi feito nessa sessão…"
+              placeholder={observacaoObrigatoria ? "Descreva o que foi feito nesta sessão…" : "O que foi feito nesta sessão…"}
               style={{ width: "100%", minHeight: 80 }}
+              aria-required={observacaoObrigatoria}
             ></textarea>
+            <div className={"foco-finalizar-regra" + (observacaoObrigatoria ? " required" : "")}>
+              {observacaoObrigatoria
+                ? "Obrigatória porque este Foco passou de 5 minutos."
+                : "Em Focos de até 5 minutos, a observação é opcional."}
+            </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <button
               className="btn btn-envox"
               style={{ width: "100%", justifyContent: "center" }}
               onClick={() => confirmar(true)}
-              disabled={enviando}
+              disabled={enviando || (observacaoObrigatoria && !observacaoValida)}
             >
               {enviando ? "Finalizando…" : "Confirmar e finalizar"}
             </button>
-            <button
-              className="btn btn-sm"
-              style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => confirmar(false)}
-              disabled={enviando}
-            >
-              Finalizar sem comentário
-            </button>
+            {!observacaoObrigatoria && (
+              <button
+                className="btn btn-sm"
+                style={{ width: "100%", justifyContent: "center" }}
+                onClick={() => confirmar(false)}
+                disabled={enviando}
+              >
+                Finalizar sem observação
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -24,6 +24,150 @@ function focoIsoDate(d) {
   return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 }
 
+function focoSplitMin(total) {
+  const n = Math.max(0, Math.round(Number(total || 0)));
+  return { h: Math.floor(n / 60), m: n % 60 };
+}
+
+function FocoRegistroEditarModal({ registro, onClose, onSaved }) {
+  const toast = EnvoxersShared.useToast();
+  const durInicial = focoSplitMin(registro.duracao_min);
+  const pausaInicial = focoSplitMin(registro.duracao_pausada_min);
+  const [durH, setDurH] = useStateFR(String(durInicial.h));
+  const [durM, setDurM] = useStateFR(String(durInicial.m));
+  const [pausaH, setPausaH] = useStateFR(String(pausaInicial.h));
+  const [pausaM, setPausaM] = useStateFR(String(pausaInicial.m));
+  const [motivo, setMotivo] = useStateFR("");
+  const [saving, setSaving] = useStateFR(false);
+
+  const toMin = (h, m) => {
+    const hh = Math.max(0, Number(h || 0));
+    const mm = Math.max(0, Math.min(59, Number(m || 0)));
+    return Math.round(hh * 60 + mm);
+  };
+
+  const duracao = toMin(durH, durM);
+  const pausa = toMin(pausaH, pausaM);
+  const alterou =
+    duracao !== Number(registro.duracao_min || 0) ||
+    pausa !== Number(registro.duracao_pausada_min || 0);
+
+  const salvar = async () => {
+    if (!alterou || saving) return;
+    setSaving(true);
+    try {
+      await EnvoxersAPI.api("/foco/admin/registros/" + registro.id, {
+        method: "PATCH",
+        body: JSON.stringify({
+          duracao_min: duracao,
+          duracao_pausada_min: pausa,
+          motivo: motivo.trim() || null,
+        }),
+      });
+      toast("Registro de Foco corrigido", "success");
+      await onSaved();
+      onClose();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const historico = [...(registro.ajustes_admin || [])].reverse();
+
+  return (
+    <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal foco-record-edit-modal">
+        <div className="modal-head">
+          <div>
+            <div className="modal-eyebrow">Admin / Focos / Registros</div>
+            <h2 className="modal-title">Corrigir registro de Foco</h2>
+          </div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+
+        <div className="foco-record-edit-body">
+          <div className="foco-record-edit-summary">
+            <div><span>Envoxer</span><strong>{registro.envoxer_nome}</strong></div>
+            <div><span>Data / início</span><strong>{focoFmtDate(registro.inicio)}</strong></div>
+            <div><span>Contexto</span><strong>{registro.contexto || "—"}</strong></div>
+            <div><span>Atividade</span><strong>{registro.titulo || "—"}</strong></div>
+          </div>
+
+          {registro.comentario && (
+            <div className="foco-record-observation">
+              <span>Observação de encerramento</span>
+              <p>{registro.comentario}</p>
+            </div>
+          )}
+
+          <div className="foco-record-time-grid">
+            <div className="foco-record-time-box">
+              <label>Duração líquida</label>
+              <div>
+                <input type="number" min="0" max="24" value={durH} onChange={(e) => setDurH(e.target.value)} />
+                <span>h</span>
+                <input type="number" min="0" max="59" value={durM} onChange={(e) => setDurM(e.target.value)} />
+                <span>min</span>
+              </div>
+              <small>Atual: {focoFmtMin(registro.duracao_min)}</small>
+            </div>
+
+            <div className="foco-record-time-box">
+              <label>Pausa total</label>
+              <div>
+                <input type="number" min="0" max="24" value={pausaH} onChange={(e) => setPausaH(e.target.value)} />
+                <span>h</span>
+                <input type="number" min="0" max="59" value={pausaM} onChange={(e) => setPausaM(e.target.value)} />
+                <span>min</span>
+              </div>
+              <small>Atual: {registro.duracao_pausada_min ? focoFmtMin(registro.duracao_pausada_min) : "sem pausa"}</small>
+            </div>
+          </div>
+
+          <div className="field">
+            <label>Motivo da correção <span className="foco-record-optional">(opcional)</span></label>
+            <textarea
+              rows={3}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ex.: timer ficou aberto após a reunião, pausa não foi retomada…"
+            />
+          </div>
+
+          {historico.length > 0 && (
+            <div className="foco-record-audit">
+              <div className="foco-record-audit-title">Histórico de correções administrativas</div>
+              {historico.map((a, i) => (
+                <div className="foco-record-audit-item" key={(a.criado_em || "ajuste") + i}>
+                  <div>
+                    <strong>{a.admin_nome || "Admin"}</strong>
+                    <span>{focoFmtDate(a.criado_em)}</span>
+                  </div>
+                  <p>
+                    Duração: {focoFmtMin(a.duracao_min_anterior)} → {focoFmtMin(a.duracao_min_nova)}
+                    {" · "}Pausa: {focoFmtMin(a.duracao_pausada_min_anterior)} → {focoFmtMin(a.duracao_pausada_min_nova)}
+                  </p>
+                  {a.motivo && <small>{a.motivo}</small>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <div style={{ flex:1 }}></div>
+          <button className="btn" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-envox" onClick={salvar} disabled={!alterou || saving}>
+            {saving ? "Salvando…" : "Salvar correção"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FocoRelatorioScreen() {
   const toast = EnvoxersShared.useToast();
   const hoje = new Date();
@@ -37,6 +181,7 @@ function FocoRelatorioScreen() {
   const [dados, setDados] = useStateFR(null);
   const [loading, setLoading] = useStateFR(true);
   const [aba, setAba] = useStateFR("equipe");
+  const [registroEditando, setRegistroEditando] = useStateFR(null);
 
   const carregar = async () => {
     setLoading(true);
@@ -252,10 +397,18 @@ function FocoRelatorioScreen() {
                   {dados.equipe.map((p) => (
                     <tr key={p.envoxer_id}>
                       <td>
-                        <div className="foco-person">
+                        <button
+                          type="button"
+                          className="foco-person foco-person-link"
+                          onClick={() => {
+                            setEnvoxerId(String(p.envoxer_id));
+                            setAba("registros");
+                          }}
+                          title={"Abrir registros de " + p.nome}
+                        >
                           <EnvoxersShared.Avatar nome={p.nome} fotoUrl={p.foto_url} envoxerId={p.envoxer_id} />
                           <div><strong>{p.nome}</strong><span>{p.cargo || "—"}{p.ativo_agora ? " · Foco ativo" : ""}</span></div>
-                        </div>
+                        </button>
                       </td>
                       <td className="td-num"><strong>{focoFmtMin(p.total_min)}</strong></td>
                       <td className="td-num">{p.dias_com_foco}</td>
@@ -282,23 +435,30 @@ function FocoRelatorioScreen() {
                     <th>Origem</th>
                     <th>Contexto</th>
                     <th>Atividade</th>
+                    <th>Observação</th>
                     <th>Duração</th>
                     <th>Pausas</th>
-                    <th></th>
+                    <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dados.registros.length === 0 && <tr><td colSpan="8">Nenhum registro no período.</td></tr>}
+                  {dados.registros.length === 0 && <tr><td colSpan="9">Nenhum registro no período.</td></tr>}
                   {dados.registros.map((r) => (
                     <tr key={r.id}>
                       <td className="td-primary">{r.envoxer_nome}</td>
                       <td>{focoFmtDate(r.inicio)}</td>
                       <td><span className={"foco-origin-chip "+r.origem}>{r.origem === "operacao" ? "Operação" : r.origem === "comercial" ? "Comercial" : "Avulsa"}</span></td>
                       <td>{r.contexto || "—"}</td>
-                      <td title={r.comentario || ""}>{r.titulo || "—"}</td>
+                      <td>{r.titulo || "—"}</td>
+                      <td className="foco-register-observation" title={r.comentario || ""}>{r.comentario || "—"}</td>
                       <td className="td-num"><strong>{focoFmtMin(r.duracao_min)}</strong></td>
                       <td className="td-num">{r.duracao_pausada_min ? focoFmtMin(r.duracao_pausada_min) : "—"}</td>
-                      <td>{r.ajustado && <span className="foco-adjusted-chip">AJUSTADO</span>}</td>
+                      <td>
+                        <div className="foco-register-actions">
+                          {r.ajustado && <span className="foco-adjusted-chip">AJUSTADO</span>}
+                          <button className="btn btn-sm foco-record-edit-btn" onClick={() => setRegistroEditando(r)}>Editar</button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -306,6 +466,14 @@ function FocoRelatorioScreen() {
             </div>
           )}
         </>
+      )}
+
+      {registroEditando && (
+        <FocoRegistroEditarModal
+          registro={registroEditando}
+          onClose={() => setRegistroEditando(null)}
+          onSaved={carregar}
+        />
       )}
     </div>
   );

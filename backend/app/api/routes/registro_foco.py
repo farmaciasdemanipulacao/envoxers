@@ -314,6 +314,14 @@ async def finalizar_foco_ativo_do_envoxer(
     return registro
 
 
+def _tempo_ativo_segundos_agora(registro: RegistroFoco) -> float:
+    agora = datetime.now(timezone.utc)
+    referencia = registro.pausado_em or agora
+    bruto = max(0.0, (referencia - registro.inicio).total_seconds())
+    pausas = max(0, int(registro.duracao_pausada_min or 0)) * 60
+    return max(0.0, bruto - pausas)
+
+
 @router.post("/{registro_id}/finalizar", response_model=RegistroFocoResponse)
 async def finalizar_foco(
     registro_id: int,
@@ -325,7 +333,14 @@ async def finalizar_foco(
     if registro.fim is not None:
         raise HTTPException(status_code=409, detail="Este Foco já foi finalizado")
 
-    _finalizar_registro(registro, envoxer.custo_hora, payload.comentario)
+    comentario = (payload.comentario or "").strip() or None
+    if _tempo_ativo_segundos_agora(registro) > 300 and not comentario:
+        raise HTTPException(
+            status_code=422,
+            detail="A observação é obrigatória para Focos com mais de 5 minutos",
+        )
+
+    _finalizar_registro(registro, envoxer.custo_hora, comentario)
 
     await db.flush()
     await db.refresh(registro)

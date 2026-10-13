@@ -6869,3 +6869,171 @@ body:has(.foco-bar.active) .feedback-floating-fab{
   .comment-paste-hint{white-space:normal}
   .comment-attachment-image{width:130px}
 }
+
+
+/* ===== 2026-10-13 · Admin Focos registros editáveis ===== */
+.foco-person-link{
+  width:100%;
+  padding:3px 4px;
+  margin:-3px -4px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+  cursor:pointer;
+}
+.foco-person-link:hover{
+  background:var(--envox-soft);
+}
+.foco-person-link:hover strong{color:var(--envox)}
+.foco-register-table table{min-width:1180px}
+.foco-register-table td:nth-child(4){max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foco-register-table td:nth-child(5){max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.foco-register-observation{
+  max-width:260px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  color:var(--ink-3);
+}
+.foco-register-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+  white-space:nowrap;
+}
+.foco-record-edit-btn{padding:5px 8px}
+.foco-record-edit-modal{max-width:720px}
+.foco-record-edit-body{
+  padding:20px 26px 24px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+.foco-record-edit-summary{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px 14px;
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--bg-inset);
+}
+.foco-record-edit-summary span{
+  display:block;
+  margin-bottom:3px;
+  color:var(--ink-4);
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+.foco-record-edit-summary strong{
+  display:block;
+  color:var(--ink-2);
+  font-size:10px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.foco-record-observation{
+  padding:10px 12px;
+  border-left:3px solid var(--envox);
+  border-radius:0 8px 8px 0;
+  background:var(--envox-soft);
+}
+.foco-record-observation span{
+  display:block;
+  margin-bottom:4px;
+  color:var(--envox);
+  font-size:8px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+.foco-record-observation p{
+  margin:0;
+  color:var(--ink-2);
+  font-size:10px;
+  line-height:1.5;
+  white-space:pre-wrap;
+}
+.foco-record-time-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+.foco-record-time-box{
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--bg-elev);
+}
+.foco-record-time-box>label{
+  display:block;
+  margin-bottom:8px;
+  color:var(--ink-2);
+  font-size:9px;
+  font-weight:750;
+}
+.foco-record-time-box>div{
+  display:grid;
+  grid-template-columns:72px 18px 72px 28px;
+  gap:5px;
+  align-items:center;
+}
+.foco-record-time-box input{width:72px;text-align:right}
+.foco-record-time-box>div span{font-size:9px;color:var(--ink-4)}
+.foco-record-time-box small{
+  display:block;
+  margin-top:7px;
+  color:var(--ink-4);
+  font-size:8px;
+}
+.foco-record-optional{color:var(--ink-4);font-weight:400}
+.foco-record-audit{
+  padding-top:4px;
+  border-top:1px solid var(--line);
+}
+.foco-record-audit-title{
+  margin-bottom:8px;
+  color:var(--ink-3);
+  font-size:8px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+.foco-record-audit-item{
+  padding:8px 10px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:var(--bg-inset);
+}
+.foco-record-audit-item+.foco-record-audit-item{margin-top:6px}
+.foco-record-audit-item>div{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+}
+.foco-record-audit-item strong{font-size:8.5px}
+.foco-record-audit-item span{font-size:7.5px;color:var(--ink-4)}
+.foco-record-audit-item p{margin:5px 0 0;font-size:8.5px;color:var(--ink-2)}
+.foco-record-audit-item small{display:block;margin-top:4px;font-size:8px;color:var(--ink-4)}
+@media(max-width:700px){
+  .foco-record-edit-summary,.foco-record-time-grid{grid-template-columns:1fr}
+}
+
+
+/* ===== 2026-10-13 · regra de observação ao finalizar Foco ===== */
+.foco-finalizar-opcional{color:var(--ink-4);font-weight:400}
+.foco-finalizar-regra{
+  margin-top:5px;
+  color:var(--ink-4);
+  font-size:8.5px;
+  line-height:1.4;
+}
+.foco-finalizar-regra.required{
+  color:#8a5a08;
+  font-weight:650;
+}

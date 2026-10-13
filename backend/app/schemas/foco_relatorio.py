@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FocoRelatorioResumo(BaseModel):
@@ -71,6 +71,15 @@ class FocoRelatorioRegistro(BaseModel):
     duracao_pausada_min: int
     comentario: Optional[str] = None
     ajustado: bool = False
+    ajustes_admin: list[dict] = Field(default_factory=list)
+
+
+
+
+class FocoRelatorioRegistroAjuste(BaseModel):
+    duracao_min: int = Field(ge=0, le=1440)
+    duracao_pausada_min: int = Field(ge=0, le=1440)
+    motivo: Optional[str] = Field(default=None, max_length=1000)
 
 
 class FocoRelatorioPessoaOpcao(BaseModel):

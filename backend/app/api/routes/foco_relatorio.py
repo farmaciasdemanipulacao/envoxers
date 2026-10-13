@@ -23,6 +23,7 @@ from app.schemas.foco_relatorio import (
     FocoRelatorioPessoa,
     FocoRelatorioPessoaOpcao,
     FocoRelatorioRegistro,
+    FocoRelatorioRegistroAjuste,
     FocoRelatorioResponse,
     FocoRelatorioResumo,
 )
@@ -56,6 +57,67 @@ def _origem(registro: RegistroFoco) -> str:
     if registro.demanda_avulsa_id is not None:
         return "avulsa"
     return "operacao"
+
+
+@router.patch("/registros/{registro_id}")
+async def ajustar_registro_admin(
+    registro_id: int,
+    payload: FocoRelatorioRegistroAjuste,
+    admin: Annotated[Envoxer, Depends(get_current_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    if payload.duracao_min + payload.duracao_pausada_min > 1440:
+        raise HTTPException(
+            status_code=422,
+            detail="Duração + pausas não pode ultrapassar 24 horas",
+        )
+
+    registro = await db.get(RegistroFoco, registro_id)
+    if registro is None or registro.fim is None or registro.descartado:
+        raise HTTPException(status_code=404, detail="Registro de Foco finalizado não encontrado")
+
+    anterior_duracao = int(registro.duracao_min or 0)
+    anterior_pausa = int(registro.duracao_pausada_min or 0)
+    nova_duracao = int(payload.duracao_min)
+    nova_pausa = int(payload.duracao_pausada_min)
+    motivo = (payload.motivo or "").strip() or None
+
+    if anterior_duracao == nova_duracao and anterior_pausa == nova_pausa:
+        raise HTTPException(status_code=409, detail="Nenhuma alteração foi informada")
+
+    dono = await db.get(Envoxer, registro.envoxer_id)
+    custo_hora = float(
+        registro.custo_hora_snapshot
+        if registro.custo_hora_snapshot is not None
+        else (dono.custo_hora if dono and dono.custo_hora is not None else 0)
+    )
+
+    auditoria = list(registro.ajustes_admin or [])
+    auditoria.append({
+        "admin_envoxer_id": admin.id,
+        "admin_nome": admin.nome,
+        "criado_em": datetime.now(timezone.utc).isoformat(),
+        "duracao_min_anterior": anterior_duracao,
+        "duracao_min_nova": nova_duracao,
+        "duracao_pausada_min_anterior": anterior_pausa,
+        "duracao_pausada_min_nova": nova_pausa,
+        "motivo": motivo,
+    })
+
+    registro.duracao_min = nova_duracao
+    registro.duracao_pausada_min = nova_pausa
+    registro.custo_hora_snapshot = custo_hora
+    registro.custo = round((nova_duracao / 60) * custo_hora, 2)
+    registro.ajustes_admin = auditoria
+    await db.flush()
+
+    return {
+        "ok": True,
+        "registro_id": registro.id,
+        "duracao_min": registro.duracao_min,
+        "duracao_pausada_min": registro.duracao_pausada_min,
+        "ajustes_admin": registro.ajustes_admin,
+    }
 
 
 @router.get("/relatorio", response_model=FocoRelatorioResponse)
@@ -136,6 +198,11 @@ async def relatorio_focos_time(
             )
         )).scalars().all()
         ajustados_ids = {int(x) for x in ajuste_rows if x is not None}
+    ajustados_ids.update(
+        item["registro"].id
+        for item in registros_base
+        if item["registro"].ajustes_admin
+    )
 
     ativos_stmt = select(RegistroFoco.envoxer_id).where(
         RegistroFoco.fim.is_(None),
@@ -206,6 +273,7 @@ async def relatorio_focos_time(
             duracao_pausada_min=int(reg.duracao_pausada_min or 0),
             comentario=reg.comentario,
             ajustado=reg.id in ajustados_ids,
+            ajustes_admin=list(reg.ajustes_admin or []),
         ))
 
     equipe = []

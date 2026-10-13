@@ -4,6 +4,7 @@ from typing import Optional
 
 from sqlalchemy import BigInteger, Boolean, Integer, Numeric, DateTime, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db.base import Base, TimestampMixin
 
@@ -42,6 +43,9 @@ class RegistroFoco(Base, TimestampMixin):
     tenant_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=1)
 
     comentario: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Correções administrativas manuais de duração/pausa, preservando antes/depois.
+    ajustes_admin: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
     # Grace period: sessão iniciada e finalizada em <2min (abriu por engano) — sai do
     # relatório de tempo×custo, da meta semanal e do cálculo de margem do Farol.
