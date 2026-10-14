@@ -54,3 +54,5 @@ from app.models.feedback_sistema_visualizacao import FeedbackSistemaVisualizacao
 from app.models.demanda_avulsa import DemandaAvulsa  # noqa: F401
 from app.models.foco_ajuste import FocoAjuste  # noqa: F401
 from app.models.perfil_acesso import PerfilAcesso  # noqa: F401
+
+from app.models.pdi_jornada import PdiJornada, PdiRegistro, PdiLembreteEnvio  # noqa: F401

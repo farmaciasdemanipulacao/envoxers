@@ -3,7 +3,7 @@
 // instrução manual — ver InstallBanner em tc-app.jsx) e Web Push (alerta de farol
 // piorando, mensagem de chat direto — ver app/services/push.py no backend).
 
-const CACHE_NAME = 'envoxers-v23';
+const CACHE_NAME = 'envoxers-v24-pdi';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -74,7 +74,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const tag = (event.notification.data && event.notification.data.tag) || 'envoxers';
-  const view = tag === 'envoxers-chat' ? 'chat' : tag === 'envoxers-farol' ? 'farol' : null;
+  const view = tag === 'envoxers-chat' ? 'chat' : tag === 'envoxers-farol' ? 'farol' : tag === 'envoxers-pdi' ? 'f4' : null;
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {

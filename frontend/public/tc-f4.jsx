@@ -1006,7 +1006,7 @@ function F4Screen({ permissao, envoxerId }) {
 
   return (
     <div className="page">
-      <EnvoxersShared.PageHeader title="Desenvolvimento & Pessoas" subtitle="PDI, Feedback 360°, Avaliação 180°, 1:1 e Clima Organizacional." />
+      <EnvoxersShared.PageHeader title="Desenvolvimento & Pessoas" subtitle="Jornadas de evolução, evidências, feedbacks, avaliações e clima da equipe." />
       <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
         <button className={"chip" + (aba === "pdi" ? " active" : "")} onClick={() => setAba("pdi")}>PDI</button>
         <button className={"chip" + (aba === "360" ? " active" : "")} onClick={() => setAba("360")}>Feedback 360°</button>
@@ -1016,7 +1016,7 @@ function F4Screen({ permissao, envoxerId }) {
         {isAdmin && <button className={"chip" + (aba === "ciclos" ? " active" : "")} onClick={() => setAba("ciclos")}>Ciclos</button>}
       </div>
 
-      {aba === "pdi" && <PdiSection permissao={permissao} envoxerId={envoxerId} />}
+      {aba === "pdi" && <PdiJornadaExperience permissao={permissao} envoxerId={envoxerId} />}
       {aba === "360" && <Avaliacao360Section permissao={permissao} envoxerId={envoxerId} />}
       {aba === "180" && <Avaliacao180Section permissao={permissao} envoxerId={envoxerId} />}
       {aba === "1a1" && <Feedback1a1Section permissao={permissao} envoxerId={envoxerId} />}

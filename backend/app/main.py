@@ -2,6 +2,7 @@
 import os
 import subprocess
 import sys
+import asyncio
 
 import structlog
 from fastapi import FastAPI
@@ -18,7 +19,7 @@ from app.models.motivo_churn import MotivoChurnCatalogo
 from app.models.chat_canal import ChatCanal
 from app.models.alerta_config import AlertaConfig
 from app.models.competencia_catalogo import CompetenciaCatalogo
-from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth, item_escopo, documento_acordo, portal_documentos, acessos, pdi, ciclos, avaliacao_360, avaliacao_180, feedback_1a1, clima, comercial, feedback_sistema, arquivos, demandas_avulsas, foco_ajustes, perfis_acesso, foco_relatorio
+from app.api.routes import health, auth, envoxers, servicos, clientes, tarefas, registro_foco, relatorio, aprovacoes, solicitacoes, pulso_checkin, farol, churn, icp, faturamento, calendario, chat, push, alertas_config, etapas, pendencias, etapas_template, cliente_contatos, portal_auth, item_escopo, documento_acordo, portal_documentos, acessos, pdi, pdi_jornada, ciclos, avaliacao_360, avaliacao_180, feedback_1a1, clima, comercial, feedback_sistema, arquivos, demandas_avulsas, foco_ajustes, perfis_acesso, foco_relatorio
 
 logger = structlog.get_logger()
 
@@ -194,6 +195,7 @@ app.include_router(documento_acordo.router, prefix=API_PREFIX)
 app.include_router(portal_documentos.router, prefix=API_PREFIX)
 app.include_router(acessos.router, prefix=API_PREFIX)
 app.include_router(pdi.router, prefix=API_PREFIX)
+app.include_router(pdi_jornada.router, prefix=API_PREFIX)
 app.include_router(ciclos.router, prefix=API_PREFIX)
 app.include_router(avaliacao_360.router, prefix=API_PREFIX)
 app.include_router(avaliacao_180.router, prefix=API_PREFIX)
@@ -216,3 +218,16 @@ async def on_startup():
     await run_migrations()
     await seed_dados_iniciais()
     logger.info("envoxers_backend_started", env=settings.APP_ENV)
+    from app.services.pdi_lembretes import loop_lembretes
+    app.state.pdi_lembretes_task = asyncio.create_task(loop_lembretes())
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    tarefa = getattr(app.state, "pdi_lembretes_task", None)
+    if tarefa:
+        tarefa.cancel()
+        try:
+            await tarefa
+        except asyncio.CancelledError:
+            pass

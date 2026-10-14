@@ -1028,6 +1028,7 @@ function AppShell() {
           leftAction={view === "chat" ? <button className="btn btn-sm topbar-new-chat" onClick={() => setChatNewConversationSignal((v) => v + 1)}>+ Nova conversa</button> : null}
           onOpenFeedback={abrirFeedbackAdmin}
         />
+        {temModulo("desenvolvimento") && <PdiAvisoGlobal envoxerId={envoxerId} permissao={permissao} view={view} onAbrir={() => navegarEFecharMenu("f4")} />}
         {view === "comercial-dashboard" && <ComercialScreen mode="dashboard" />}
         {view === "comercial-hoje" && <ComercialScreen mode="hoje" />}
         {view === "comercial-leads" && <ComercialScreen mode="leads" />}
