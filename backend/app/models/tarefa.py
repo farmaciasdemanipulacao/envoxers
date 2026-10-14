@@ -64,6 +64,10 @@ class Tarefa(Base, TimestampMixin):
     # [{nome, url, mime_type, tamanho_kb, enviado_por_envoxer_id, criado_em}]
     anexos: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
+    # Histórico auditável das ações realizadas nas etapas/tarefas internas do card.
+    # [{id, tipo, etapa_id, etapa_titulo, usuario_id, usuario_nome, acao, criado_em, detalhes}]
+    historico_etapas: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
     # Materializado — contagem de Alteracao vinculadas, usado no sinal 3 do Farol (F2).
     qtd_alteracoes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     aprovada_interna: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -79,6 +79,7 @@ class TarefaResponse(TarefaBase):
     ordem: int
     comentarios: list[ComentarioItem] = []
     anexos: list[AnexoItem] = []
+    historico_etapas: list[dict] = []
     cliente_nome: Optional[str] = None
     cliente_farol: Optional[str] = None
     servico_nome: Optional[str] = None

@@ -81,6 +81,21 @@ function formatComentarioDataHora(valor) {
   }).replace(",", " às");
 }
 
+
+function formatHistoricoValorKb(valor, campo) {
+  if (valor == null || valor === "" || valor === "—") return "—";
+  if (campo === "prazo") {
+    const raw = String(valor).slice(0, 10);
+    const d = new Date(raw + "T12:00:00");
+    return Number.isNaN(d.getTime()) ? String(valor) : d.toLocaleDateString("pt-BR");
+  }
+  if (campo === "concluida_em" || String(valor).includes("T")) {
+    const f = formatComentarioDataHora(valor);
+    if (f) return f;
+  }
+  return String(valor);
+}
+
 function KanbanScreen({ permissao, envoxerId, focoAtivo, focoElapsed, dataVersion, onAbrirTarefa, onAbrirNovaTarefa, onNavigate }) {
   // Card manual (fora do que nasce automático da cota contratada) só pode ser
   // criado por gestor/admin — mesma trava que já existe no backend (POST
@@ -531,6 +546,9 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   const [automacaoAbertaId, setAutomacaoAbertaId] = useStateKb(null);
   const [automacaoAcao, setAutomacaoAcao] = useStateKb("LIBERAR_PROXIMA_ETAPA");
   const [automacaoColuna, setAutomacaoColuna] = useStateKb("");
+  const [etapaReabrindoId, setEtapaReabrindoId] = useStateKb(null);
+  const [etapaReabrirPrazo, setEtapaReabrirPrazo] = useStateKb("");
+  const [atividadeAba, setAtividadeAba] = useStateKb("comentarios");
 
   // Resumo básico do cliente — usado só na visão bloqueada (sem Foco ativo nesta tarefa).
   const [tarefasConcluidas, setTarefasConcluidas] = useStateKb([]);
@@ -1153,6 +1171,13 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     }
   };
 
+  const carregarTarefaAtualizada = async () => {
+    const t = await EnvoxersAPI.api(`/tarefas/${tarefaId}`);
+    setTarefa(t);
+    setStatus(t.status);
+    return t;
+  };
+
   const carregarEtapas = async () => {
     const lista = await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas`);
     setEtapas(lista);
@@ -1163,7 +1188,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     setEtapaLoading(true);
     try {
       const novas = await EnvoxersAPI.api(`/tarefas/${tarefaId}/aplicar-processo`, { method: "POST" });
-      await carregarEtapas();
+      await Promise.all([carregarEtapas(), carregarTarefaAtualizada()]);
       toast(`${novas.length} etapa(s) do processo adicionada(s)`, "success");
     } catch (err) {
       toast(err.message, "error");
@@ -1173,18 +1198,40 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
   };
 
   const handleToggleEtapa = async (etapa) => {
+    if (etapa.status === "concluida") return;
     setEtapaLoading(true);
     try {
-      const acao = etapa.status === "concluida" ? "reabrir" : "concluir";
-      await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas/${etapa.id}/${acao}`, { method: "POST" });
-      await carregarEtapas();
-      if (acao === "concluir") {
-        // A automação pode ter movido a coluna ou finalizado a tarefa — recarrega o card.
-        const t = await EnvoxersAPI.api(`/tarefas/${tarefaId}`);
-        setTarefa(t);
-        setStatus(t.status);
-      }
-      toast(acao === "concluir" ? "Etapa concluída" : "Etapa reaberta", "success");
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas/${etapa.id}/concluir`, { method: "POST" });
+      setAutomacaoAbertaId((id) => id === etapa.id ? null : id);
+      await Promise.all([carregarEtapas(), carregarTarefaAtualizada()]);
+      toast("Tarefa concluída", "success");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setEtapaLoading(false);
+    }
+  };
+
+  const handleAbrirReaberturaEtapa = (etapa) => {
+    setEtapaReabrindoId(etapa.id);
+    setEtapaReabrirPrazo("");
+  };
+
+  const handleReabrirEtapa = async (etapa) => {
+    if (!etapaReabrirPrazo) {
+      toast("Selecione o novo prazo da tarefa", "error");
+      return;
+    }
+    setEtapaLoading(true);
+    try {
+      await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas/${etapa.id}/reabrir`, {
+        method: "POST",
+        body: JSON.stringify({ prazo: etapaReabrirPrazo }),
+      });
+      setEtapaReabrindoId(null);
+      setEtapaReabrirPrazo("");
+      await Promise.all([carregarEtapas(), carregarTarefaAtualizada()]);
+      toast("Tarefa reaberta com novo prazo", "success");
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -1217,8 +1264,8 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
         }),
       });
       setEtapaEditandoId(null);
-      await carregarEtapas();
-      toast("Etapa atualizada", "success");
+      await Promise.all([carregarEtapas(), carregarTarefaAtualizada()]);
+      toast("Tarefa atualizada", "success");
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -1231,8 +1278,8 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
     setEtapaLoading(true);
     try {
       await EnvoxersAPI.api(`/tarefas/${tarefaId}/etapas/${etapa.id}`, { method: "DELETE" });
-      await carregarEtapas();
-      toast("Etapa excluída", "success");
+      await Promise.all([carregarEtapas(), carregarTarefaAtualizada()]);
+      toast("Tarefa excluída", "success");
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -1265,7 +1312,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
           ativo: true,
         }),
       });
-      await carregarEtapas();
+      await Promise.all([carregarEtapas(), carregarTarefaAtualizada()]);
       setAutomacaoAbertaId(null);
       toast("Automação configurada", "success");
     } catch (err) {
@@ -1480,13 +1527,14 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                         permissao === "admin" ||
                         permissao === "gestor" ||
                         (etapa.responsavel_id != null && envoxerId != null && etapa.responsavel_id === envoxerId);
-                      const desabilitado = etapa.bloqueada || !podeConcluir;
+                      const desabilitado = concluida || etapa.bloqueada || !podeConcluir;
                       let tituloCheckbox = "";
-                      if (etapa.bloqueada) tituloCheckbox = "Bloqueada até a etapa anterior ser concluída";
+                      if (concluida) tituloCheckbox = "Tarefa concluída";
+                      else if (etapa.bloqueada) tituloCheckbox = "Bloqueada até a etapa anterior ser concluída";
                       else if (!podeConcluir) tituloCheckbox = "Só o responsável da etapa (ou gestor/admin) pode concluir";
 
                       return (
-                        <div className="etapa-item" key={etapa.id}>
+                        <div className={"etapa-item" + (concluida ? " concluida" : "")} key={etapa.id}>
                           <input
                             type="checkbox"
                             className="etapa-checkbox"
@@ -1534,7 +1582,7 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                                         <rect x="3" y="7" width="10" height="7" rx="1" /><path d="M5 7V5a3 3 0 0 1 6 0v2" />
                                       </svg>
                                     )}
-                                    {etapa.automacao && etapa.automacao.ativo && (
+                                    {!concluida && etapa.automacao && etapa.automacao.ativo && (
                                       <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" className="etapa-icon" title="Tem automação configurada">
                                         <path d="M9 1L3 9h4l-1 6 6-8H8z" />
                                       </svg>
@@ -1546,30 +1594,68 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                                         <EnvoxersShared.Avatar nome={etapa.responsavel_nome} fotoUrl={etapa.responsavel_foto} size="sm" className="gray" envoxerId={etapa.responsavel_id} /> {etapa.responsavel_nome}
                                       </span>
                                     )}
+                                    {concluida && etapa.concluida_em && (
+                                      <span className="etapa-meta-item etapa-concluida-em">
+                                        ✓ Concluída em {formatComentarioDataHora(etapa.concluida_em)}
+                                      </span>
+                                    )}
                                     {etapa.descricao && (
                                       <button className="etapa-automacao-toggle" onClick={() => setComoFazerEtapa(etapa)}>Como fazer</button>
                                     )}
                                   </div>
                                 </div>
                                 <div className="etapa-side">
-                                  <span className={"etapa-prazo-badge " + (EnvoxersShared.corPrazoEtapa(etapa.prazo) || "neutro")}>
-                                    {etapa.prazo ? fmtPrazoKb(etapa.prazo).txt : "sem prazo"}
-                                  </span>
-                                  <div className="etapa-actions">
-                                    <button className="etapa-icon-btn" title="Editar etapa" onClick={() => handleAbrirEdicaoEtapa(etapa)}>
-                                      <EnvoxersShared.IconEditar />
-                                    </button>
-                                    <button className="etapa-icon-btn" title={etapa.automacao ? "Editar automação" : "Configurar automação"} onClick={() => handleAbrirAutomacao(etapa)}>
-                                      <EnvoxersShared.IconAutomacao />
-                                    </button>
-                                    <button className="etapa-icon-btn danger" title="Excluir etapa" onClick={() => handleExcluirEtapa(etapa)}>
-                                      <EnvoxersShared.IconExcluir />
-                                    </button>
-                                  </div>
+                                  {concluida ? (
+                                    <>
+                                      <span className="etapa-prazo-badge verde etapa-concluida-badge">Concluída</span>
+                                      {podeConcluir && (
+                                        <button className="btn btn-sm etapa-reabrir-btn" onClick={() => handleAbrirReaberturaEtapa(etapa)} disabled={etapaLoading}>
+                                          Reabrir
+                                        </button>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className={"etapa-prazo-badge " + (EnvoxersShared.corPrazoEtapa(etapa.prazo) || "neutro")}>
+                                        {etapa.prazo ? fmtPrazoKb(etapa.prazo).txt : "sem prazo"}
+                                      </span>
+                                      <div className="etapa-actions">
+                                        <button className="etapa-icon-btn" title="Editar tarefa" onClick={() => handleAbrirEdicaoEtapa(etapa)}>
+                                          <EnvoxersShared.IconEditar />
+                                        </button>
+                                        <button className="etapa-icon-btn" title={etapa.automacao ? "Editar automação" : "Configurar automação"} onClick={() => handleAbrirAutomacao(etapa)}>
+                                          <EnvoxersShared.IconAutomacao />
+                                        </button>
+                                        <button className="etapa-icon-btn danger" title="Excluir tarefa" onClick={() => handleExcluirEtapa(etapa)}>
+                                          <EnvoxersShared.IconExcluir />
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             )}
-                            {automacaoAbertaId === etapa.id && (
+                            {etapaReabrindoId === etapa.id && concluida && (
+                              <div className="etapa-reopen-form">
+                                <div>
+                                  <label>Novo prazo da tarefa <span className="req">*</span></label>
+                                  <input
+                                    type="date"
+                                    value={etapaReabrirPrazo}
+                                    onChange={(e) => setEtapaReabrirPrazo(e.target.value)}
+                                  />
+                                </div>
+                                <div className="etapa-reopen-actions">
+                                  <button className="btn btn-envox btn-sm" onClick={() => handleReabrirEtapa(etapa)} disabled={etapaLoading || !etapaReabrirPrazo}>
+                                    Confirmar reabertura
+                                  </button>
+                                  <button className="btn btn-sm" onClick={() => { setEtapaReabrindoId(null); setEtapaReabrirPrazo(""); }} disabled={etapaLoading}>
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                            {!concluida && automacaoAbertaId === etapa.id && (
                               <div className="etapa-automacao-form">
                                 <p className="etapa-automacao-hint">Quando essa etapa for marcada como <strong>concluída</strong>, o sistema faz automaticamente:</p>
                                 <select value={automacaoAcao} onChange={(e) => setAutomacaoAcao(e.target.value)}>
@@ -1608,7 +1694,26 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
 
               {isEdit && (
                 <div className="modal-section modal-section-comentarios">
-                  <div className="modal-section-title">Comentários <EnvoxersShared.HelpIcon helpKey="modal_comentarios" /></div>
+                  <div className="card-activity-tabs">
+                    <button
+                      type="button"
+                      className={atividadeAba === "comentarios" ? "active" : ""}
+                      onClick={() => setAtividadeAba("comentarios")}
+                    >
+                      Comentários <span>{(tarefa?.comentarios || []).length}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={atividadeAba === "historico" ? "active" : ""}
+                      onClick={() => setAtividadeAba("historico")}
+                    >
+                      Histórico <span>{(tarefa?.historico_etapas || []).length}</span>
+                    </button>
+                    <EnvoxersShared.HelpIcon helpKey="modal_comentarios" />
+                  </div>
+
+                  {atividadeAba === "comentarios" ? (
+                    <>
                   <div>
                     {(tarefa?.comentarios || []).map((c, i) => {
                       const meuComentario = Number(c.envoxer_id) === Number(envoxerId);
@@ -1729,6 +1834,40 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                       </button>
                     </div>
                   </div>
+                    </>
+                  ) : (
+                    <div className="card-history-list">
+                      {(tarefa?.historico_etapas || []).map((h, i) => (
+                        <div className="card-history-item" key={h.id || (h.criado_em + "-" + i)}>
+                          <div className="avatar sm gray">{initialsKb(h.usuario_nome || "Sistema")}</div>
+                          <div className="card-history-body">
+                            <div className="card-history-head">
+                              <strong>{h.usuario_nome || "Sistema"}</strong>
+                              <span>{formatComentarioDataHora(h.criado_em)}</span>
+                            </div>
+                            <div className="card-history-action">{h.acao}</div>
+                            {(h.detalhes || []).length > 0 && (
+                              <div className="card-history-details">
+                                {(h.detalhes || []).map((d, di) => (
+                                  <div className="card-history-change" key={(d.campo || "campo") + "-" + di}>
+                                    <b>{d.label || d.campo}</b>
+                                    <span>{formatHistoricoValorKb(d.de, d.campo)}</span>
+                                    <span className="card-history-arrow">→</span>
+                                    <span>{formatHistoricoValorKb(d.para, d.campo)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {(tarefa?.historico_etapas || []).length === 0 && (
+                        <div className="card-history-empty">
+                          O histórico detalhado das tarefas começa a ser registrado a partir desta atualização.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

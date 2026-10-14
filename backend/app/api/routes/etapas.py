@@ -2,8 +2,9 @@
 entre elas (LIBERAR_PROXIMA_ETAPA, MOVER_TAREFA_COLUNA, MARCAR_TAREFA_CONCLUIDA,
 CRIAR_ALERTA_RESPONSAVEL). Ver app/services/etapas_automacao.py para a execução.
 """
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, and_
@@ -15,7 +16,7 @@ from app.models.envoxer import Envoxer
 from app.models.tarefa import Tarefa, STATUS_TAREFA_VALUES
 from app.models.etapa import Etapa
 from app.models.automacao_etapa import AutomacaoEtapa, ACAO_AUTOMACAO_VALUES
-from app.schemas.etapa import EtapaCreate, EtapaUpdate, EtapaResponse, AutomacaoEtapaUpsert, AutomacaoEtapaResponse
+from app.schemas.etapa import EtapaCreate, EtapaUpdate, EtapaReabrirRequest, EtapaResponse, AutomacaoEtapaUpsert, AutomacaoEtapaResponse
 from app.services.etapas_automacao import executar_automacao, aplicar_processo_do_servico
 from app.services.realtime import notificar_tarefa_atualizada
 
@@ -30,6 +31,44 @@ async def _obter_tarefa_ou_404(db: AsyncSession, tarefa_id: int) -> Tarefa:
     if tarefa is None:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     return tarefa
+
+
+def _iso_valor(valor) -> str:
+    if valor is None:
+        return "—"
+    if isinstance(valor, (date, datetime)):
+        return valor.isoformat()
+    return str(valor)
+
+
+async def _nome_envoxer(db: AsyncSession, envoxer_id: Optional[int]) -> str:
+    if not envoxer_id:
+        return "Sem responsável"
+    nome = (await db.execute(select(Envoxer.nome).where(Envoxer.id == envoxer_id))).scalar_one_or_none()
+    return nome or f"Envoxer #{envoxer_id}"
+
+
+async def _registrar_historico_etapa(
+    tarefa: Tarefa,
+    envoxer: Envoxer,
+    tipo: str,
+    acao: str,
+    etapa: Optional[Etapa] = None,
+    detalhes: Optional[list[dict]] = None,
+) -> None:
+    historico = list(tarefa.historico_etapas or [])
+    historico.append({
+        "id": uuid4().hex,
+        "tipo": tipo,
+        "etapa_id": etapa.id if etapa else None,
+        "etapa_titulo": etapa.titulo if etapa else None,
+        "usuario_id": envoxer.id,
+        "usuario_nome": envoxer.nome,
+        "acao": acao,
+        "criado_em": datetime.now(timezone.utc).isoformat(),
+        "detalhes": detalhes or [],
+    })
+    tarefa.historico_etapas = historico
 
 
 async def _listar_etapas_ordenadas(db: AsyncSession, tarefa_id: int) -> list[Etapa]:
@@ -127,9 +166,9 @@ async def criar_etapa(
     tarefa_id: int,
     payload: EtapaCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    await _obter_tarefa_ou_404(db, tarefa_id)
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
     if not payload.titulo.strip():
         raise HTTPException(status_code=400, detail="Título é obrigatório")
 
@@ -147,6 +186,14 @@ async def criar_etapa(
     db.add(etapa)
     await db.flush()
     await db.refresh(etapa)
+    await _registrar_historico_etapa(
+        tarefa,
+        envoxer,
+        "etapa_criada",
+        f'Criou a tarefa "{etapa.titulo}"',
+        etapa,
+    )
+    await db.flush()
     resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
     await notificar_tarefa_atualizada(db, tarefa_id)
     return next(r for r in resp if r.id == etapa.id)
@@ -158,14 +205,44 @@ async def atualizar_etapa(
     etapa_id: int,
     payload: EtapaUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    await _obter_tarefa_ou_404(db, tarefa_id)
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
     etapa = await _obter_etapa_ou_404(db, tarefa_id, etapa_id)
+    if etapa.status == "concluida":
+        raise HTTPException(status_code=409, detail="Reabra a tarefa antes de editar")
 
     data = payload.model_dump(exclude_unset=True)
+    alteracoes = []
+    labels = {
+        "titulo": "Título",
+        "descricao": "Descrição",
+        "responsavel_id": "Responsável",
+        "prazo": "Prazo",
+        "ordem": "Ordem",
+    }
     for campo, valor in data.items():
+        anterior = getattr(etapa, campo)
+        if anterior == valor:
+            continue
+        if campo == "responsavel_id":
+            de = await _nome_envoxer(db, anterior)
+            para = await _nome_envoxer(db, valor)
+        else:
+            de = _iso_valor(anterior)
+            para = _iso_valor(valor)
+        alteracoes.append({"campo": campo, "label": labels.get(campo, campo), "de": de, "para": para})
         setattr(etapa, campo, valor)
+
+    if alteracoes:
+        await _registrar_historico_etapa(
+            tarefa,
+            envoxer,
+            "etapa_editada",
+            f'Editou a tarefa "{etapa.titulo}"',
+            etapa,
+            alteracoes,
+        )
 
     await db.flush()
     await db.refresh(etapa)
@@ -179,10 +256,19 @@ async def excluir_etapa(
     tarefa_id: int,
     etapa_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    await _obter_tarefa_ou_404(db, tarefa_id)
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
     etapa = await _obter_etapa_ou_404(db, tarefa_id, etapa_id)
+    if etapa.status == "concluida":
+        raise HTTPException(status_code=409, detail="Reabra a tarefa antes de excluir")
+    await _registrar_historico_etapa(
+        tarefa,
+        envoxer,
+        "etapa_excluida",
+        f'Excluiu a tarefa "{etapa.titulo}"',
+        etapa,
+    )
     await db.delete(etapa)
     await db.flush()
     await notificar_tarefa_atualizada(db, tarefa_id)
@@ -213,6 +299,14 @@ async def concluir_etapa(
 
     etapa.status = "concluida"
     etapa.concluida_em = datetime.now(timezone.utc)
+    await _registrar_historico_etapa(
+        tarefa,
+        envoxer,
+        "etapa_concluida",
+        f'Concluiu a tarefa "{etapa.titulo}"',
+        etapa,
+        [{"campo": "concluida_em", "label": "Concluída em", "de": "—", "para": etapa.concluida_em.isoformat()}],
+    )
     await db.flush()
 
     automacao = await _obter_automacao(db, etapa.id)
@@ -231,17 +325,34 @@ async def concluir_etapa(
 async def reabrir_etapa(
     tarefa_id: int,
     etapa_id: int,
+    payload: EtapaReabrirRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    await _obter_tarefa_ou_404(db, tarefa_id)
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
     etapa = await _obter_etapa_ou_404(db, tarefa_id, etapa_id)
 
     if not _pode_concluir(envoxer, etapa):
         raise HTTPException(status_code=403, detail="Só o responsável da etapa (ou gestor/admin) pode reabri-la")
+    if etapa.status != "concluida":
+        raise HTTPException(status_code=409, detail="Esta tarefa já está aberta")
 
+    prazo_anterior = etapa.prazo
+    concluida_anterior = etapa.concluida_em
     etapa.status = "pendente"
     etapa.concluida_em = None
+    etapa.prazo = payload.prazo
+    await _registrar_historico_etapa(
+        tarefa,
+        envoxer,
+        "etapa_reaberta",
+        f'Reabriu a tarefa "{etapa.titulo}"',
+        etapa,
+        [
+            {"campo": "prazo", "label": "Novo prazo", "de": _iso_valor(prazo_anterior), "para": payload.prazo.isoformat()},
+            {"campo": "concluida_em", "label": "Conclusão anterior", "de": _iso_valor(concluida_anterior), "para": "Reaberta"},
+        ],
+    )
     await db.flush()
     await db.refresh(etapa)
     resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
@@ -255,10 +366,12 @@ async def configurar_automacao(
     etapa_id: int,
     payload: AutomacaoEtapaUpsert,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    await _obter_tarefa_ou_404(db, tarefa_id)
-    await _obter_etapa_ou_404(db, tarefa_id, etapa_id)
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
+    etapa = await _obter_etapa_ou_404(db, tarefa_id, etapa_id)
+    if etapa.status == "concluida":
+        raise HTTPException(status_code=409, detail="Reabra a tarefa antes de alterar a automação")
 
     if payload.acao not in ACAO_AUTOMACAO_VALUES:
         raise HTTPException(status_code=400, detail="Ação de automação inválida")
@@ -275,8 +388,17 @@ async def configurar_automacao(
     automacao.coluna_destino = payload.coluna_destino if payload.acao == "MOVER_TAREFA_COLUNA" else None
     automacao.ativo = payload.ativo
 
+    await _registrar_historico_etapa(
+        tarefa,
+        envoxer,
+        "automacao_configurada",
+        f'Configurou a automação da tarefa "{etapa.titulo}"',
+        etapa,
+        [{"campo": "automacao", "label": "Automação", "de": "—", "para": payload.acao}],
+    )
     await db.flush()
     await db.refresh(automacao)
+    await notificar_tarefa_atualizada(db, tarefa_id)
     return automacao
 
 
@@ -285,21 +407,33 @@ async def remover_automacao(
     tarefa_id: int,
     etapa_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    await _obter_tarefa_ou_404(db, tarefa_id)
-    await _obter_etapa_ou_404(db, tarefa_id, etapa_id)
+    tarefa = await _obter_tarefa_ou_404(db, tarefa_id)
+    etapa = await _obter_etapa_ou_404(db, tarefa_id, etapa_id)
+    if etapa.status == "concluida":
+        raise HTTPException(status_code=409, detail="Reabra a tarefa antes de alterar a automação")
     automacao = await _obter_automacao(db, etapa_id)
     if automacao:
+        acao_anterior = automacao.acao
+        await _registrar_historico_etapa(
+            tarefa,
+            envoxer,
+            "automacao_removida",
+            f'Removeu a automação da tarefa "{etapa.titulo}"',
+            etapa,
+            [{"campo": "automacao", "label": "Automação", "de": acao_anterior, "para": "Removida"}],
+        )
         await db.delete(automacao)
         await db.flush()
+        await notificar_tarefa_atualizada(db, tarefa_id)
 
 
 @router.post("/tarefas/{tarefa_id}/aplicar-processo", response_model=list[EtapaResponse], status_code=201)
 async def aplicar_processo(
     tarefa_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Envoxer, Depends(get_current_envoxer)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     """Copia as etapas-modelo do serviço da tarefa para dentro dela como Etapas
     reais (com o responsável padrão de cada uma), na sequência das que já
@@ -312,6 +446,15 @@ async def aplicar_processo(
     if not novas_etapas:
         raise HTTPException(status_code=400, detail="Este serviço não tem etapas-modelo cadastradas")
 
+    await _registrar_historico_etapa(
+        tarefa,
+        envoxer,
+        "processo_aplicado",
+        f'Adicionou {len(novas_etapas)} tarefa(s) do processo do serviço',
+        None,
+        [{"campo": "quantidade", "label": "Tarefas adicionadas", "de": "0", "para": str(len(novas_etapas))}],
+    )
+    await db.flush()
     resp = await _to_response(db, await _listar_etapas_ordenadas(db, tarefa_id))
     ids_novas = {e.id for e in novas_etapas}
     await notificar_tarefa_atualizada(db, tarefa_id)

@@ -54,6 +54,14 @@ def _comentarios_ordenados(comentarios: list) -> list:
     return sorted(list(comentarios or []), key=chave, reverse=True)
 
 
+def _historico_etapas_ordenado(historico: list) -> list:
+    return sorted(
+        list(historico or []),
+        key=lambda item: str(item.get("criado_em") or ""),
+        reverse=True,
+    )
+
+
 def _to_response(
     tarefa: Tarefa,
     cliente_nome: str,
@@ -81,6 +89,7 @@ def _to_response(
         etiqueta_cor=tarefa.etiqueta_cor,
         comentarios=_comentarios_ordenados(tarefa.comentarios or []),
         anexos=tarefa.anexos or [],
+        historico_etapas=_historico_etapas_ordenado(tarefa.historico_etapas or []),
         cliente_nome=cliente_nome,
         cliente_farol=cliente_farol,
         servico_nome=servico_nome,

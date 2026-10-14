@@ -39,6 +39,14 @@ class EtapaUpdate(BaseModel):
     ordem: Optional[int] = None
 
 
+
+
+class EtapaReabrirRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    prazo: date
+
+
 class EtapaResponse(BaseModel):
     id: int
     tarefa_id: int
