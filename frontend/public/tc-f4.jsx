@@ -1007,21 +1007,21 @@ function F4Screen({ permissao, envoxerId }) {
   return (
     <div className="page">
       <EnvoxersShared.PageHeader title="Desenvolvimento & Pessoas" subtitle="Jornadas de evolução, evidências, feedbacks, avaliações e clima da equipe." />
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        <button className={"chip" + (aba === "pdi" ? " active" : "")} onClick={() => setAba("pdi")}>PDI</button>
-        <button className={"chip" + (aba === "360" ? " active" : "")} onClick={() => setAba("360")}>Feedback 360°</button>
-        <button className={"chip" + (aba === "180" ? " active" : "")} onClick={() => setAba("180")}>Avaliação 180°</button>
-        <button className={"chip" + (aba === "1a1" ? " active" : "")} onClick={() => setAba("1a1")}>1:1</button>
-        <button className={"chip" + (aba === "clima" ? " active" : "")} onClick={() => setAba("clima")}>Clima Organizacional</button>
-        {isAdmin && <button className={"chip" + (aba === "ciclos" ? " active" : "")} onClick={() => setAba("ciclos")}>Ciclos</button>}
-      </div>
+      <nav className="f4-shell-nav" aria-label="Módulos de Desenvolvimento & Pessoas">
+        <button className={aba === "pdi" ? "is-active" : ""} aria-current={aba === "pdi" ? "page" : undefined} onClick={() => setAba("pdi")}><span>🌱</span>PDI</button>
+        <button className={aba === "360" ? "is-active" : ""} aria-current={aba === "360" ? "page" : undefined} onClick={() => setAba("360")}><span>✦</span>Feedback 360°</button>
+        <button className={aba === "180" ? "is-active" : ""} aria-current={aba === "180" ? "page" : undefined} onClick={() => setAba("180")}><span>⇄</span>Avaliação 180°</button>
+        <button className={aba === "1a1" ? "is-active" : ""} aria-current={aba === "1a1" ? "page" : undefined} onClick={() => setAba("1a1")}><span>♡</span>1:1</button>
+        <button className={aba === "clima" ? "is-active" : ""} aria-current={aba === "clima" ? "page" : undefined} onClick={() => setAba("clima")}><span>☀</span>Clima Organizacional</button>
+        {isAdmin && <button className={aba === "ciclos" ? "is-active" : ""} aria-current={aba === "ciclos" ? "page" : undefined} onClick={() => setAba("ciclos")}><span>◈</span>Ciclos</button>}
+      </nav>
 
       {aba === "pdi" && <PdiJornadaExperience permissao={permissao} envoxerId={envoxerId} />}
-      {aba === "360" && <Avaliacao360Section permissao={permissao} envoxerId={envoxerId} />}
-      {aba === "180" && <Avaliacao180Section permissao={permissao} envoxerId={envoxerId} />}
-      {aba === "1a1" && <Feedback1a1Section permissao={permissao} envoxerId={envoxerId} />}
-      {aba === "clima" && <ClimaSection permissao={permissao} envoxerId={envoxerId} />}
-      {aba === "ciclos" && isAdmin && <CiclosSection />}
+      {aba === "360" && <F4Premium360 permissao={permissao} envoxerId={envoxerId} />}
+      {aba === "180" && <F4Premium180 permissao={permissao} envoxerId={envoxerId} />}
+      {aba === "1a1" && <F4Premium1a1 permissao={permissao} envoxerId={envoxerId} />}
+      {aba === "clima" && <F4PremiumClima permissao={permissao} />}
+      {aba === "ciclos" && isAdmin && <F4PremiumCycles />}
     </div>
   );
 }
