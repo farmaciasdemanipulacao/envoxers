@@ -29,8 +29,8 @@ router = APIRouter(prefix="/foco", tags=["foco"])
 # "meta média" de horas de Foco por semana, exibida no widget "Meu Foco" (ver wireframe F1).
 META_SEMANAL_MIN = 32 * 60
 
-# Grace period — Foco iniciado e finalizado em menos disso é "abriu por engano" (ver TaskModal).
-GRACE_PERIOD_SEGUNDOS = 120
+# Regra atual: todo Foco conta, mesmo com poucos segundos.
+GRACE_PERIOD_SEGUNDOS = 0
 
 
 async def _sessao_ativa(db: AsyncSession, envoxer_id: int) -> Optional[RegistroFoco]:
@@ -119,10 +119,12 @@ async def _to_response(db: AsyncSession, registro: RegistroFoco, envoxer: Envoxe
         cliente_nome=ctx["contexto"],
         inicio=registro.inicio,
         fim=registro.fim,
-        duracao_min=registro.duracao_min,
+        duracao_min=((registro.duracao_segundos if registro.duracao_segundos is not None else int(registro.duracao_min or 0) * 60) / 60),
+        duracao_segundos=registro.duracao_segundos,
         custo=float(registro.custo) if registro.custo is not None else None,
         pausado_em=registro.pausado_em,
-        duracao_pausada_min=registro.duracao_pausada_min,
+        duracao_pausada_min=((registro.duracao_pausada_segundos or 0) / 60),
+        duracao_pausada_segundos=int(registro.duracao_pausada_segundos or 0),
         comentario=registro.comentario,
         descartado=registro.descartado,
     )
@@ -229,8 +231,9 @@ async def pausar_ou_retomar_foco(
     if registro.pausado_em is None:
         registro.pausado_em = agora
     else:
-        segundos_pausado = (agora - registro.pausado_em).total_seconds()
-        registro.duracao_pausada_min += round(segundos_pausado / 60)
+        segundos_pausado = max(0, int(round((agora - registro.pausado_em).total_seconds())))
+        registro.duracao_pausada_segundos = int(registro.duracao_pausada_segundos or 0) + segundos_pausado
+        registro.duracao_pausada_min = round(registro.duracao_pausada_segundos / 60)
         registro.pausado_em = None
 
     await db.flush()
@@ -239,23 +242,25 @@ async def pausar_ou_retomar_foco(
 
 
 def _finalizar_registro(registro: RegistroFoco, custo_hora: float, comentario: Optional[str] = None) -> None:
-    """Mesma lógica usada pelo botão Finalizar — calcula duração/custo e marca `descartado`
-    se a sessão inteira (bruta, sem descontar pausa) durou menos que o grace period."""
+    """Finaliza usando segundos reais. Nenhuma sessão é descartada por ser curta."""
     registro.comentario = comentario
     registro.fim = datetime.now(timezone.utc)
 
-    # Se estava pausado no momento de finalizar, fecha esse último intervalo antes de calcular.
     if registro.pausado_em is not None:
-        segundos_pausado = (registro.fim - registro.pausado_em).total_seconds()
-        registro.duracao_pausada_min += round(segundos_pausado / 60)
+        segundos_pausado = max(0, int(round((registro.fim - registro.pausado_em).total_seconds())))
+        registro.duracao_pausada_segundos = int(registro.duracao_pausada_segundos or 0) + segundos_pausado
         registro.pausado_em = None
 
-    duracao_segundos = (registro.fim - registro.inicio).total_seconds()
-    duracao_min = round(duracao_segundos / 60) - registro.duracao_pausada_min
-    registro.duracao_min = max(duracao_min, 0)
+    bruto_segundos = max(0, int(round((registro.fim - registro.inicio).total_seconds())))
+    pausado_segundos = max(0, int(registro.duracao_pausada_segundos or 0))
+    liquido_segundos = max(bruto_segundos - pausado_segundos, 0)
+
+    registro.duracao_segundos = liquido_segundos
+    registro.duracao_pausada_min = round(pausado_segundos / 60)
+    registro.duracao_min = round(liquido_segundos / 60)
     registro.custo_hora_snapshot = custo_hora
-    registro.custo = round((registro.duracao_min / 60) * float(custo_hora), 2)
-    registro.descartado = duracao_segundos < GRACE_PERIOD_SEGUNDOS
+    registro.custo = round((liquido_segundos / 3600) * float(custo_hora or 0), 2)
+    registro.descartado = False
 
 
 async def finalizar_foco_ativo_da_tarefa(
@@ -318,7 +323,7 @@ def _tempo_ativo_segundos_agora(registro: RegistroFoco) -> float:
     agora = datetime.now(timezone.utc)
     referencia = registro.pausado_em or agora
     bruto = max(0.0, (referencia - registro.inicio).total_seconds())
-    pausas = max(0, int(registro.duracao_pausada_min or 0)) * 60
+    pausas = max(0, int(registro.duracao_pausada_segundos or 0))
     return max(0.0, bruto - pausas)
 
 
@@ -360,7 +365,7 @@ async def resumo_foco(
     fim_semana = inicio_semana + timedelta(days=7)
 
     hoje_stmt = select(
-        func.coalesce(func.sum(RegistroFoco.duracao_min), 0),
+        func.coalesce(func.sum(RegistroFoco.duracao_segundos), 0),
         func.coalesce(func.sum(RegistroFoco.custo), 0),
         func.count(RegistroFoco.id),
     ).where(and_(
@@ -370,10 +375,10 @@ async def resumo_foco(
         RegistroFoco.inicio >= inicio_hoje,
         RegistroFoco.inicio < fim_hoje,
     ))
-    hoje_min, hoje_custo, hoje_sessoes = (await db.execute(hoje_stmt)).one()
+    hoje_segundos, hoje_custo, hoje_sessoes = (await db.execute(hoje_stmt)).one()
 
     semana_stmt = select(
-        func.coalesce(func.sum(RegistroFoco.duracao_min), 0),
+        func.coalesce(func.sum(RegistroFoco.duracao_segundos), 0),
     ).where(and_(
         RegistroFoco.envoxer_id == envoxer.id,
         RegistroFoco.fim.is_not(None),
@@ -381,13 +386,17 @@ async def resumo_foco(
         RegistroFoco.inicio >= inicio_semana,
         RegistroFoco.inicio < fim_semana,
     ))
-    (semana_min,) = (await db.execute(semana_stmt)).one()
+    (semana_segundos,) = (await db.execute(semana_stmt)).one()
 
+    hoje_segundos = int(hoje_segundos or 0)
+    semana_segundos = int(semana_segundos or 0)
     resposta = FocoResumoResponse(
-        hoje_min=int(hoje_min),
+        hoje_min=hoje_segundos / 60,
+        hoje_segundos=hoje_segundos,
         hoje_custo=float(hoje_custo),
         hoje_sessoes=int(hoje_sessoes),
-        semana_min=int(semana_min),
+        semana_min=semana_segundos / 60,
+        semana_segundos=semana_segundos,
         semana_meta_min=META_SEMANAL_MIN,
     )
     redigir(resposta, ["hoje_custo"], envoxer)

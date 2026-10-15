@@ -9,13 +9,14 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 
 from app.api.deps import get_current_envoxer
 from app.core.security import decode_access_token
+from app.core.uploads import excluir_upload_url, salvar_upload
 from app.db.session import get_db
 from app.models.chat_canal import ChatCanal
 from app.models.chat_leitura import ChatLeitura
@@ -73,6 +74,8 @@ def _mensagem_response(
     return ChatMensagemResponse(
         id=mensagem.id, canal_id=mensagem.canal_id, autor_envoxer_id=mensagem.autor_envoxer_id,
         autor_nome=autor_nome, autor_foto=autor_foto, texto=mensagem.texto, anexo_url=mensagem.anexo_url,
+        anexo_nome=mensagem.anexo_nome, anexo_mime_type=mensagem.anexo_mime_type,
+        anexo_tamanho_kb=mensagem.anexo_tamanho_kb,
         created_at=mensagem.created_at, editado_em=mensagem.editado_em,
         excluida_para_todos_em=mensagem.excluida_para_todos_em,
         prazo_edicao=prazo_edicao, prazo_exclusao=prazo_exclusao,
@@ -329,15 +332,19 @@ async def listar_mensagens(
     return mensagens
 
 
-@router.post("/canais/{canal_id}/mensagens", response_model=ChatMensagemResponse)
-async def enviar_mensagem(
+async def _enviar_mensagem_core(
     canal_id: int,
-    payload: ChatMensagemCreate,
-    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    texto = (payload.texto or "").strip() or None
-    if not texto and not payload.anexo_url:
+    envoxer: Envoxer,
+    db: AsyncSession,
+    *,
+    texto: Optional[str] = None,
+    anexo_url: Optional[str] = None,
+    anexo_nome: Optional[str] = None,
+    anexo_mime_type: Optional[str] = None,
+    anexo_tamanho_kb: Optional[int] = None,
+) -> ChatMensagemResponse:
+    texto_limpo = (texto or "").strip() or None
+    if not texto_limpo and not anexo_url:
         raise HTTPException(status_code=400, detail="Mensagem vazia")
 
     canal = await db.get(ChatCanal, canal_id)
@@ -345,20 +352,24 @@ async def enviar_mensagem(
         raise HTTPException(status_code=404, detail="Canal não encontrado")
     _validar_acesso_dm(canal, envoxer)
 
-    mensagem = ChatMensagem(canal_id=canal_id, autor_envoxer_id=envoxer.id, texto=texto, anexo_url=payload.anexo_url)
+    mensagem = ChatMensagem(
+        canal_id=canal_id,
+        autor_envoxer_id=envoxer.id,
+        texto=texto_limpo,
+        anexo_url=anexo_url,
+        anexo_nome=anexo_nome,
+        anexo_mime_type=anexo_mime_type,
+        anexo_tamanho_kb=anexo_tamanho_kb,
+    )
     db.add(mensagem)
     await db.flush()
     await db.refresh(mensagem)
 
     resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id)
-
     payload_ws = {"tipo": "mensagem_nova", "canal_id": canal_id, "mensagem": resposta.model_dump(mode="json")}
+
     if canal.tipo == "dm":
         await chat_ws_manager.broadcast_dm(canal.dm_envoxer_a_id, canal.dm_envoxer_b_id, payload_ws)
-
-        # Push só em DM (e só pra quem não está com a aba visível) — em canal
-        # geral/cliente notificar toda mensagem viraria spam, já que não existe
-        # silenciar canal ainda. Também respeita o toggle "chat_dm" do admin.
         destinatario_id = canal.dm_envoxer_b_id if canal.dm_envoxer_a_id == envoxer.id else canal.dm_envoxer_a_id
         if not chat_ws_manager.esta_visivel(destinatario_id):
             config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_dm"))
@@ -366,9 +377,10 @@ async def enviar_mensagem(
             if config_chat is None or config_chat.ativo:
                 from app.services.push import broadcast_push
                 await broadcast_push(
-                    db, destinatario_id,
+                    db,
+                    destinatario_id,
                     title=envoxer.nome,
-                    body=(texto or "Enviou um anexo")[:180],
+                    body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
                     tag="envoxers-chat",
                 )
     else:
@@ -376,8 +388,6 @@ async def enviar_mensagem(
         ids_ativos = [row[0] for row in result.all()]
         await chat_ws_manager.broadcast_geral_ou_cliente(ids_ativos, payload_ws)
 
-        # Push pro canal geral/cliente (D-115) — mesmo padrão da DM: só quem não
-        # está com a aba visível, e respeitando o toggle "chat_geral" do admin.
         config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_geral"))
         config_geral = config_result.scalar_one_or_none()
         if config_geral is None or config_geral.ativo:
@@ -387,13 +397,54 @@ async def enviar_mensagem(
                 if destinatario_id == envoxer.id or chat_ws_manager.esta_visivel(destinatario_id):
                     continue
                 await broadcast_push(
-                    db, destinatario_id,
+                    db,
+                    destinatario_id,
                     title=titulo,
-                    body=(texto or "Enviou um anexo")[:180],
+                    body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
                     tag="envoxers-chat",
                 )
-
     return resposta
+
+
+@router.post("/canais/{canal_id}/mensagens", response_model=ChatMensagemResponse)
+async def enviar_mensagem(
+    canal_id: int,
+    payload: ChatMensagemCreate,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await _enviar_mensagem_core(
+        canal_id,
+        envoxer,
+        db,
+        texto=payload.texto,
+        anexo_url=payload.anexo_url,
+    )
+
+
+@router.post("/canais/{canal_id}/mensagens-com-anexo", response_model=ChatMensagemResponse)
+async def enviar_mensagem_com_anexo(
+    canal_id: int,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    texto: str = Form(""),
+    arquivo: UploadFile = File(...),
+):
+    salvo = await salvar_upload(arquivo)
+    try:
+        return await _enviar_mensagem_core(
+            canal_id,
+            envoxer,
+            db,
+            texto=texto,
+            anexo_url=salvo["url"],
+            anexo_nome=salvo["nome"],
+            anexo_mime_type=salvo.get("mime_type"),
+            anexo_tamanho_kb=salvo.get("tamanho_kb"),
+        )
+    except Exception:
+        excluir_upload_url(salvo.get("url"))
+        raise
 
 
 @router.patch("/canais/{canal_id}/mensagens/{mensagem_id}", response_model=ChatMensagemResponse)
@@ -458,7 +509,12 @@ async def excluir_mensagem_para_todos(
         raise HTTPException(status_code=409, detail="O prazo de 1 dia útil para excluir esta mensagem encerrou")
 
     mensagem.texto = None
+    if mensagem.anexo_url:
+        excluir_upload_url(mensagem.anexo_url)
     mensagem.anexo_url = None
+    mensagem.anexo_nome = None
+    mensagem.anexo_mime_type = None
+    mensagem.anexo_tamanho_kb = None
     mensagem.excluida_para_todos_em = datetime.now(timezone.utc)
     await db.flush()
     await db.refresh(mensagem)

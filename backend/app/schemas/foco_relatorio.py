@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 class FocoRelatorioResumo(BaseModel):
     periodo_inicio: date
     periodo_fim: date
-    total_min: int
+    total_min: float
     total_sessoes: int
     pessoas_com_foco: int
     dias_com_registro: int
@@ -22,14 +22,14 @@ class FocoRelatorioPessoa(BaseModel):
     nome: str
     cargo: Optional[str] = None
     foto_url: Optional[str] = None
-    total_min: int
+    total_min: float
     sessoes: int
     dias_com_foco: int
     media_dia_min: float
     media_sessao_min: float
-    operacao_min: int
-    comercial_min: int
-    avulsa_min: int
+    operacao_min: float
+    comercial_min: float
+    avulsa_min: float
     registros_ajustados: int
     ultimo_inicio: Optional[datetime] = None
     ativo_agora: bool = False
@@ -38,7 +38,7 @@ class FocoRelatorioPessoa(BaseModel):
 class FocoRelatorioOrigem(BaseModel):
     origem: str
     label: str
-    total_min: int
+    total_min: float
     sessoes: int
     percentual: float
 
@@ -46,14 +46,14 @@ class FocoRelatorioOrigem(BaseModel):
 class FocoRelatorioContexto(BaseModel):
     contexto: str
     origem: str
-    total_min: int
+    total_min: float
     sessoes: int
     percentual: float
 
 
 class FocoRelatorioDia(BaseModel):
     data: date
-    total_min: int
+    total_min: float
     sessoes: int
     pessoas: int
 
@@ -67,8 +67,10 @@ class FocoRelatorioRegistro(BaseModel):
     titulo: Optional[str] = None
     inicio: datetime
     fim: datetime
-    duracao_min: int
-    duracao_pausada_min: int
+    duracao_min: float
+    duracao_segundos: int = 0
+    duracao_pausada_min: float
+    duracao_pausada_segundos: int = 0
     comentario: Optional[str] = None
     ajustado: bool = False
     ajustes_admin: list[dict] = Field(default_factory=list)

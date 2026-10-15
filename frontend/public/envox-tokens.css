@@ -7210,3 +7210,202 @@ body:has(.foco-bar.active) .feedback-floating-fab{
   .card-history-change{grid-template-columns:1fr;gap:2px}
   .card-history-arrow{text-align:left}
 }
+
+
+/* ===== 2026-10-15 · chat anexos + FAB seguro ===== */
+.chat-composer-wrap{
+  flex:0 0 auto;
+  border-top:1px solid var(--line);
+  background:var(--bg-elev);
+}
+.chat-composer-wrap .chat-input-bar{
+  border-top:0;
+}
+.chat-attachment-draft{
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) 28px;
+  align-items:center;
+  gap:9px;
+  padding:9px 24px 0;
+}
+.chat-attachment-draft img{
+  width:42px;height:42px;object-fit:cover;border-radius:7px;border:1px solid var(--line);
+}
+.chat-attachment-draft-icon{
+  width:42px;height:42px;display:flex;align-items:center;justify-content:center;
+  border-radius:7px;background:var(--bg-inset);border:1px solid var(--line);font-size:16px;
+}
+.chat-attachment-draft>div{min-width:0}
+.chat-attachment-draft strong{
+  display:block;font-size:10px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.chat-attachment-draft small{display:block;margin-top:2px;font-size:8px;color:var(--ink-4)}
+.chat-attachment-draft>button{
+  width:26px;height:26px;border:0;border-radius:50%;background:transparent;color:var(--ink-4);font-size:17px;cursor:pointer;
+}
+.chat-attachment-draft>button:hover{background:var(--bg-inset);color:var(--farol-vermelho)}
+.chat-attach-btn{
+  width:38px;height:42px;padding:0;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--line-2);border-radius:var(--r-md);background:var(--bg);color:var(--ink-3);cursor:pointer;
+}
+.chat-attach-btn:hover{background:var(--bg-inset);border-color:var(--ink-4);color:var(--envox)}
+.chat-msg-image{
+  display:block;width:min(320px,60vw);margin-top:5px;border:1px solid var(--line);border-radius:10px;
+  overflow:hidden;background:var(--bg-inset);text-decoration:none;color:var(--ink-3);
+}
+.chat-msg-image img{display:block;width:100%;max-height:300px;object-fit:contain;background:var(--bg)}
+.chat-msg-image span{display:block;padding:5px 8px;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-msg-file{
+  display:inline-flex;align-items:center;gap:8px;max-width:320px;margin-top:5px;padding:8px 10px;
+  border:1px solid var(--line);border-radius:8px;background:var(--bg-inset);color:var(--ink-2);text-decoration:none;
+}
+.chat-msg-file-icon{font-size:16px}
+.chat-msg-file>span:last-child{min-width:0}
+.chat-msg-file strong{display:block;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
+.chat-msg-file small{display:block;margin-top:2px;color:var(--ink-4);font-size:8px}
+
+/* No Chat, o envio ocupa o canto inferior direito. O botão de feedback sobe para
+   nunca cobrir "Enviar", inclusive com o composer maior por causa de um anexo. */
+body:has(.chat-input-bar) .feedback-floating-fab{
+  bottom:calc(104px + env(safe-area-inset-bottom))!important;
+  right:18px;
+}
+body:has(.chat-attachment-draft) .feedback-floating-fab{
+  bottom:calc(154px + env(safe-area-inset-bottom))!important;
+}
+@media(max-width:600px){
+  .chat-attachment-draft{padding-left:12px;padding-right:12px}
+  body:has(.chat-input-bar) .feedback-floating-fab{bottom:calc(112px + env(safe-area-inset-bottom))!important;right:12px}
+  body:has(.chat-attachment-draft) .feedback-floating-fab{bottom:calc(162px + env(safe-area-inset-bottom))!important}
+}
+
+
+/* ===== 2026-10-15 · alerta global de @menção ===== */
+.mention-global-alert{
+  position:fixed;
+  top:78px;
+  right:18px;
+  z-index:975;
+  width:min(520px,calc(100vw - 36px));
+  display:grid;
+  grid-template-columns:40px minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  padding:12px 13px;
+  border:1px solid rgba(47,74,239,.22);
+  border-left:4px solid var(--envox);
+  border-radius:12px;
+  background:var(--bg-elev);
+  box-shadow:0 18px 50px rgba(20,24,33,.18);
+}
+.mention-global-icon{
+  width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:var(--envox);color:#fff;font:800 18px var(--font-ui);
+}
+.mention-global-copy{min-width:0}
+.mention-global-eyebrow{
+  margin-bottom:3px;color:var(--envox);font-size:8px;font-weight:850;letter-spacing:.09em;
+}
+.mention-global-copy strong{
+  display:block;color:var(--ink);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.mention-global-copy p{
+  margin:3px 0 0;color:var(--ink-2);font-size:9px;line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.mention-global-copy span{display:block;margin-top:3px;color:var(--ink-4);font-size:8px}
+@media(max-width:700px){
+  .mention-global-alert{
+    top:auto;bottom:82px;left:12px;right:12px;width:auto;
+    grid-template-columns:34px minmax(0,1fr);
+  }
+  .mention-global-icon{width:34px;height:34px;font-size:15px}
+  .mention-global-alert>.btn{grid-column:1/-1;width:100%;justify-content:center}
+}
+
+
+/* ===== 2026-10-15 · topo global compacto ===== */
+.topbar{
+  min-height:56px;
+  padding:9px 24px;
+}
+.topbar-left{min-width:0;gap:12px}
+.topbar-context{
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  min-width:0;
+  max-width:min(680px,60vw);
+  white-space:nowrap;
+  overflow:hidden;
+}
+.topbar-context-parent{
+  flex:0 1 auto;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  color:var(--ink-4);
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.topbar-context-sep{color:var(--ink-4);font-size:10px}
+.topbar-context-current{
+  flex:0 1 auto;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  color:var(--ink);
+  font-size:14px;
+  font-weight:650;
+  letter-spacing:-.01em;
+  text-transform:none;
+}
+.page{
+  padding-top:16px;
+}
+.page-header{
+  align-items:center;
+  min-height:0;
+  margin-bottom:14px;
+  padding-bottom:10px;
+}
+.page-title-duplicate{
+  position:absolute!important;
+  width:1px!important;
+  height:1px!important;
+  padding:0!important;
+  margin:-1px!important;
+  overflow:hidden!important;
+  clip:rect(0,0,0,0)!important;
+  white-space:nowrap!important;
+  border:0!important;
+}
+.page-title-block{min-width:0}
+.page-sub{
+  margin-top:0!important;
+  font-size:12px!important;
+  line-height:1.35;
+  color:var(--ink-3);
+}
+.page-header.no-subtitle.no-actions{
+  margin-bottom:6px;
+  padding-bottom:0;
+  border-bottom:0;
+}
+.page-header-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:0 0 auto;
+}
+@media(max-width:600px){
+  .topbar{padding:8px 12px}
+  .topbar-context{max-width:46vw;gap:4px}
+  .topbar-context-parent{display:none}
+  .topbar-context-sep{display:none}
+  .topbar-context-current{font-size:12px}
+  .page{padding-top:12px}
+  .page-header{align-items:flex-start;margin-bottom:10px;padding-bottom:8px}
+}

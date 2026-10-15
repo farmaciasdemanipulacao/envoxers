@@ -8,6 +8,17 @@ function fmtHorasMinDash(totalMin) {
   return `${m}m`;
 }
 
+function fmtTempoSegDash(totalSegundos) {
+  const s = Math.max(0, Math.round(Number(totalSegundos || 0)));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h) return h + "h " + String(m).padStart(2, "0") + "m";
+  if (m) return m + "m" + (sec ? " " + sec + "s" : "");
+  return sec + "s";
+}
+
+
 const TAG_EVENTO_DASH = {
   reuniao: { label: "Reunião", cor: "roxo" },
   captacao: { label: "Captação", cor: "amarelo" },
@@ -332,7 +343,7 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
           <div className="foco-widget">
             <div className="foco-widget-cell">
               <div className="label">Hoje <EnvoxersShared.HelpIcon helpKey="foco_hoje" /></div>
-              <div className="value">{fmtHorasMinDash(resumoFoco.hoje_min)}</div>
+              <div className="value">{fmtTempoSegDash(resumoFoco.hoje_segundos ?? Math.round((resumoFoco.hoje_min || 0) * 60))}</div>
               <div className="hint">
                 {resumoFoco.hoje_sessoes} sessão(ões)
                 {resumoFoco.hoje_custo != null && <> · <span className="mono">{EnvoxersShared.formatMoney(resumoFoco.hoje_custo)}</span> gerados</>}
@@ -340,7 +351,7 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
             </div>
             <div className="foco-widget-cell">
               <div className="label">Esta semana <EnvoxersShared.HelpIcon helpKey="foco_semana" /></div>
-              <div className="value">{fmtHorasMinDash(resumoFoco.semana_min)}</div>
+              <div className="value">{fmtTempoSegDash(resumoFoco.semana_segundos ?? Math.round((resumoFoco.semana_min || 0) * 60))}</div>
               <div className="hint">meta {fmtHorasMinDash(resumoFoco.semana_meta_min)} · <span style={{ color: semanaPct >= 100 ? "var(--farol-verde)" : "var(--farol-amarelo)", fontWeight: 600 }}>{semanaPct}%</span></div>
             </div>
           </div>

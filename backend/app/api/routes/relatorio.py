@@ -64,7 +64,7 @@ async def relatorio_tempo_custo(
         stmt = (
             select(
                 Cliente.id, Cliente.nome, Cliente.segmento, Cliente.valor_contrato,
-                func.coalesce(func.sum(RegistroFoco.duracao_min), 0),
+                func.coalesce(func.sum(RegistroFoco.duracao_segundos), 0),
                 func.coalesce(func.sum(RegistroFoco.custo), 0),
             )
             .select_from(RegistroFoco)
@@ -79,7 +79,7 @@ async def relatorio_tempo_custo(
         )
         rows = (await db.execute(stmt)).all()
         itens = []
-        for cliente_id, nome, segmento, valor_contrato, min_total, custo_total in rows:
+        for cliente_id, nome, segmento, valor_contrato, seg_total, custo_total in rows:
             valor_contrato = float(valor_contrato)
             custo_total = float(custo_total)
             margem_reais = valor_contrato - custo_total
@@ -88,7 +88,7 @@ async def relatorio_tempo_custo(
                 "cliente_id": cliente_id,
                 "cliente_nome": nome,
                 "segmento": segmento,
-                "horas": round(min_total / 60, 2),
+                "horas": round(seg_total / 3600, 2),
                 "custo_horas": custo_total,
                 "valor_contrato": valor_contrato,
                 "margem_reais": round(margem_reais, 2),
@@ -104,7 +104,7 @@ async def relatorio_tempo_custo(
         stmt = (
             select(
                 Servico.id, func.coalesce(Servico.nome, "Sem serviço"),
-                func.coalesce(func.sum(RegistroFoco.duracao_min), 0),
+                func.coalesce(func.sum(RegistroFoco.duracao_segundos), 0),
                 func.coalesce(func.sum(RegistroFoco.custo), 0),
             )
             .select_from(RegistroFoco)
@@ -119,12 +119,12 @@ async def relatorio_tempo_custo(
         rows = (await db.execute(stmt)).all()
         custo_geral = sum(float(r[3]) for r in rows) or 1
         itens = []
-        for servico_id, nome, min_total, custo_total in rows:
+        for servico_id, nome, seg_total, custo_total in rows:
             custo_total = float(custo_total)
             itens.append({
                 "servico_id": servico_id,
                 "servico_nome": nome,
-                "horas": round(min_total / 60, 2),
+                "horas": round(seg_total / 3600, 2),
                 "custo_horas": custo_total,
                 "pct_custo_total": round(custo_total / custo_geral * 100, 1),
             })
@@ -137,7 +137,7 @@ async def relatorio_tempo_custo(
         stmt = (
             select(
                 Envoxer.id, Envoxer.nome, Envoxer.cargo, Envoxer.custo_hora, Envoxer.horas_mes,
-                func.coalesce(func.sum(RegistroFoco.duracao_min), 0),
+                func.coalesce(func.sum(RegistroFoco.duracao_segundos), 0),
                 func.coalesce(func.sum(RegistroFoco.custo), 0),
             )
             .select_from(RegistroFoco)
@@ -150,8 +150,8 @@ async def relatorio_tempo_custo(
         )
         rows = (await db.execute(stmt)).all()
         itens = []
-        for envoxer_id, nome, cargo, custo_hora, horas_mes, min_total, custo_total in rows:
-            horas = round(min_total / 60, 2)
+        for envoxer_id, nome, cargo, custo_hora, horas_mes, seg_total, custo_total in rows:
+            horas = round(seg_total / 3600, 2)
             # Meta proporcional ao tamanho do período (horas_mes distribuído em ~30 dias/mês).
             meta_horas = round(float(horas_mes) * dias_periodo / 30, 1)
             utilizacao_pct = round(horas / meta_horas * 100, 1) if meta_horas > 0 else None

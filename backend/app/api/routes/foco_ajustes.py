@@ -44,10 +44,13 @@ def _aplicar_periodo(registro: RegistroFoco, inicio: datetime, fim: datetime, cu
     registro.fim = fim
     registro.pausado_em = None
     registro.duracao_pausada_min = 0
-    minutos = max(0, round((fim - inicio).total_seconds() / 60))
+    registro.duracao_pausada_segundos = 0
+    segundos = max(0, int(round((fim - inicio).total_seconds())))
+    minutos = round(segundos / 60)
+    registro.duracao_segundos = segundos
     registro.duracao_min = minutos
     registro.custo_hora_snapshot = custo_hora
-    registro.custo = round((minutos / 60) * float(custo_hora or 0), 2)
+    registro.custo = round((segundos / 3600) * float(custo_hora or 0), 2)
     # Enquanto aguarda aprovação o registro fica fora de relatórios/custos.
     registro.descartado = not valido
 

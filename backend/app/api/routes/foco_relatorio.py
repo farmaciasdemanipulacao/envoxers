@@ -105,9 +105,11 @@ async def ajustar_registro_admin(
     })
 
     registro.duracao_min = nova_duracao
+    registro.duracao_segundos = nova_duracao * 60
     registro.duracao_pausada_min = nova_pausa
+    registro.duracao_pausada_segundos = nova_pausa * 60
     registro.custo_hora_snapshot = custo_hora
-    registro.custo = round((nova_duracao / 60) * custo_hora, 2)
+    registro.custo = round((registro.duracao_segundos / 3600) * custo_hora, 2)
     registro.ajustes_admin = auditoria
     await db.flush()
 
@@ -213,50 +215,52 @@ async def relatorio_focos_time(
     ativos_ids = set((await db.execute(ativos_stmt)).scalars().all())
 
     pessoas = defaultdict(lambda: {
-        "total_min": 0,
+        "total_seg": 0,
         "sessoes": 0,
         "dias": set(),
-        "origens": defaultdict(int),
+        "origens_seg": defaultdict(int),
         "ajustados": 0,
         "ultimo_inicio": None,
         "env": None,
     })
-    por_origem = defaultdict(lambda: {"min": 0, "sessoes": 0})
-    por_contexto = defaultdict(lambda: {"min": 0, "sessoes": 0})
-    por_dia = defaultdict(lambda: {"min": 0, "sessoes": 0, "pessoas": set()})
+    por_origem = defaultdict(lambda: {"seg": 0, "sessoes": 0})
+    por_contexto = defaultdict(lambda: {"seg": 0, "sessoes": 0})
+    por_dia = defaultdict(lambda: {"seg": 0, "sessoes": 0, "pessoas": set()})
 
     registros_saida = []
-    total_min = 0
+    total_seg = 0
     dias_gerais = set()
 
     for item in registros_base:
         reg = item["registro"]
         env = item["envoxer"]
         reg_origem = item["origem"]
-        duracao = int(reg.duracao_min or 0)
+        duracao_seg = int(reg.duracao_segundos if reg.duracao_segundos is not None else int(reg.duracao_min or 0) * 60)
+        duracao = duracao_seg / 60
+        pausa_seg = int(reg.duracao_pausada_segundos or int(reg.duracao_pausada_min or 0) * 60)
         data_local = reg.inicio.astimezone(TZ_LOCAL).date()
-        total_min += duracao
+        total_seg += duracao_seg
         dias_gerais.add(data_local)
 
         p = pessoas[env.id]
         p["env"] = env
-        p["total_min"] += duracao
+        p["total_seg"] += duracao_seg
         p["sessoes"] += 1
         p["dias"].add(data_local)
-        p["origens"][reg_origem] += duracao
+        p["origens_seg"][reg_origem] += duracao_seg
         p["ajustados"] += 1 if reg.id in ajustados_ids else 0
         if p["ultimo_inicio"] is None or reg.inicio > p["ultimo_inicio"]:
             p["ultimo_inicio"] = reg.inicio
 
-        por_origem[reg_origem]["min"] += duracao
+        por_origem[reg_origem]["seg"] += duracao_seg
         por_origem[reg_origem]["sessoes"] += 1
 
         contexto_nome = (item["contexto"] or "Sem contexto").strip()
         ctx_key = (reg_origem, contexto_nome)
-        por_contexto[ctx_key]["min"] += duracao
+        por_contexto[ctx_key]["seg"] += duracao_seg
         por_contexto[ctx_key]["sessoes"] += 1
 
-        por_dia[data_local]["min"] += duracao
+        por_dia[data_local]["seg"] += duracao_seg
         por_dia[data_local]["sessoes"] += 1
         por_dia[data_local]["pessoas"].add(env.id)
 
@@ -270,7 +274,9 @@ async def relatorio_focos_time(
             inicio=reg.inicio,
             fim=reg.fim,
             duracao_min=duracao,
-            duracao_pausada_min=int(reg.duracao_pausada_min or 0),
+            duracao_segundos=duracao_seg,
+            duracao_pausada_min=pausa_seg / 60,
+            duracao_pausada_segundos=pausa_seg,
             comentario=reg.comentario,
             ajustado=reg.id in ajustados_ids,
             ajustes_admin=list(reg.ajustes_admin or []),
@@ -286,14 +292,14 @@ async def relatorio_focos_time(
             nome=env.nome,
             cargo=env.cargo,
             foto_url=env.foto_url,
-            total_min=data["total_min"],
+            total_min=data["total_seg"] / 60,
             sessoes=sessoes,
             dias_com_foco=dias_count,
-            media_dia_min=round(data["total_min"] / dias_count, 1) if dias_count else 0,
-            media_sessao_min=round(data["total_min"] / sessoes, 1) if sessoes else 0,
-            operacao_min=data["origens"]["operacao"],
-            comercial_min=data["origens"]["comercial"],
-            avulsa_min=data["origens"]["avulsa"],
+            media_dia_min=(data["total_seg"] / 60 / dias_count) if dias_count else 0,
+            media_sessao_min=(data["total_seg"] / 60 / sessoes) if sessoes else 0,
+            operacao_min=data["origens_seg"]["operacao"] / 60,
+            comercial_min=data["origens_seg"]["comercial"] / 60,
+            avulsa_min=data["origens_seg"]["avulsa"] / 60,
             registros_ajustados=data["ajustados"],
             ultimo_inicio=data["ultimo_inicio"],
             ativo_agora=env_id in ativos_ids,
@@ -306,18 +312,18 @@ async def relatorio_focos_time(
         origens.append(FocoRelatorioOrigem(
             origem=key,
             label=ORIGEM_LABEL[key],
-            total_min=data["min"],
+            total_min=data["seg"] / 60,
             sessoes=data["sessoes"],
-            percentual=round(data["min"] / total_min * 100, 1) if total_min else 0,
+            percentual=round(data["seg"] / total_seg * 100, 1) if total_seg else 0,
         ))
 
     contextos = [
         FocoRelatorioContexto(
             contexto=ctx,
             origem=orig,
-            total_min=data["min"],
+            total_min=data["seg"] / 60,
             sessoes=data["sessoes"],
-            percentual=round(data["min"] / total_min * 100, 1) if total_min else 0,
+            percentual=round(data["seg"] / total_seg * 100, 1) if total_seg else 0,
         )
         for (orig, ctx), data in por_contexto.items()
     ]
@@ -326,7 +332,7 @@ async def relatorio_focos_time(
     dias = [
         FocoRelatorioDia(
             data=d,
-            total_min=data["min"],
+            total_min=data["seg"] / 60,
             sessoes=data["sessoes"],
             pessoas=len(data["pessoas"]),
         )
@@ -345,12 +351,12 @@ async def relatorio_focos_time(
     resumo = FocoRelatorioResumo(
         periodo_inicio=inicio_local,
         periodo_fim=fim_local,
-        total_min=total_min,
+        total_min=total_seg / 60,
         total_sessoes=total_sessoes,
         pessoas_com_foco=len(pessoas),
         dias_com_registro=len(dias_gerais),
-        media_sessao_min=round(total_min / total_sessoes, 1) if total_sessoes else 0,
-        media_dia_min=round(total_min / len(dias_gerais), 1) if dias_gerais else 0,
+        media_sessao_min=(total_seg / 60 / total_sessoes) if total_sessoes else 0,
+        media_dia_min=(total_seg / 60 / len(dias_gerais)) if dias_gerais else 0,
         registros_ajustados=len(ajustados_ids),
         ativos_agora=len(ativos_ids),
     )

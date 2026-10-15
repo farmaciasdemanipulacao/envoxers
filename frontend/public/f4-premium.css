@@ -210,3 +210,14 @@
 @media(max-width:750px){.f4-shell-nav{overflow-x:auto;flex-wrap:nowrap}.f4-hero{align-items:flex-start;flex-wrap:wrap}.f4-hero-aside{flex-basis:100%;justify-content:flex-start}.f4-hero-big{text-align:left;font-size:31px}.f4-hero-big small{max-width:none}.f4-hero-privacy{max-width:100%;flex-direction:row;align-items:center;gap:8px}.f4-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.f4-form-double{grid-template-columns:1fr}}
 @media(max-width:540px){.f4-hero{padding:20px;border-radius:18px;gap:14px}.f4-hero-icon{width:49px;height:49px;flex-basis:49px;font-size:28px}.f4-hero h2{font-size:26px}.f4-hero-text{flex-basis:calc(100% - 70px)}.f4-stat-grid{gap:8px}.f4-stat{padding:13px}.f4-cycle-picker{flex-direction:column;align-items:stretch}.f4-cycle-select{width:100%}.f4-tabs{width:100%;justify-content:stretch}.f4-tab{flex:1;justify-content:center;padding:9px 7px;font-size:11px}.f4-question-title{gap:9px}.f4-choice-scale{padding-left:0}.f4-survey-question .f4-choice{width:47px;height:47px}.f4-scale-legend{max-width:270px}.f4-cycle-type-grid{grid-template-columns:1fr}.f4-toolbar>.btn{width:100%}.f4-meeting-chip{display:none}.f4-modal .modal-body{padding:12px 16px 20px}.f4-cycle-card{padding:16px}.f4-form-footer>button{flex:1}}
 @media(prefers-reduced-motion:reduce){.f4-upgrade *,.f4-shell-nav *{scroll-behavior:auto!important;transition:none!important}}
+
+
+/* 2026-10-15 compactacao do topo F4 */
+.f4-shell-nav{
+  margin-bottom:10px;
+  padding:4px;
+  gap:3px;
+}
+.f4-shell-nav button{
+  padding:8px 10px;
+}

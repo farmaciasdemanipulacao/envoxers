@@ -16,6 +16,9 @@ class ChatMensagem(Base, TimestampMixin):
     autor_envoxer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("envoxer.id", ondelete="CASCADE"), nullable=False)
     texto: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     anexo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    anexo_nome: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    anexo_mime_type: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    anexo_tamanho_kb: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     editado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     excluida_para_todos_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 

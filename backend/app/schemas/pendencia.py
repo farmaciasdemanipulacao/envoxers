@@ -10,6 +10,7 @@ class PendenciaResponse(BaseModel):
     etapa_id: Optional[int] = None
     tarefa_titulo: Optional[str] = None
     mensagem: str
+    tipo: str = "geral"
     lida: bool
     created_at: datetime
 

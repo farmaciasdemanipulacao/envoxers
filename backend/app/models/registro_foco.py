@@ -29,11 +29,13 @@ class RegistroFoco(Base, TimestampMixin):
     inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     fim: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     duracao_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    duracao_segundos: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Pausa real: pausado_em != NULL enquanto pausado; duracao_pausada_min acumula
     # os intervalos de pausa já fechados (somado de novo ao retomar).
     pausado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     duracao_pausada_min: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duracao_pausada_segundos: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Snapshot do custo_hora do envoxer no momento do fim — preserva o histórico
     # se o salário/custo_hora mudar depois.
@@ -47,6 +49,5 @@ class RegistroFoco(Base, TimestampMixin):
     # Correções administrativas manuais de duração/pausa, preservando antes/depois.
     ajustes_admin: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
-    # Grace period: sessão iniciada e finalizada em <2min (abriu por engano) — sai do
-    # relatório de tempo×custo, da meta semanal e do cálculo de margem do Farol.
+    # Mantido por compatibilidade histórica. Novos Focos nunca são descartados por duração.
     descartado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

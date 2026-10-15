@@ -654,7 +654,7 @@ async def comentar_tarefa(
 
         mensagem = f'{envoxer.nome} te mencionou num comentário na tarefa "{tarefa.titulo}": "{payload.texto[:140]}"'
         for destinatario_id in ids_mencionados:
-            db.add(Pendencia(envoxer_id=destinatario_id, tarefa_id=tarefa.id, mensagem=mensagem))
+            db.add(Pendencia(envoxer_id=destinatario_id, tarefa_id=tarefa.id, mensagem=mensagem, tipo="mencao"))
         await db.flush()
         for destinatario_id in ids_mencionados:
             await broadcast_push(
@@ -745,6 +745,7 @@ async def comentar_tarefa_com_anexos(
                     envoxer_id=destinatario_id,
                     tarefa_id=tarefa.id,
                     mensagem=f'{envoxer.nome} te mencionou num comentário na tarefa "{tarefa.titulo}": "{resumo}"',
+                    tipo="mencao",
                 )
             )
         await db.flush()

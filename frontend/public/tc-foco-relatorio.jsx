@@ -1,12 +1,13 @@
 const { useState: useStateFR, useEffect: useEffectFR, useMemo: useMemoFR } = React;
 
 function focoFmtMin(min) {
-  const n = Math.max(0, Math.round(Number(min || 0)));
-  const h = Math.floor(n / 60);
-  const m = n % 60;
-  if (!h) return m + "min";
-  if (!m) return h + "h";
-  return h + "h " + String(m).padStart(2, "0") + "min";
+  const totalSeg = Math.max(0, Math.round(Number(min || 0) * 60));
+  const h = Math.floor(totalSeg / 3600);
+  const m = Math.floor((totalSeg % 3600) / 60);
+  const s = totalSeg % 60;
+  if (h) return h + "h" + (m ? " " + String(m).padStart(2, "0") + "min" : "");
+  if (m) return m + "min" + (s ? " " + s + "s" : "");
+  return s + "s";
 }
 
 function focoFmtDate(iso) {

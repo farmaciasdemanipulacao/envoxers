@@ -3,7 +3,7 @@ exibido na lista "Pendências" do Dashboard do envoxer destinatário.
 """
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Text, ForeignKey
+from sqlalchemy import BigInteger, Boolean, String, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -23,4 +23,5 @@ class Pendencia(Base, TimestampMixin):
         BigInteger, ForeignKey("etapa.id", ondelete="CASCADE"), nullable=True
     )
     mensagem: Mapped[str] = mapped_column(Text, nullable=False)
+    tipo: Mapped[str] = mapped_column(String(30), nullable=False, default="geral")
     lida: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

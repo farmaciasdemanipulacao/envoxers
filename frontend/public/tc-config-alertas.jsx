@@ -12,6 +12,7 @@ function ConfigAlertasScreen({ permissao }) {
   const [configs, setConfigs] = useStateCfgAlertas([]);
   const [loading, setLoading] = useStateCfgAlertas(true);
   const [salvandoId, setSalvandoId] = useStateCfgAlertas(null);
+  const [testandoPush, setTestandoPush] = useStateCfgAlertas(false);
   const toast = EnvoxersShared.useToast();
   const isAdmin = permissao === "admin" || permissao === "gestor";
 
@@ -38,6 +39,21 @@ function ConfigAlertasScreen({ permissao }) {
       toast(err.message, "error");
     } finally {
       setSalvandoId(null);
+    }
+  };
+
+  const testarNotificacao = async () => {
+    if (testandoPush) return;
+    setTestandoPush(true);
+    try {
+      const result = await EnvoxersAPI.api("/push/test", { method: "POST" });
+      const qtd = Number(result?.sent || 0);
+      toast("Teste enviado para " + qtd + " dispositivo(s) vinculado(s) à sua conta.", "success");
+    } catch (err) {
+      const permissaoBrowser = ("Notification" in window) ? Notification.permission : "indisponível";
+      toast((err.message || "Falha ao enviar teste") + " · permissão neste navegador: " + permissaoBrowser, "error");
+    } finally {
+      setTestandoPush(false);
     }
   };
 
@@ -68,6 +84,11 @@ function ConfigAlertasScreen({ permissao }) {
       <EnvoxersShared.PageHeader
         title="Configuração de Alertas"
         subtitle="Liga/desliga quais eventos disparam notificação push e escolhe quem recebe cada um."
+        actions={
+          <button className="btn btn-envox btn-sm" onClick={testarNotificacao} disabled={testandoPush}>
+            {testandoPush ? "Enviando teste…" : "Testar notificação"}
+          </button>
+        }
       />
 
       {loading && <p className="td-muted">Carregando…</p>}

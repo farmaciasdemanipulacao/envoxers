@@ -939,7 +939,7 @@ function AppShell() {
     arquivos: "Operação / Arquivos",
     "feedback-sistema": "Admin / Erros e Sugestões",
     "foco-relatorio": "Admin / Focos",
-    f4: "Desenvolvimento / PDI, 360, 180, 1:1 e Clima",
+    f4: "Desenvolvimento / Desenvolvimento & Pessoas",
   };
 
   // Onboarding obrigatório (D-114) vem antes de qualquer outra coisa — inclusive
@@ -1104,6 +1104,7 @@ function AppShell() {
           <ChatScreen envoxersList={envoxersList} wsEvent={chatWsEvent} newConversationSignal={chatNewConversationSignal} onLeituraAtualizada={agendarRecalculoBadge} />
         )}
       </main>
+      <EnvoxersShared.MencaoAlerts onAbrirTarefa={abrirTarefa} />
       <FocoBar
         focoAtivo={focoAtivo}
         focoElapsed={focoElapsed}

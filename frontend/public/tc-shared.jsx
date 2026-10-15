@@ -664,12 +664,12 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
 // ==================== PAGE HEADER ====================
 function PageHeader({ title, subtitle, actions }) {
   return (
-    <div className="page-header">
+    <div className={"page-header" + (!subtitle ? " no-subtitle" : "") + (!actions ? " no-actions" : "")}>
       <div className="page-title-block">
-        <h1>{title}</h1>
+        <h1 className="page-title-duplicate">{title}</h1>
         {subtitle && <div className="page-sub">{subtitle}</div>}
       </div>
-      {actions && <div style={{ display: "flex", gap: 8 }}>{actions}</div>}
+      {actions && <div className="page-header-actions">{actions}</div>}
     </div>
   );
 }
@@ -1355,6 +1355,75 @@ function FeedbackSistemaDock({ permissao }) {
 }
 
 
+function MencaoAlerts({ onAbrirTarefa }) {
+  const [itens, setItens] = useState([]);
+  const [abrindoId, setAbrindoId] = useState(null);
+  const toast = useToast();
+
+  const carregar = async () => {
+    try {
+      const data = await EnvoxersAPI.api("/pendencias");
+      setItens((data || []).filter((x) => x.tipo === "mencao"));
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    let ativo = true;
+    const run = async () => { if (ativo) await carregar(); };
+    run();
+    const timer = setInterval(run, 15000);
+    const onFocus = () => run();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      ativo = false;
+      clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
+
+  const visualizar = async (item) => {
+    if (!item || abrindoId) return;
+    setAbrindoId(item.id);
+    try {
+      if (onAbrirTarefa) onAbrirTarefa(item.tarefa_id);
+      await EnvoxersAPI.api("/pendencias/" + item.id + "/lida", { method: "PATCH" });
+      setItens((prev) => prev.filter((x) => x.id !== item.id));
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setAbrindoId(null);
+    }
+  };
+
+  if (!itens.length) return null;
+  const item = itens[0];
+  const quando = item.created_at ? new Date(item.created_at).toLocaleString("pt-BR", {
+    day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"
+  }) : "";
+
+  return ReactDOM.createPortal(
+    <div className="mention-global-alert" role="alert" aria-live="assertive">
+      <div className="mention-global-icon">@</div>
+      <div className="mention-global-copy">
+        <div className="mention-global-eyebrow">VOCÊ FOI MARCADO EM UM COMENTÁRIO</div>
+        <strong>{item.tarefa_titulo || "Card do Kanban"}</strong>
+        <p>{item.mensagem}</p>
+        <span>{quando}{itens.length > 1 ? " · +" + (itens.length - 1) + " marcação(ões) pendente(s)" : ""}</span>
+      </div>
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        onClick={() => visualizar(item)}
+        disabled={abrindoId === item.id}
+      >
+        {abrindoId === item.id ? "Abrindo…" : "Visualizar comentário"}
+      </button>
+    </div>,
+    document.body
+  );
+}
+
+
 function FeedbackAdminAlerts({ permissao, onOpenFeedback }) {
   const elegivel = permissao === "admin" || permissao === "tecnico";
   const [alertas, setAlertas] = useState({ erros: [], sugestoes: [] });
@@ -1461,13 +1530,21 @@ function FeedbackAdminAlerts({ permissao, onOpenFeedback }) {
 
 // ==================== TOPBAR ====================
 function Topbar({ crumb, onLogout, onMenuClick, onChatClick, chatBadge = 0, chatActive = false, leftAction = null, permissao = "envoxer", showChat = true, onOpenFeedback = null }) {
+  const crumbParts = String(crumb || "").split(" / ").filter(Boolean);
+  const crumbAtual = crumbParts.pop() || "";
+  const crumbPai = crumbParts.join(" / ");
+
   return (
     <div className="topbar">
       <button className="mobile-menu-btn" aria-label="Abrir menu" onClick={onMenuClick}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4h12M2 8h12M2 12h12" /></svg>
       </button>
       <div className="topbar-left">
-        <div className="topbar-crumb">{crumb}</div>
+        <div className="topbar-crumb topbar-context">
+          {crumbPai && <span className="topbar-context-parent">{crumbPai}</span>}
+          {crumbPai && crumbAtual && <span className="topbar-context-sep">/</span>}
+          <strong className="topbar-context-current">{crumbAtual}</strong>
+        </div>
         {leftAction}
       </div>
       <div className="topbar-actions">
@@ -1734,6 +1811,6 @@ function HelpIcon({ helpKey, onDark }) {
 }
 
 window.EnvoxersShared = {
-  formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, FeedbackSistemaDock, FeedbackAdminAlerts, HelpIcon, initials, Avatar,
+  formatMoney, parseMoneyInput, MoneyInput, ToastProvider, useToast, Sidebar, PageHeader, Topbar, FeedbackSistemaDock, FeedbackAdminAlerts, MencaoAlerts, HelpIcon, initials, Avatar,
   IconEditar, IconAutomacao, IconExcluir, IconArrastar, ComoFazerModal, corPrazoEtapa, AvatarCropModal,
 };

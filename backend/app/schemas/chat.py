@@ -23,6 +23,9 @@ class ChatMensagemResponse(BaseModel):
     autor_foto: Optional[str] = None
     texto: Optional[str] = None
     anexo_url: Optional[str] = None
+    anexo_nome: Optional[str] = None
+    anexo_mime_type: Optional[str] = None
+    anexo_tamanho_kb: Optional[int] = None
     created_at: datetime
     editado_em: Optional[datetime] = None
     excluida_para_todos_em: Optional[datetime] = None

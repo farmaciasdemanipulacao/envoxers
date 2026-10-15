@@ -26,10 +26,12 @@ class RegistroFocoResponse(BaseModel):
     cliente_nome: Optional[str] = None
     inicio: datetime
     fim: Optional[datetime] = None
-    duracao_min: Optional[int] = None
+    duracao_min: Optional[float] = None
+    duracao_segundos: Optional[int] = None
     custo: Optional[float] = None
     pausado_em: Optional[datetime] = None
-    duracao_pausada_min: int = 0
+    duracao_pausada_min: float = 0
+    duracao_pausada_segundos: int = 0
     comentario: Optional[str] = None
     descartado: bool = False
 
@@ -38,11 +40,13 @@ class RegistroFocoResponse(BaseModel):
 
 
 class FocoResumoResponse(BaseModel):
-    hoje_min: int
+    hoje_min: float
+    hoje_segundos: int = 0
     # Optional (não `float`) pra permitir redigir() pra não-admin, ver app/core/valores.py (D-090).
     hoje_custo: Optional[float] = None
     hoje_sessoes: int
-    semana_min: int
+    semana_min: float
+    semana_segundos: int = 0
     semana_meta_min: int
 
 

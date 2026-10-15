@@ -76,6 +76,7 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const [mensagens, setMensagens] = useStateChat([]);
   const [texto, setTexto] = useStateChat("");
   const [enviando, setEnviando] = useStateChat(false);
+  const [anexoPendente, setAnexoPendente] = useStateChat(null);
   const [novoDmAberto, setNovoDmAberto] = useStateChat(false);
   const [emojiAberto, setEmojiAberto] = useStateChat(false);
   const [editandoId, setEditandoId] = useStateChat(null);
@@ -168,21 +169,80 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   };
   useEffectChat(() => { ajustarAlturaComposer(); }, [texto]);
 
+  const revogarPreviewChat = (item) => {
+    if (item?.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl);
+  };
+
+  const selecionarAnexoChat = (file) => {
+    if (!file) return;
+    if (file.size > 250 * 1024 * 1024) {
+      toast("Arquivo acima do limite de 250 MB", "error");
+      return;
+    }
+    revogarPreviewChat(anexoPendente);
+    setAnexoPendente({
+      file,
+      previewUrl: (file.type || "").startsWith("image/") ? URL.createObjectURL(file) : "",
+    });
+  };
+
+  const removerAnexoChat = () => {
+    revogarPreviewChat(anexoPendente);
+    setAnexoPendente(null);
+  };
+
+  const onSelecionarAnexoChat = (e) => {
+    selecionarAnexoChat((e.target.files || [])[0]);
+    e.target.value = "";
+  };
+
+  const onPasteChat = (e) => {
+    const files = Array.from(e.clipboardData?.files || []);
+    const imagem = files.find((f) => (f.type || "").startsWith("image/"));
+    if (!imagem) return;
+    e.preventDefault();
+    const ext = (imagem.type.split("/")[1] || "png").replace("jpeg", "jpg");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const file = new File([imagem], "print-" + stamp + "." + ext, { type: imagem.type });
+    selecionarAnexoChat(file);
+    toast("Print anexado à mensagem", "success");
+  };
+
   const enviar = async () => {
     const t = texto.trim();
-    if (!t || !canalAtivoId || enviando) return;
+    const anexoEnvio = anexoPendente;
+    if ((!t && !anexoEnvio) || !canalAtivoId || enviando) return;
+
+    // Limpa imediatamente para dar resposta visual instantânea. Em caso de erro,
+    // restaura exatamente o que a pessoa tentou enviar.
+    setTexto("");
+    setAnexoPendente(null);
+    setEmojiAberto(false);
     setEnviando(true);
+    requestAnimationFrame(() => ajustarAlturaComposer());
+
     try {
-      const resposta = await EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/mensagens`, {
-        method: "POST",
-        body: JSON.stringify({ texto: t }),
-      });
+      let resposta;
+      if (anexoEnvio) {
+        resposta = await EnvoxersAPI.uploadWithFields(
+          `/chat/canais/${canalAtivoId}/mensagens-com-anexo`,
+          anexoEnvio.file,
+          anexoEnvio.file.name || "arquivo",
+          { texto: t }
+        );
+      } else {
+        resposta = await EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/mensagens`, {
+          method: "POST",
+          body: JSON.stringify({ texto: t }),
+        });
+      }
       setMensagens((prev) => prev.some((m) => m.id === resposta.id) ? prev : [...prev, resposta]);
-      setTexto("");
-      setEmojiAberto(false);
-      requestAnimationFrame(() => ajustarAlturaComposer());
+      revogarPreviewChat(anexoEnvio);
     } catch (err) {
+      setTexto(t);
+      setAnexoPendente(anexoEnvio);
       toast(err.message, "error");
+      requestAnimationFrame(() => ajustarAlturaComposer());
     } finally {
       setEnviando(false);
     }
@@ -332,7 +392,25 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                   ) : excluida ? (
                     <div className="chat-msg-texto chat-msg-deleted">Mensagem excluída para todos</div>
                   ) : (
-                    m.texto && <div className="chat-msg-texto">{m.texto}</div>
+                    <>
+                      {m.texto && <div className="chat-msg-texto">{m.texto}</div>}
+                      {m.anexo_url && (
+                        (m.anexo_mime_type || "").startsWith("image/") ? (
+                          <a className="chat-msg-image" href={m.anexo_url} target="_blank" rel="noreferrer" title={m.anexo_nome || "Abrir imagem"}>
+                            <img src={m.anexo_url} alt={m.anexo_nome || "Imagem anexada"} />
+                            {m.anexo_nome && <span>{m.anexo_nome}</span>}
+                          </a>
+                        ) : (
+                          <a className="chat-msg-file" href={m.anexo_url} target="_blank" rel="noreferrer">
+                            <span className="chat-msg-file-icon">📎</span>
+                            <span>
+                              <strong>{m.anexo_nome || "Arquivo anexado"}</strong>
+                              {m.anexo_tamanho_kb != null && <small>{m.anexo_tamanho_kb < 1024 ? m.anexo_tamanho_kb + " KB" : (m.anexo_tamanho_kb / 1024).toFixed(1) + " MB"}</small>}
+                            </span>
+                          </a>
+                        )
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -341,24 +419,46 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
           {mensagens.length === 0 && <div className="empty">Nenhuma mensagem ainda. Diga oi!</div>}
         </div>
         {canalAtivoId && (
-          <div className="chat-input-bar">
-            <div className="chat-composer-tools">
-              <button type="button" className="chat-emoji-btn" onClick={() => setEmojiAberto((v) => !v)} aria-label="Inserir emoji" title="Inserir emoji">😊</button>
-              {emojiAberto && (
-                <div className="chat-emoji-picker">
-                  {CHAT_EMOJIS.map((emoji) => <button type="button" key={emoji} onClick={() => inserirEmoji(emoji)}>{emoji}</button>)}
+          <div className="chat-composer-wrap">
+            {anexoPendente && (
+              <div className="chat-attachment-draft">
+                {anexoPendente.previewUrl ? (
+                  <img src={anexoPendente.previewUrl} alt="Prévia do anexo" />
+                ) : (
+                  <span className="chat-attachment-draft-icon">📎</span>
+                )}
+                <div>
+                  <strong title={anexoPendente.file.name}>{anexoPendente.file.name}</strong>
+                  <small>{anexoPendente.file.size < 1024 * 1024 ? Math.max(1, Math.round(anexoPendente.file.size / 1024)) + " KB" : (anexoPendente.file.size / 1024 / 1024).toFixed(1) + " MB"}</small>
                 </div>
-              )}
+                <button type="button" onClick={removerAnexoChat} disabled={enviando} title="Remover anexo">×</button>
+              </div>
+            )}
+            <div className="chat-input-bar">
+              <div className="chat-composer-tools">
+                <label className="chat-attach-btn" aria-label="Anexar arquivo" title="Anexar arquivo">
+                  <svg width="17" height="17" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12.5 5.5l-6.3 6.3a2.5 2.5 0 103.5 3.5l5.4-5.4a3.5 3.5 0 00-5-5L4.5 10.5"/></svg>
+                  <input type="file" style={{ display:"none" }} onChange={onSelecionarAnexoChat} disabled={enviando} />
+                </label>
+                <button type="button" className="chat-emoji-btn" onClick={() => setEmojiAberto((v) => !v)} aria-label="Inserir emoji" title="Inserir emoji">😊</button>
+                {emojiAberto && (
+                  <div className="chat-emoji-picker">
+                    {CHAT_EMOJIS.map((emoji) => <button type="button" key={emoji} onClick={() => inserirEmoji(emoji)}>{emoji}</button>)}
+                  </div>
+                )}
+              </div>
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                placeholder="Escreva uma mensagem… ou cole um print"
+                value={texto}
+                disabled={enviando}
+                onPaste={onPasteChat}
+                onChange={(e) => { setTexto(e.target.value); ajustarAlturaComposer(e.target); }}
+                onKeyDown={onKeyDownChat}
+              />
+              <button className="btn btn-primary chat-send-btn" disabled={enviando || (!texto.trim() && !anexoPendente)} onClick={enviar}>{enviando ? "Enviando…" : "Enviar"}</button>
             </div>
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              placeholder="Escreva uma mensagem…"
-              value={texto}
-              onChange={(e) => { setTexto(e.target.value); ajustarAlturaComposer(e.target); }}
-              onKeyDown={onKeyDownChat}
-            />
-            <button className="btn btn-primary chat-send-btn" disabled={enviando || !texto.trim()} onClick={enviar}>Enviar</button>
           </div>
         )}
       </section>
