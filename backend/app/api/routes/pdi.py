@@ -119,8 +119,8 @@ async def criar_acao_pdi(
     db: Annotated[AsyncSession, Depends(get_db)],
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
-    if payload.envoxer_id != envoxer.id and not _eh_gestor_ou_admin(envoxer):
-        raise HTTPException(status_code=403, detail="Você só pode criar ação no próprio PDI")
+    if envoxer.permissao != "admin":
+        raise HTTPException(status_code=403, detail="Neste momento, o cadastro de ações do PDI é exclusivo do Admin")
 
     alvo = (await db.execute(select(Envoxer).where(Envoxer.id == payload.envoxer_id))).scalar_one_or_none()
     if alvo is None:
@@ -128,8 +128,12 @@ async def criar_acao_pdi(
 
     acao = PdiAcao(
         envoxer_id=payload.envoxer_id,
+        jornada_id=payload.jornada_id,
         titulo=payload.titulo,
         descricao=payload.descricao,
+        como_fazer=payload.como_fazer,
+        criterio_sucesso=payload.criterio_sucesso,
+        evidencia_esperada=payload.evidencia_esperada,
         categoria=payload.categoria,
         prazo=payload.prazo,
         origem_tipo=payload.origem_tipo or "manual",
@@ -160,6 +164,8 @@ async def atualizar_acao_pdi(
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
 ):
     acao = await _carregar_acao_com_permissao(db, envoxer, acao_id)
+    if envoxer.permissao != "admin":
+        raise HTTPException(status_code=403, detail="Neste momento, a edição de ações do PDI é exclusiva do Admin")
 
     updates = payload.model_dump(exclude_unset=True)
     if "status" in updates and updates["status"] not in ("planejada", "em_andamento", "concluida", "cancelada"):

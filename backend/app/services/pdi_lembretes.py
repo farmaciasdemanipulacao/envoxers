@@ -9,7 +9,8 @@ from zoneinfo import ZoneInfo
 import structlog
 from sqlalchemy import select
 from app.db.session import AsyncSessionLocal
-from app.models.pdi_jornada import PdiJornada, PdiRegistro, PdiLembreteEnvio
+from app.models.pdi_jornada import PdiJornada, PdiRegistro, PdiDiagnostico, PdiLembreteEnvio
+from app.models.pdi_acao import PdiAcao
 from app.models.envoxer import Envoxer
 from app.models.push_subscription import PushSubscription
 from app.services.push import broadcast_push
@@ -31,6 +32,32 @@ async def executar_lembretes():
             passados=(hoje-j.inicio).days
             if passados<0 or passados>(j.fim-j.inicio).days+35: continue
             if hoje.weekday()==j.lembrete_dia and j.envoxer_id in subscribers:
+                diagnosticos=(await db.execute(select(PdiDiagnostico.momento).where(
+                    PdiDiagnostico.jornada_id==j.id
+                ))).scalars().all()
+                momentos=set(diagnosticos)
+                if "inicial" not in momentos:
+                    pendentes.append((j.envoxer_id,f"diagnostico-inicial:{j.id}",
+                        "Comece sua jornada pelo ponto A 🧭","Responda o diagnóstico inicial do PDI. Ele será a referência para mostrar sua evolução."))
+                    continue
+
+                # Quando um marco está disponível, prioriza o novo mapa de evolução.
+                marco_pendente=None
+                for marco in (30,60,90):
+                    if passados>=marco and str(marco) not in momentos:
+                        marco_pendente=marco
+                        break
+                if marco_pendente:
+                    pendentes.append((j.envoxer_id,f"diagnostico:{j.id}:{marco_pendente}",
+                        f"Mapa de evolução · {marco_pendente} dias","Responda novamente as mesmas dimensões e registre conquistas concretas desde o início."))
+                    continue
+
+                tem_acao=(await db.execute(select(PdiAcao.id).where(
+                    PdiAcao.jornada_id==j.id,PdiAcao.status!="cancelada"
+                ).limit(1))).first()
+                if not tem_acao:
+                    continue
+
                 semana=max(1,passados//7+1)
                 inicio_semana=j.inicio+timedelta(days=(semana-1)*7)
                 fim_semana=inicio_semana+timedelta(days=7)
@@ -41,7 +68,7 @@ async def executar_lembretes():
                 ))).first()
                 if not registros:
                     pendentes.append((j.envoxer_id,f"semana:{j.id}:{semana}",
-                        "Sua jornada de desenvolvimento 🌱","Registre uma situação real e o aprendizado desta semana no seu PDI."))
+                        "Sua jornada de desenvolvimento 🌱","Escolha uma ação do PDI e registre uma situação real, a decisão tomada e o aprendizado desta semana."))
             # Toda segunda: lembrete coletivo para o gestor, sem spam por pessoa.
         gestores={j.gestor_id for j in js}
         if hoje.weekday()==0:

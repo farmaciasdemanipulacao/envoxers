@@ -25,8 +25,12 @@ class PdiAcaoCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     envoxer_id: int
+    jornada_id: Optional[int] = None
     titulo: str
     descricao: Optional[str] = None
+    como_fazer: Optional[str] = None
+    criterio_sucesso: Optional[str] = None
+    evidencia_esperada: Optional[str] = None
     categoria: Optional[str] = None
     prazo: Optional[date] = None
     # Preenchido só quando a ação nasce de um resultado de 360/180/1:1 — criação
@@ -40,6 +44,9 @@ class PdiAcaoUpdate(BaseModel):
 
     titulo: Optional[str] = None
     descricao: Optional[str] = None
+    como_fazer: Optional[str] = None
+    criterio_sucesso: Optional[str] = None
+    evidencia_esperada: Optional[str] = None
     categoria: Optional[str] = None
     prazo: Optional[date] = None
     status: Optional[str] = None
@@ -48,8 +55,12 @@ class PdiAcaoUpdate(BaseModel):
 class PdiAcaoResponse(BaseModel):
     id: int
     envoxer_id: int
+    jornada_id: Optional[int] = None
     titulo: str
     descricao: Optional[str] = None
+    como_fazer: Optional[str] = None
+    criterio_sucesso: Optional[str] = None
+    evidencia_esperada: Optional[str] = None
     categoria: Optional[str] = None
     prazo: Optional[date] = None
     status: str

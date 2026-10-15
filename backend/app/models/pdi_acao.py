@@ -18,8 +18,12 @@ class PdiAcao(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     envoxer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("envoxer.id", ondelete="CASCADE"), nullable=False)
+    jornada_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("pdi_jornada.id", ondelete="SET NULL"), nullable=True)
     titulo: Mapped[str] = mapped_column(String(200), nullable=False)
     descricao: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    como_fazer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    criterio_sucesso: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidencia_esperada: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     categoria: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     prazo: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 

@@ -1,7 +1,8 @@
 """Ciclos, evidencias e acompanhamento do PDI interativo."""
 from datetime import date, datetime
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB
 from app.db.base import Base
 
 class PdiJornada(Base):
@@ -35,6 +36,18 @@ class PdiRegistro(Base):
     validado_por_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("envoxer.id"))
     validado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class PdiDiagnostico(Base):
+    __tablename__ = "pdi_diagnostico"
+    __table_args__ = (UniqueConstraint("jornada_id", "momento", name="uq_pdi_diagnostico_jornada_momento"),)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    jornada_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("pdi_jornada.id", ondelete="CASCADE"), nullable=False)
+    autor_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("envoxer.id"), nullable=False)
+    momento: Mapped[str] = mapped_column(String(20), nullable=False)
+    respostas: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    reflexao: Mapped[str | None] = mapped_column(Text)
+    conquistas: Mapped[str | None] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 class PdiLembreteEnvio(Base):
     __tablename__ = "pdi_lembrete_envio"
