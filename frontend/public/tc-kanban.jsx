@@ -1721,7 +1721,12 @@ function TaskModal({ tarefaId, statusInicial, permissao, envoxerId, clientes, en
                       const editando = comentarioEditandoCriadoEm === c.criado_em;
                       return (
                         <div className="comment" key={(c.criado_em || "comentario") + "-" + i}>
-                          <div className="avatar sm gray">{initialsKb(c.envoxer_nome)}</div>
+                          <EnvoxersShared.Avatar
+                            nome={c.envoxer_nome || "?"}
+                            fotoUrl={envoxersList.find((e) => Number(e.id) === Number(c.envoxer_id))?.foto_url || null}
+                            size="sm"
+                            envoxerId={c.envoxer_id}
+                          />
                           <div className="comment-body">
                             <div className="comment-head">
                               <span className="comment-author">{c.envoxer_nome}</span>

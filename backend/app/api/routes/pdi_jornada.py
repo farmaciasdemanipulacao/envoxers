@@ -196,7 +196,12 @@ def _acao_completa(a: PdiAcao) -> bool:
     return all(bool((x or "").strip()) for x in (a.descricao, a.como_fazer, a.criterio_sucesso, a.evidencia_esperada))
 
 
-def _serializar_acao(a: PdiAcao, comentarios: list[PdiAcaoComentario], nomes: dict[int, str]):
+def _serializar_acao(
+    a: PdiAcao,
+    comentarios: list[PdiAcaoComentario],
+    nomes: dict[int, str],
+    fotos: dict[int, str | None],
+):
     return {
         "id": a.id,
         "jornada_id": a.jornada_id,
@@ -216,7 +221,9 @@ def _serializar_acao(a: PdiAcao, comentarios: list[PdiAcaoComentario], nomes: di
         "comentarios": [
             {
                 "id": c.id,
+                "autor_id": c.autor_id,
                 "autor_nome": nomes.get(c.autor_id, "—"),
+                "autor_foto": fotos.get(c.autor_id),
                 "texto": c.texto,
                 "criado_em": c.criado_em.isoformat() if c.criado_em else None,
             }
@@ -344,9 +351,10 @@ async def montar_painel(db: AsyncSession, j: PdiJornada, usuario: Envoxer):
     pessoa_ids.update(a.criado_por_id for a in [*actions, *historico_actions] if a.criado_por_id)
     pessoa_ids.update(c.autor_id for c in comentarios if c.autor_id)
     members = (
-        await db.execute(select(Envoxer.id, Envoxer.nome).where(Envoxer.id.in_(list(pessoa_ids))))
+        await db.execute(select(Envoxer.id, Envoxer.nome, Envoxer.foto_url).where(Envoxer.id.in_(list(pessoa_ids))))
     ).all()
-    names = dict(members)
+    names = {row.id: row.nome for row in members}
+    fotos = {row.id: row.foto_url for row in members}
 
     hoje = datetime.now(TZ).date()
     duracao = max(1, (j.fim - j.inicio).days)
@@ -625,8 +633,8 @@ async def montar_painel(db: AsyncSession, j: PdiJornada, usuario: Envoxer):
         "etapas": _etapas_jornada(inicial_ok, tem_acoes, acoes_ok, j, passados_reais, concluidos, diag_momentos),
         "proximo_passo": proximo_passo,
         "acoes_incompletas": len(acoes_incompletas),
-        "acoes": [_serializar_acao(a, comentarios_por_acao.get(a.id, []), names) for a in actions],
-        "historico_acoes": [_serializar_acao(a, comentarios_por_acao.get(a.id, []), names) for a in historico_actions],
+        "acoes": [_serializar_acao(a, comentarios_por_acao.get(a.id, []), names, fotos) for a in actions],
+        "historico_acoes": [_serializar_acao(a, comentarios_por_acao.get(a.id, []), names, fotos) for a in historico_actions],
         "registros": [_serializar_registro(r, names) for r in rows],
         "criterio": "O progresso combina diagnóstico, plano de ações, evidências validadas e marcos formais. As notas do mapa são auto-observação e servem para comparação individual, nunca para ranking.",
     }

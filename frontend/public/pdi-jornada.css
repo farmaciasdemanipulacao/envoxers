@@ -254,3 +254,12 @@
   .pdi-evolution-row{grid-template-columns:1fr 34px}
   .pdi-evolution-bars{grid-column:1/-1;grid-row:2}
 }
+
+
+/* 2026-10-15 avatars em check-ins preservados */
+.pdi-legacy-checkins{display:flex;flex-direction:column;gap:7px}
+.pdi-legacy-checkins>b{margin-bottom:2px}
+.pdi-legacy-comment{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;align-items:start;padding:8px;background:var(--bg-inset);border-radius:9px}
+.pdi-legacy-comment>.avatar-wrap{margin-top:1px}
+.pdi-legacy-comment small{display:block;color:var(--ink-4);font-size:8.5px;margin-bottom:2px}
+.pdi-legacy-comment p{padding:0!important;background:transparent!important;border-radius:0!important;margin:0!important;font-size:10.5px!important}

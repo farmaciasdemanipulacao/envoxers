@@ -708,15 +708,26 @@ function DemandaAvulsaDetalheModal({
                       <button className="btn btn-envox btn-sm" onClick={adicionarComentario} disabled={busy || !comentario.trim()}>Comentar</button>
                     </div>
                     <div className="avulsa-comments">
-                      {(detalhe.comentarios || []).map((c) => (
-                        <div className="avulsa-comment" key={c.id}>
-                          <div className="avulsa-comment-head">
-                            <strong>{c.envoxer_nome}</strong>
-                            <span>{avFmtDateTime(c.criado_em)}</span>
+                      {(detalhe.comentarios || []).map((c) => {
+                        const autor = pessoas.find((p) => Number(p.id) === Number(c.envoxer_id));
+                        return (
+                          <div className="avulsa-comment" key={c.id}>
+                            <EnvoxersShared.Avatar
+                              nome={c.envoxer_nome || autor?.nome || "?"}
+                              fotoUrl={autor?.foto_url || null}
+                              size="sm"
+                              envoxerId={c.envoxer_id}
+                            />
+                            <div className="avulsa-comment-content">
+                              <div className="avulsa-comment-head">
+                                <strong>{c.envoxer_nome || autor?.nome || "—"}</strong>
+                                <span>{avFmtDateTime(c.criado_em)}</span>
+                              </div>
+                              <p>{c.texto}</p>
+                            </div>
                           </div>
-                          <p>{c.texto}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {(detalhe.comentarios || []).length === 0 && <div className="avulsa-inline-empty">Nenhum comentário ainda.</div>}
                     </div>
                   </section>

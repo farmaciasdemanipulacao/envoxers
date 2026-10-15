@@ -254,7 +254,16 @@ function PdiActionCard({ jornada, acao, historico=false, onEdit }) {
       {acao.evidencia_esperada&&<div><b>O que registrar como evidência</b><p>{acao.evidencia_esperada}</p></div>}
       {acao.criterio_sucesso&&<div><b>Como reconhecer avanço</b><p>{acao.criterio_sucesso}</p></div>}
       {!acao.configuracao_completa&&!historico&&<div className="pdi-action-missing">Esta ação veio do PDI anterior e ainda não tem instrução completa. O Admin pode detalhá-la agora.</div>}
-      {(acao.comentarios||[]).length>0&&<div className="pdi-legacy-checkins"><b>Check-ins preservados</b>{acao.comentarios.map(c=><p key={c.id}><strong>{c.autor_nome}:</strong> {c.texto}</p>)}</div>}
+      {(acao.comentarios||[]).length>0&&<div className="pdi-legacy-checkins">
+        <b>Check-ins preservados</b>
+        {acao.comentarios.map(c=><div className="pdi-legacy-comment" key={c.id}>
+          <EnvoxersShared.Avatar nome={c.autor_nome||"?"} fotoUrl={c.autor_foto||null} size="sm" envoxerId={c.autor_id} />
+          <div>
+            <small>{c.autor_nome||"—"} · {c.criado_em?new Date(c.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—"}</small>
+            <p>{c.texto}</p>
+          </div>
+        </div>)}
+      </div>}
       {onEdit&&<div className="pdi-action-admin-actions"><button className="btn btn-sm" onClick={()=>onEdit(acao)}>Editar ação</button></div>}
     </div>}
   </article>;

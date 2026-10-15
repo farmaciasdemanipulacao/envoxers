@@ -7409,3 +7409,15 @@ body:has(.chat-attachment-draft) .feedback-floating-fab{
   .page{padding-top:12px}
   .page-header{align-items:flex-start;margin-bottom:10px;padding-bottom:8px}
 }
+
+
+/* ===== 2026-10-15 · avatars nos comentários ===== */
+.comment > .avatar-wrap{flex:0 0 auto;margin-top:1px}
+.avulsa-comment{
+  display:grid!important;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:start;
+  gap:10px;
+}
+.avulsa-comment>.avatar-wrap{margin-top:1px}
+.avulsa-comment-content{min-width:0}
