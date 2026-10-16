@@ -1,0 +1,40 @@
+/* CSS mínimo da entrada. Design system completo carregado após autenticação. */
+:root {
+ --bg:#FAFAF7; --bg-elev:#fff; --ink:#0E0E0C; --ink-2:#3B3B37;
+ --ink-3:#6E6E68; --line:#E4E3DC; --envox:#2547E8; --envox-hover:#1D3AC7;
+ --farol-vermelho:#B23B2E;--font-ui:Inter,-apple-system,system-ui,sans-serif;
+ --r-md:6px; --r-lg:10px; --shadow-2:0 4px 12px rgba(14,14,12,.06);
+}
+* {box-sizing:border-box}
+html,body {margin:0;min-height:100vh;font-size:14px;line-height:1.5;
+ font-family:var(--font-ui);color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--envox);text-decoration:none}
+.login-screen,.app-loading {min-height:100vh;display:flex;align-items:center;justify-content:center;
+ padding:24px;background:var(--bg)}
+.login-box {width:360px;padding:32px;background:var(--bg-elev);border:1px solid var(--line);
+ border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.login-error {color:var(--farol-vermelho);font-size:12px;margin-top:10px}
+.brand {display:flex;align-items:center;gap:10px;margin-bottom:12px;border-bottom:1px solid var(--line);padding:0 0 12px}
+.brand-mark {font-size:26px;font-weight:800;letter-spacing:-1.8px}
+.brand-dot {display:inline-block;width:5px;height:5px;background:var(--envox);border-radius:50%;margin-left:2px}
+.brand-sub {font-size:10px;text-transform:uppercase;letter-spacing:1.3px;color:var(--ink-3)}
+.field {display:flex;flex-direction:column;gap:6px}
+.field label {font-size:12px;font-weight:600;color:var(--ink-2)}
+.field input,.field select {width:100%;background:var(--bg-elev);border:1px solid var(--line);
+ padding:10px 12px;min-height:42px;border-radius:8px;outline:0;min-width:0}
+.field input:focus,.field select:focus {border-color:var(--envox);box-shadow:0 0 0 3px rgba(37,71,232,.12)}
+.btn {display:inline-flex;align-items:center;justify-content:center;gap:7px;
+ padding:10px 14px;background:var(--bg-elev);border:1px solid var(--line);
+ border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
+.btn:hover {border-color:var(--envox)}
+.btn:disabled {opacity:.55;cursor:not-allowed}
+.btn-envox,.btn-primary {background:var(--envox);border-color:var(--envox);color:#fff}
+.btn-envox:hover,.btn-primary:hover {background:var(--envox-hover);color:#fff}
+.boot-loader {display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px;max-width:370px;text-align:center}
+.boot-loader-mark {font-size:22px;font-weight:800;letter-spacing:-1px;color:var(--envox)}
+.boot-loader-text,.boot-loader p {font-size:13px;color:var(--ink-3);margin:0}
+.boot-loader-progress {height:4px;width:160px;border-radius:12px;background:var(--line);position:relative;overflow:hidden}
+.boot-loader-progress::after {content:"";position:absolute;inset:0 auto 0 -40%;background:var(--envox);width:45%;border-radius:12px;animation:bootbar 1.1s ease-in-out infinite}
+@keyframes bootbar {to {transform:translateX(320%)}}
+@media(max-width:520px) {.login-screen {padding:12px}}

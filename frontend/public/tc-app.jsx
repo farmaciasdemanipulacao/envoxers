@@ -1151,23 +1151,5 @@ function AppShell() {
   );
 }
 
-function Root() {
-  const [logged, setLogged] = useStateApp(!!EnvoxersAPI.getToken());
-
-  if (!logged) {
-    return (
-      <EnvoxersShared.ToastProvider>
-        <LoginScreen onLoggedIn={() => setLogged(true)} />
-      </EnvoxersShared.ToastProvider>
-    );
-  }
-
-  return (
-    <EnvoxersShared.ToastProvider>
-      <AppShell />
-    </EnvoxersShared.ToastProvider>
-  );
-}
-
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<Root />);
+// Inicializado após autenticação pelo runtime-boot.js.
+window.AppShell = AppShell;

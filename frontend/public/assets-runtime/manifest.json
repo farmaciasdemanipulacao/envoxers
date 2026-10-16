@@ -1,0 +1,12 @@
+{
+  "login": {
+    "file": "/assets-runtime/login.js?v=adf525e37cb2",
+    "bytes": 15315,
+    "hash": "adf525e37cb2"
+  },
+  "app": {
+    "file": "/assets-runtime/app.js?v=f4d851adc103",
+    "bytes": 808078,
+    "hash": "f4d851adc103"
+  }
+}

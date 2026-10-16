@@ -43,13 +43,25 @@ function LoginScreen({ onLoggedIn }) {
 
   useEffectAuth(() => {
     if (!qr || !qrRef.current) return;
-    qrRef.current.textContent = "";
-    if (window.QRCode) {
+    let ativo = true;
+    const renderQR = () => {
+      if (!ativo || !qrRef.current || !window.QRCode) return;
+      qrRef.current.textContent = "";
       new window.QRCode(qrRef.current, {
         text: link, width: 176, height: 176, colorDark: "#171c34", colorLight: "#ffffff",
         correctLevel: window.QRCode.CorrectLevel.M,
       });
+    };
+    if (window.QRCode) {
+      renderQR();
+    } else {
+      const script = document.createElement("script");
+      script.src = "/vendor/qrcode-1.0.0.min.js";
+      script.onload = renderQR;
+      script.onerror = () => {}; // Código textual permanece disponível se o QR não carregar.
+      document.body.appendChild(script);
     }
+    return () => { ativo = false; };
   }, [qr && qr.id]);
 
   useEffectAuth(() => {

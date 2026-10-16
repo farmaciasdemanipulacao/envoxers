@@ -3,48 +3,50 @@
 // instrução manual — ver InstallBanner em tc-app.jsx) e Web Push (alerta de farol
 // piorando, mensagem de chat direto — ver app/services/push.py no backend).
 
-const CACHE_NAME = 'envoxers-v28-quick-access';
+const CACHE_NAME = "envoxers-v29-static-only";
 
-self.addEventListener('install', (event) => {
+self.addEventListener("install", event => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll([
-        '/',
-        '/manifest.json',
-        '/icons/icon-192.png',
-        '/icons/icon-512.png',
-      ]).catch(() => {}) // silencia erros de cache offline
+    caches.open(CACHE_NAME).then(cache =>
+      cache.addAll(["/", "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png"])
+        .catch(() => {})
     )
   );
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    Promise.all([
-      self.clients.claim(),
-      caches.keys().then((keys) =>
-        Promise.all(
-          keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-        )
-      ),
-    ])
-  );
+self.addEventListener("activate", event => {
+  event.waitUntil(Promise.all([
+    self.clients.claim(),
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k.startsWith("envoxers-") && k !== CACHE_NAME)
+        .map(k => caches.delete(k)))
+    )
+  ]));
 });
 
-// Fetch: serve da rede, fallback para cache (apenas GET, nunca intercepta /api/)
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('/api/')) return;
-
+// Nunca guardar arquivos de negócio, respostas autenticadas, downloads ou chamadas API.
+// Somente assets públicos, estáticos, versionados e pertencentes ao próprio domínio.
+self.addEventListener("fetch", event => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  const staticAsset = /^\/(assets-runtime\/(?:login|app)\.js|vendor\/[^/]+\.js|icons\/[^/]+\.png)$/.test(url.pathname);
+  if (!staticAsset) {
+    if (req.mode === "navigate") {
+      event.respondWith(fetch(req).catch(() => caches.match("/")));
+    }
+    return;
+  }
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
-      })
-      .catch(() => caches.match(event.request))
+    fetch(req).then(response => {
+      if (response.ok) {
+        const clone=response.clone();
+        event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(req,clone)));
+      }
+      return response;
+    }).catch(() => caches.match(req))
   );
 });
 
