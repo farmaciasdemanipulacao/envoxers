@@ -1,35 +1,60 @@
 // Cliente HTTP simples para a API do Envoxers.
 const API_BASE = "/api/v1";
 
+const CHAVES_SESSAO = ["envoxers_token", "envoxers_nome", "envoxers_permissao", "envoxers_id", "envoxers_foto_url", "envoxers_modo_acesso"];
+
 function getToken() {
-  return localStorage.getItem("envoxers_token");
+  return sessionStorage.getItem("envoxers_token") || localStorage.getItem("envoxers_token");
 }
-
-function setSession(token, nome, permissao, id, fotoUrl) {
-  localStorage.setItem("envoxers_token", token);
-  localStorage.setItem("envoxers_nome", nome);
-  localStorage.setItem("envoxers_permissao", permissao);
-  if (id != null) localStorage.setItem("envoxers_id", String(id));
-  localStorage.setItem("envoxers_foto_url", fotoUrl || "");
+function getAccessMode() {
+  return sessionStorage.getItem("envoxers_modo_acesso") || localStorage.getItem("envoxers_modo_acesso") || "normal";
 }
-
+function isQuick() {
+  return getAccessMode() === "rapido";
+}
+function getSessionValue(key) {
+  return (sessionStorage.getItem("envoxers_token") ? sessionStorage : localStorage).getItem(key);
+}
+function setSessionValue(key, value) {
+  (isQuick() ? sessionStorage : localStorage).setItem(key, value);
+}
+function setSession(token, nome, permissao, id, fotoUrl, modo = "normal") {
+  CHAVES_SESSAO.forEach((key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  });
+  const destino = modo === "rapido" ? sessionStorage : localStorage;
+  destino.setItem("envoxers_token", token);
+  destino.setItem("envoxers_nome", nome);
+  destino.setItem("envoxers_permissao", permissao);
+  if (id != null) destino.setItem("envoxers_id", String(id));
+  destino.setItem("envoxers_foto_url", fotoUrl || "");
+  destino.setItem("envoxers_modo_acesso", modo);
+}
 function clearSession() {
-  // Some limpa a tela salva desse envoxer (sessionStorage, ver AppShell) — assim um
-  // login novo na mesma aba, logo após logout, também cai no Dashboard do dia em vez
-  // de reabrir a última tela de uma sessão anterior.
-  const idAnterior = localStorage.getItem("envoxers_id");
-  if (idAnterior) sessionStorage.removeItem(`envoxers_view_${idAnterior}`);
-
-  localStorage.removeItem("envoxers_token");
-  localStorage.removeItem("envoxers_nome");
-  localStorage.removeItem("envoxers_permissao");
-  localStorage.removeItem("envoxers_id");
-  localStorage.removeItem("envoxers_foto_url");
+  const eraRapido = isQuick();
+  const idAnterior = getSessionValue("envoxers_id");
+  if (idAnterior) sessionStorage.removeItem("envoxers_view_" + idAnterior);
+  CHAVES_SESSAO.forEach((key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  });
   _limparBackupAdmin();
+  if (eraRapido) {
+    // Limpa somente dados da aplicação; nunca downloads do usuário ou dados de outros sites.
+    for (const store of [localStorage, sessionStorage]) {
+      Object.keys(store).filter(k => k.startsWith("envoxers_")).forEach(k => store.removeItem(k));
+    }
+  }
 }
-
+async function logoutSeguro() {
+  if (getToken()) {
+    try { await api("/acesso-rapido/sair", { method: "POST" }); } catch (_) {}
+  }
+  clearSession();
+}
 function getEnvoxerId() {
-  const id = localStorage.getItem("envoxers_id");
+  const id = getSessionValue("envoxers_id");
   return id ? Number(id) : null;
 }
 
@@ -80,7 +105,7 @@ async function api(path, options = {}) {
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
-  if (res.status === 401) {
+  if (res.status === 401 && path !== "/auth/login" && path !== "/acesso-rapido/login") {
     clearSession();
     window.location.reload();
     throw new Error("Sessão expirada");
@@ -112,7 +137,7 @@ async function upload(path, file, nomeArquivo) {
 
   const res = await fetch(`${API_BASE}${path}`, { method: "POST", headers, body: formData });
 
-  if (res.status === 401) {
+  if (res.status === 401 && path !== "/auth/login" && path !== "/acesso-rapido/login") {
     clearSession();
     window.location.reload();
     throw new Error("Sessão expirada");
@@ -144,7 +169,7 @@ async function uploadWithFields(path, file, nomeArquivo, fields = {}) {
 
   const res = await fetch(API_BASE + path, { method: "POST", headers, body: formData });
 
-  if (res.status === 401) {
+  if (res.status === 401 && path !== "/auth/login" && path !== "/acesso-rapido/login") {
     clearSession();
     window.location.reload();
     throw new Error("Sessão expirada");
@@ -248,4 +273,5 @@ function uploadWithProgress(path, file, nomeArquivo, onProgress) {
 window.EnvoxersAPI = {
   api, upload, uploadWithFields, uploadWithProgress, uploadMultipleWithProgress, getToken, setSession, clearSession, getEnvoxerId,
   iniciarImpersonacao, estaImpersonando, encerrarImpersonacao,
+  getAccessMode, getSessionValue, setSessionValue, isQuick, logoutSeguro,
 };

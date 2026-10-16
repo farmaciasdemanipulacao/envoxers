@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_envoxer
 from app.core.security import create_access_token, verify_password
+from app.services.sessoes_web import gerar_sessao
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
 from app.models.acesso_log import AcessoLog
@@ -26,7 +27,7 @@ async def login(payload: LoginRequest, request: Request, db: Annotated[AsyncSess
     if not envoxer.ativo:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Envoxer inativo")
 
-    access_token = create_access_token({"sub": str(envoxer.id), "tipo": "envoxer"})
+    access_token = await gerar_sessao(db, envoxer, request, "normal")
 
     # Histórico de acessos (D-114) — independente do timer de Foco, acesso = logar no app.
     db.add(AcessoLog(

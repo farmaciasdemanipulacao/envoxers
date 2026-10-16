@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models.envoxer import Envoxer
+from app.models.sessao_web import SessaoWeb
+from app.services.sessoes_web import utcnow, valida_sessao
 from app.models.cliente_contato import ClienteContato
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -25,6 +27,7 @@ def perfil_comercial_pode_acessar(path: str, method: str) -> bool:
         path.startswith("/api/v1/comercial")
         or path.startswith("/api/v1/chat")
         or path.startswith("/api/v1/push")
+        or path.startswith("/api/v1/acesso-rapido/")
         or path.startswith("/api/v1/feedback-sistema")
         or path.startswith("/api/v1/foco")
         or path.startswith("/api/v1/arquivos")
@@ -52,6 +55,20 @@ async def get_current_envoxer(
     # nas rotas internas do Envoxers, mesmo que o "sub" coincida com um id de Envoxer.
     if payload.get("tipo") not in (None, "envoxer"):
         raise credentials_exception
+    # Tokens legados não possuem sid; novos acessos temporários são revogáveis.
+    sid = payload.get("sid")
+    if sid:
+        sessao = await db.get(SessaoWeb, sid)
+        if not valida_sessao(sessao) or sessao.envoxer_id != int(payload.get("sub") or 0):
+            raise credentials_exception
+        if sessao.modo == "rapido":
+            if request.url.path.startswith("/api/v1/push/") and request.method.upper() != "GET":
+                raise HTTPException(status_code=403, detail="Notificações desativadas no acesso rápido")
+            if request.url.path.endswith("/impersonar"):
+                raise HTTPException(status_code=403, detail="Impersonação indisponível neste dispositivo")
+        now = utcnow()
+        if (now - sessao.ultimo_acesso).total_seconds() >= 60:
+            sessao.ultimo_acesso = now
     envoxer_id = payload.get("sub")
     if envoxer_id is None:
         raise credentials_exception

@@ -5,6 +5,7 @@ o WebSocket empurra eventos pra quem está conectado e recebe só sinais de
 visibilidade da aba do cliente (usado pra decidir push de mensagem nova).
 """
 import json
+import asyncio
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Annotated, Optional
@@ -17,7 +18,9 @@ from sqlalchemy.sql import func
 from app.api.deps import get_current_envoxer
 from app.core.security import decode_access_token
 from app.core.uploads import excluir_upload_url, salvar_upload
-from app.db.session import get_db
+from app.db.session import get_db, AsyncSessionLocal
+from app.models.sessao_web import SessaoWeb
+from app.services.sessoes_web import valida_sessao
 from app.models.chat_canal import ChatCanal
 from app.models.chat_leitura import ChatLeitura
 from app.models.chat_mensagem import ChatMensagem
@@ -555,12 +558,38 @@ async def chat_ws(websocket: WebSocket, token: str = Query(...)):
     if payload is None or payload.get("sub") is None:
         await websocket.close(code=4401)
         return
+    if payload.get("tipo") not in (None, "envoxer"):
+        await websocket.close(code=4401)
+        return
     envoxer_id = int(payload["sub"])
+    sid = payload.get("sid")
 
+    async def valido():
+        async with AsyncSessionLocal() as db:
+            usuario = await db.get(Envoxer, envoxer_id)
+            if usuario is None or not usuario.ativo:
+                return False
+            if sid:
+                sessao = await db.get(SessaoWeb, sid)
+                return valida_sessao(sessao) and sessao.envoxer_id == envoxer_id
+            return True
+
+    if not await valido():
+        await websocket.close(code=4401)
+        return
     await chat_ws_manager.conectar(envoxer_id, websocket)
     try:
         while True:
-            texto = await websocket.receive_text()
+            try:
+                texto = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+            except asyncio.TimeoutError:
+                if not await valido():
+                    await websocket.close(code=4401)
+                    break
+                continue
+            if not await valido():
+                await websocket.close(code=4401)
+                break
             try:
                 msg = json.loads(texto)
             except (json.JSONDecodeError, TypeError):

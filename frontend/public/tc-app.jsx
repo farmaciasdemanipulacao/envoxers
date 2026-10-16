@@ -373,8 +373,8 @@ function limparUrlCard() {
 }
 
 function AppShell() {
-  const nome = localStorage.getItem("envoxers_nome") || "";
-  const permissao = localStorage.getItem("envoxers_permissao") || "envoxer";
+  const nome = EnvoxersAPI.getSessionValue("envoxers_nome") || "";
+  const permissao = EnvoxersAPI.getSessionValue("envoxers_permissao") || "envoxer";
   const perfilComercial = permissao === "comercial";
   const envoxerId = EnvoxersAPI.getEnvoxerId();
   const [modulosAcesso, setModulosAcesso] = useStateApp(() => MODULOS_PADRAO_FRONT[permissao] || MODULOS_PADRAO_FRONT.envoxer);
@@ -386,7 +386,7 @@ function AppShell() {
       .then((me) => {
         if (!ativo) return;
         if (me.permissao && me.permissao !== permissao) {
-          localStorage.setItem("envoxers_permissao", me.permissao);
+          EnvoxersAPI.setSessionValue("envoxers_permissao", me.permissao);
           window.location.reload();
           return;
         }
@@ -421,9 +421,9 @@ function AppShell() {
     EnvoxersAPI.encerrarImpersonacao();
     window.location.reload();
   };
-  const [fotoUrl, setFotoUrl] = useStateApp(() => localStorage.getItem("envoxers_foto_url") || "");
+  const [fotoUrl, setFotoUrl] = useStateApp(() => EnvoxersAPI.getSessionValue("envoxers_foto_url") || "");
   const atualizarFotoUrl = (novaUrl) => {
-    localStorage.setItem("envoxers_foto_url", novaUrl || "");
+    EnvoxersAPI.setSessionValue("envoxers_foto_url", novaUrl || "");
     setFotoUrl(novaUrl || "");
   };
 
@@ -431,7 +431,7 @@ function AppShell() {
   // como" (senão o admin ficaria travado explorando a conta de outra pessoa no
   // próprio dispositivo, que não é o instalado da pessoa impersonada).
   const [onboardingOk, setOnboardingOk] = useStateApp(() => {
-    if (permissao === "admin" || impersonando) return true;
+    if (permissao === "admin" || impersonando || EnvoxersAPI.getAccessMode() !== "normal") return true;
     const s = checarOnboarding();
     return s.instalado && s.notificacoes;
   });
@@ -503,7 +503,7 @@ function AppShell() {
   const [installIOS, setInstallIOS] = useStateApp(false);
 
   useEffectApp(() => {
-    if (sessionStorage.getItem("envoxers_install_banner_dismissed")) return;
+    if (EnvoxersAPI.isQuick() || sessionStorage.getItem("envoxers_install_banner_dismissed")) return;
 
     if (window._isIOS && window._isIOS() && !(window._isStandalone && window._isStandalone())) {
       setInstallIOS(true);
@@ -529,7 +529,7 @@ function AppShell() {
   const [pushBanner, setPushBanner] = useStateApp(false);
   useEffectApp(() => {
     const ph = window.pushHelpers;
-    if (!ph || !ph.isSupported()) return;
+    if (EnvoxersAPI.isQuick() || !ph || !ph.isSupported()) return;
     if (ph.getPermission() === "default" && !sessionStorage.getItem("envoxers_push_banner_dismissed")) {
       const t = setTimeout(() => setPushBanner(true), 3000);
       return () => clearTimeout(t);
@@ -889,9 +889,9 @@ function AppShell() {
     if (focoAtivo.tarefa_id) abrirTarefa(focoAtivo.tarefa_id);
   };
 
-  const handleLogout = () => {
-    EnvoxersAPI.clearSession();
-    window.location.reload();
+  const handleLogout = async () => {
+    await EnvoxersAPI.logoutSeguro();
+    window.location.assign(window.location.pathname);
   };
 
   // Exposto pro Service Worker chamar quando o usuário clica numa notificação
@@ -1016,6 +1016,7 @@ function AppShell() {
         style={focoAtivo ? { paddingBottom: 60 } : undefined}
       >
         {impersonando && <ImpersonandoBar nomeAtual={nome} nomeAdmin={nomeAdminReal} onVoltar={handleVoltarImpersonacao} />}
+        <PareamentoAprovacao />
         <EnvoxersShared.Topbar
           crumb={crumbs[view]}
           onLogout={handleLogout}
@@ -1028,6 +1029,7 @@ function AppShell() {
           leftAction={view === "chat" ? <button className="btn btn-sm topbar-new-chat" onClick={() => setChatNewConversationSignal((v) => v + 1)}>+ Nova conversa</button> : null}
           onOpenFeedback={abrirFeedbackAdmin}
         />
+        {EnvoxersAPI.isQuick() && <div className="access-session-bar"><strong>Acesso rápido em computador temporário</strong><button type="button" className="btn btn-sm" onClick={handleLogout}>Encerrar e limpar</button></div>}
         {temModulo("desenvolvimento") && <PdiAvisoGlobal envoxerId={envoxerId} permissao={permissao} view={view} onAbrir={() => navegarEFecharMenu("f4")} />}
         {view === "comercial-dashboard" && <ComercialScreen mode="dashboard" />}
         {view === "comercial-hoje" && <ComercialScreen mode="hoje" />}

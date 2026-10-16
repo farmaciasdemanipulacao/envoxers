@@ -1,6 +1,6 @@
 // D-090 — self-service: qualquer envoxer logado troca a própria foto (upload de
 // verdade, não mais o campo de URL antigo que nunca aparecia em avatar nenhum).
-const { useState: useStateMeuPerfil, useRef: useRefMeuPerfil } = React;
+const { useState: useStateMeuPerfil, useRef: useRefMeuPerfil, useEffect: useEffectMeuPerfil } = React;
 
 function MeuPerfilScreen({ nome, permissao, fotoUrl, envoxerId, onFotoAtualizada }) {
   const toast = EnvoxersShared.useToast();
@@ -11,6 +11,47 @@ function MeuPerfilScreen({ nome, permissao, fotoUrl, envoxerId, onFotoAtualizada
   const [novaSenha, setNovaSenha] = useStateMeuPerfil("");
   const [confirmarSenha, setConfirmarSenha] = useStateMeuPerfil("");
   const [salvandoSenha, setSalvandoSenha] = useStateMeuPerfil(false);
+  const [sessoes, setSessoes] = useStateMeuPerfil([]);
+  const [erroSessoes, setErroSessoes] = useStateMeuPerfil("");
+  const [revogandoSessao, setRevogandoSessao] = useStateMeuPerfil("");
+  const [codigoDispositivo, setCodigoDispositivo] = useStateMeuPerfil("");
+  const [dispositivoPendente, setDispositivoPendente] = useStateMeuPerfil(null);
+  const [validandoCodigo, setValidandoCodigo] = useStateMeuPerfil(false);
+  const consultarCodigo = async () => {
+    setErroSessoes(""); setValidandoCodigo(true);
+    try {
+      const data = await EnvoxersAPI.api("/acesso-rapido/qr/validar-codigo", {
+        method: "POST", body: JSON.stringify({ codigo: codigoDispositivo.trim().toUpperCase() })
+      });
+      setDispositivoPendente(data);
+    } catch (err) { setErroSessoes(err.message); setDispositivoPendente(null); }
+    finally { setValidandoCodigo(false); }
+  };
+  const autorizarCodigo = async () => {
+    setErroSessoes(""); setValidandoCodigo(true);
+    try {
+      await EnvoxersAPI.api("/acesso-rapido/qr/aprovar-codigo", {
+        method:"POST", body: JSON.stringify({ codigo: dispositivoPendente.codigo })
+      });
+      setCodigoDispositivo(""); setDispositivoPendente(null);
+      toast("Acesso temporário autorizado.", "success");
+    } catch (err) { setErroSessoes(err.message); }
+    finally { setValidandoCodigo(false); }
+  };
+  const carregarSessoes = () => EnvoxersAPI.api("/acesso-rapido/sessoes")
+    .then(setSessoes).catch(e => setErroSessoes(e.message));
+  useEffectMeuPerfil(() => { carregarSessoes(); }, []);
+  const encerrarSessao = async (sessao) => {
+    setRevogandoSessao(sessao.id);
+    try {
+      await EnvoxersAPI.api("/acesso-rapido/sessoes/" + encodeURIComponent(sessao.id), { method: "DELETE" });
+      if (sessao.atual) {
+        EnvoxersAPI.clearSession();
+        window.location.assign(window.location.pathname);
+      } else carregarSessoes();
+    } catch (e) { setErroSessoes(e.message); }
+    finally { setRevogandoSessao(""); }
+  };
 
   const handleFile = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -114,6 +155,49 @@ function MeuPerfilScreen({ nome, permissao, fotoUrl, envoxerId, onFotoAtualizada
             {salvandoSenha ? "Alterando…" : "Alterar senha"}
           </button>
         </form>
+      </div>
+
+      <div className="form-section" style={{ marginTop: 18 }}>
+        <div className="form-section-title">Autorizar outro computador</div>
+        <div className="profile-password-intro">No outro computador, abra Acesso rápido → Entrar com QR Code. Informe aqui o código mostrado na tela e confirme o dispositivo.</div>
+        <div className="form-row">
+          <div className="field">
+            <label>Código de acesso temporário</label>
+            <input type="text" autoCapitalize="characters" spellCheck={false}
+              value={codigoDispositivo} maxLength={12} placeholder="Ex.: ABCD234XYZ"
+              onChange={e => { setCodigoDispositivo(e.target.value.toUpperCase().replace(/\s/g, "")); setDispositivoPendente(null); }} />
+          </div>
+          <button type="button" className="btn btn-envox" disabled={validandoCodigo || codigoDispositivo.length < 10}
+            onClick={consultarCodigo}>Verificar</button>
+        </div>
+        {dispositivoPendente && <div className="access-safety">
+          <strong>Autorizar este dispositivo?</strong>
+          <span>{dispositivoPendente.navegador}</span>
+          <div className="access-approval-actions" style={{ marginTop: 10 }}>
+            <button type="button" className="btn btn-sm" onClick={() => setDispositivoPendente(null)}>Cancelar</button>
+            <button type="button" className="btn btn-envox btn-sm" disabled={validandoCodigo}
+              onClick={autorizarCodigo}>Autorizar acesso</button>
+          </div>
+        </div>}
+      </div>
+      <div className="form-section" style={{ marginTop: 18 }}>
+        <div className="form-section-title">Segurança e dispositivos</div>
+        <div className="profile-password-intro">Confira acessos recentes e encerre sessões em outros computadores. Sessões rápidas são encerradas após 15 minutos de inatividade.</div>
+        {erroSessoes && <div className="login-error">{erroSessoes}</div>}
+        {!sessoes.length && <div className="hint">Nenhuma sessão recente para mostrar.</div>}
+        {sessoes.filter(s => s.ativo).map(s => (
+          <div className="access-session-row" key={s.id}>
+            <div>
+              <strong>{s.modo === "rapido" ? "Acesso rápido" : s.modo === "web" ? "Navegador" : "Computador habitual"}{s.atual ? " · Esta sessão" : ""}</strong>
+              <small>{s.user_agent ? s.user_agent.slice(0, 90) : "Dispositivo não identificado"}</small>
+              <small>IP: {s.ip || "indisponível"} · Início: {new Date(s.criado_em).toLocaleString("pt-BR")}</small>
+            </div>
+            <button type="button" className="btn btn-sm" disabled={revogandoSessao === s.id}
+              onClick={() => encerrarSessao(s)}>
+              {revogandoSessao === s.id ? "Encerrando…" : "Encerrar"}
+            </button>
+          </div>
+        ))}
       </div>
 
       {arquivoParaRecortar && (
