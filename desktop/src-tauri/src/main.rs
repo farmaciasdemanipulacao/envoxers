@@ -48,7 +48,13 @@ fn main(){
       .on_tray_icon_event(|tray,event|{
         if let TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}=event{abrir(tray.app_handle());}
       }).build(app)?;
-   if !app.autolaunch().is_enabled().unwrap_or(false){let _=app.autolaunch().enable();}
+   // Aplica o padrão somente na primeira execução, preservando desligamento manual.
+   let marker = app.path().app_config_dir()?.join("autostart-configurado");
+   if !marker.exists() {
+     if let Some(parent) = marker.parent() { std::fs::create_dir_all(parent)?; }
+     app.autolaunch().enable()?;
+     std::fs::write(marker, b"configurado")?;
+   }
    if std::env::args().any(|v|v=="--minimized"){if let Some(w)=app.get_webview_window("main"){let _=w.hide();}}
    Ok(())
  })

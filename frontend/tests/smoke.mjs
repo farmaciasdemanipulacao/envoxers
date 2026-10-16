@@ -46,7 +46,8 @@ async function open(authorized=false,desktop=false) {
       win.localStorage.setItem("envoxers_modo_acesso","web");
       win.sessionStorage.setItem("envoxers_view_333","arquivos");
       win.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
-      win.WebSocket=class {readyState=0;close(){}send(){}};
+      win.__testSockets=[];
+      win.WebSocket=class {constructor(){this.readyState=0;win.__testSockets.push(this)}close(){}send(){}};
       win.fetch=(url,options={})=>{
         const path=String(url);
         if(path.includes("/assets-runtime/manifest.json")) return fetch(new URL(path,win.location.origin));
@@ -86,6 +87,11 @@ try {
   assert.equal(native.dom.window.envoxersDesktop?.active,true);
   assert.ok(native.dom.window.document.querySelector('.app'));
   assert.ok(native.nativeCalls.some(call=>call.command==='native_badge'));
+  const socket=native.dom.window.__testSockets[0];
+  assert.ok(socket && socket.onmessage);
+  socket.onmessage({data:JSON.stringify({tipo:'mensagem_nova',canal_id:77,mensagem:{id:991,autor_envoxer_id:444,autor_nome:'Teste',texto:'Olá do Chat'}})});
+  await new Promise(resolve=>setTimeout(resolve,30));
+  assert.ok(native.nativeCalls.some(call=>call.command==='native_alert'));
   assert.ok(!native.errors.length,native.errors.join('; '));
   console.log('DESKTOP_BRIDGE_OK:',native.nativeCalls.length,'native calls');
   native.dom.window.close();
