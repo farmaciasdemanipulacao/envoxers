@@ -117,8 +117,8 @@ function InstallBanner({ onDismiss, ios }) {
 // admin, ver POST /envoxers/me/status-instalacao).
 function checarOnboarding() {
   return {
-    instalado: !!(window._isStandalone && window._isStandalone()),
-    notificacoes: !!(window.Notification && Notification.permission === "granted"),
+    instalado: !!(window.envoxersDesktop?.active || (window._isStandalone && window._isStandalone())),
+    notificacoes: !!(window.envoxersDesktop?.active || (window.Notification && Notification.permission === "granted")),
     promptDisponivel: !!window._installPrompt,
   };
 }
@@ -431,7 +431,7 @@ function AppShell() {
   // como" (senão o admin ficaria travado explorando a conta de outra pessoa no
   // próprio dispositivo, que não é o instalado da pessoa impersonada).
   const [onboardingOk, setOnboardingOk] = useStateApp(() => {
-    if (permissao === "admin" || impersonando || EnvoxersAPI.getAccessMode() !== "normal") return true;
+    if (permissao === "admin" || impersonando || window.envoxersDesktop?.active || EnvoxersAPI.getAccessMode() !== "normal") return true;
     const s = checarOnboarding();
     return s.instalado && s.notificacoes;
   });
@@ -586,6 +586,14 @@ function AppShell() {
   // o WS aqui só recebe o evento "mensagem_nova" e repassa pra ChatScreen via wsEvent.
   const [chatWsEvent, setChatWsEvent] = useStateApp(null);
   const [chatBadgeTotal, setChatBadgeTotal] = useStateApp(0);
+  useEffectApp(() => {
+    if (chatBadgeTotal > 0 && navigator.setAppBadge) navigator.setAppBadge(Math.min(chatBadgeTotal,99)).catch(() => {});
+    if (chatBadgeTotal === 0 && navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
+    window.envoxersDesktop?.badge(chatBadgeTotal);
+  }, [chatBadgeTotal]);
+  const viewEmFocoRef = useRefApp(view);
+  viewEmFocoRef.current = view;
+  useEffectApp(() => { window.dispatchEvent(new Event('envoxers:canal-em-foco')); }, [view]);
   const [chatNewConversationSignal, setChatNewConversationSignal] = useStateApp(0);
   const chatBadgeTimeoutRef = useRefApp(null);
 
@@ -660,6 +668,12 @@ function AppShell() {
     // programa (ex.: Excel), a aba continua "visible" pra Page Visibility API,
     // então também escuta focus/blur da janela — só conta como "visível" quando
     // a aba está em primeiro plano E a janela tem foco do sistema operacional.
+    const enviarCanalEmFoco = () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const canal = viewEmFocoRef.current === 'chat' ? (window.__envoxersCanalAtivo || null) : null;
+        ws.send(JSON.stringify({ tipo: 'canal_em_foco', canal_id: canal }));
+      }
+    };
     const enviarVisibilidade = () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         const visivel = document.visibilityState === "visible" && document.hasFocus();
@@ -669,12 +683,15 @@ function AppShell() {
 
     const conectar = () => {
       ws = new WebSocket(`${protocolo}://${window.location.host}/api/v1/chat/ws?token=${encodeURIComponent(token)}`);
-      ws.onopen = enviarVisibilidade;
+      ws.onopen = () => { enviarVisibilidade(); enviarCanalEmFoco(); };
 
       ws.onmessage = (evt) => {
         try {
           const data = JSON.parse(evt.data);
           if (data.tipo === "mensagem_nova") {
+            const msg = data.mensagem || {};
+            const canalLido = viewEmFocoRef.current === "chat" && window.__envoxersCanalAtivo === data.canal_id && document.visibilityState === "visible" && document.hasFocus();
+            if (msg.autor_envoxer_id !== envoxerId && !canalLido) window.envoxersDesktop?.notify(msg.autor_nome || "Chat", (msg.texto || "Novo anexo").slice(0, 300));
             setChatWsEvent(data);
             agendarRecalculoBadge();
           } else if (data.tipo === "mensagem_editada" || data.tipo === "mensagem_excluida") {
@@ -704,6 +721,7 @@ function AppShell() {
     conectar();
 
     document.addEventListener("visibilitychange", enviarVisibilidade);
+    window.addEventListener("envoxers:canal-em-foco", enviarCanalEmFoco);
     window.addEventListener("focus", enviarVisibilidade);
     window.addEventListener("blur", enviarVisibilidade);
 
@@ -711,6 +729,7 @@ function AppShell() {
       desmontado = true;
       clearTimeout(reconectarTimeout);
       document.removeEventListener("visibilitychange", enviarVisibilidade);
+      window.removeEventListener("envoxers:canal-em-foco", enviarCanalEmFoco);
       window.removeEventListener("focus", enviarVisibilidade);
       window.removeEventListener("blur", enviarVisibilidade);
       if (ws) { ws.onclose = null; ws.close(); }

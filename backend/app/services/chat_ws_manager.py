@@ -21,6 +21,7 @@ class ChatConnectionManager:
         # "conectado" sozinho não diz se o envoxer realmente veria a mensagem — só
         # "visível" diz isso. Reaproveitado também pra status de presença (ativo/ausente).
         self._visiveis: dict[int, set[WebSocket]] = {}
+        self._canal_em_foco: dict[int, dict[WebSocket, int]] = {}
 
     def status_de(self, envoxer_id: int) -> str:
         if self._visiveis.get(envoxer_id):
@@ -55,6 +56,18 @@ class ChatConnectionManager:
                     self._visiveis.pop(envoxer_id, None)
         await self._broadcast_presenca(envoxer_id)
 
+    def esta_acompanhando_canal(self, envoxer_id: int, canal_id: int) -> bool:
+        return any(canal == canal_id and ws in self._visiveis.get(envoxer_id, ()) for ws, canal in self._canal_em_foco.get(envoxer_id, {}).items())
+
+    def registrar_canal_aberto(self, envoxer_id: int, ws: WebSocket, canal_id: int | None):
+        canais = self._canal_em_foco.setdefault(envoxer_id, {})
+        if canal_id is None:
+            canais.pop(ws, None)
+        elif isinstance(canal_id, int) and canal_id > 0:
+            canais[ws] = canal_id
+        if not canais:
+            self._canal_em_foco.pop(envoxer_id, None)
+
     def esta_visivel(self, envoxer_id: int) -> bool:
         """Usado pra decidir quem recebe push de mensagem nova (DM e canal geral/cliente,
         ver chat.py::enviar_mensagem) — quem está com alguma aba em primeiro plano E com
@@ -63,6 +76,7 @@ class ChatConnectionManager:
         return bool(self._visiveis.get(envoxer_id))
 
     async def desconectar(self, envoxer_id: int, ws: WebSocket):
+        self.registrar_canal_aberto(envoxer_id, ws, None)
         conexoes = self._conexoes.get(envoxer_id)
         if conexoes:
             conexoes.discard(ws)

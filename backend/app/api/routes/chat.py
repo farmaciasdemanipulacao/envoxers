@@ -374,7 +374,7 @@ async def _enviar_mensagem_core(
     if canal.tipo == "dm":
         await chat_ws_manager.broadcast_dm(canal.dm_envoxer_a_id, canal.dm_envoxer_b_id, payload_ws)
         destinatario_id = canal.dm_envoxer_b_id if canal.dm_envoxer_a_id == envoxer.id else canal.dm_envoxer_a_id
-        if not chat_ws_manager.esta_visivel(destinatario_id):
+        if not chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
             config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_dm"))
             config_chat = config_result.scalar_one_or_none()
             if config_chat is None or config_chat.ativo:
@@ -397,7 +397,7 @@ async def _enviar_mensagem_core(
             from app.services.push import broadcast_push
             titulo = f"{envoxer.nome} · geral" if canal.tipo == "geral" else f"{envoxer.nome} · cliente"
             for destinatario_id in ids_ativos:
-                if destinatario_id == envoxer.id or chat_ws_manager.esta_visivel(destinatario_id):
+                if destinatario_id == envoxer.id or chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
                     continue
                 await broadcast_push(
                     db,
@@ -596,6 +596,12 @@ async def chat_ws(websocket: WebSocket, token: str = Query(...)):
                 continue
             if msg.get("tipo") == "visibilidade":
                 await chat_ws_manager.marcar_visibilidade(envoxer_id, websocket, bool(msg.get("visivel")))
+            elif msg.get("tipo") == "canal_em_foco":
+                value = msg.get("canal_id")
+                if value is None:
+                    chat_ws_manager.registrar_canal_aberto(envoxer_id, websocket, None)
+                elif isinstance(value, int) and value > 0:
+                    chat_ws_manager.registrar_canal_aberto(envoxer_id, websocket, value)
     except WebSocketDisconnect:
         pass
     finally:

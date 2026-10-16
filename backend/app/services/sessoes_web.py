@@ -14,6 +14,9 @@ async def gerar_sessao(db, usuario, request, modo="rapido", minutos=120):
             raise HTTPException(422, "Duração inválida")
     elif modo == "web":
         minutos = 480
+    elif modo == "desktop":
+        # Sessão revogável para manter o aplicativo ativo entre reinicializações.
+        minutos = 7 * 24 * 60
     elif modo == "normal":
         from app.core.config import settings
         minutos = settings.ACCESS_TOKEN_EXPIRE_MINUTES

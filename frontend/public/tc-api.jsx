@@ -40,6 +40,7 @@ function clearSession() {
     sessionStorage.removeItem(key);
   });
   _limparBackupAdmin();
+  if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
   if (eraRapido) {
     // Limpa somente dados da aplicação; nunca downloads do usuário ou dados de outros sites.
     for (const store of [localStorage, sessionStorage]) {

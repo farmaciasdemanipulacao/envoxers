@@ -70,7 +70,8 @@ async def broadcast_push(db, envoxer_id: int, title: str, body: str, tag: str = 
         )
         if ok:
             count += 1
-        else:
+        elif _error and ("410" in _error or "404" in _error):
+            # Apenas inscrições comprovadamente inválidas são removidas.
             dead_ids.append(sub.id)
 
     if dead_ids:

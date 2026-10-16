@@ -5,6 +5,17 @@
   const root = ReactDOM.createRoot(document.getElementById("root"));
   const existing = new Map();
 
+  window.envoxersDesktop = {
+    active: !!(window.__TAURI__ && window.__TAURI__.core),
+    notify(title, body) {
+      if (!this.active) return Promise.resolve();
+      return window.__TAURI__.core.invoke("native_alert", {title, body}).catch(() => {});
+    },
+    badge(count) {
+      if (!this.active) return Promise.resolve();
+      return window.__TAURI__.core.invoke("native_badge", {count: Math.max(0, count|0)}).catch(() => {});
+    }
+  };
   window._installPrompt = null;
   window.addEventListener("beforeinstallprompt", event => {
     event.preventDefault();
@@ -30,7 +41,7 @@
   };
 
   window.envoxersRegisterSW = () => {
-    if (!("serviceWorker" in navigator) || EnvoxersAPI.getAccessMode() !== "normal") {
+    if (window.envoxersDesktop.active || !("serviceWorker" in navigator) || EnvoxersAPI.getAccessMode() !== "normal") {
       return Promise.resolve(null);
     }
     return navigator.serviceWorker.register("/sw.js").then(reg => reg).catch(err => {
@@ -52,7 +63,7 @@
   }
   window.pushHelpers = {
     isSupported() {
-      return window.isSecureContext === true &&
+      return !window.envoxersDesktop.active && window.isSecureContext === true &&
         "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
     },
     getPermission() { return "Notification" in window ? Notification.permission : "unsupported"; },

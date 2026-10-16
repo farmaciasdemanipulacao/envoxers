@@ -683,6 +683,7 @@ function NotificacoesButton() {
   const [subscribed, setSubscribed] = useState(false);
   const [checando, setChecando] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [diagnostico, setDiagnostico] = useState(null);
   const toast = useToast();
   const ph = window.pushHelpers;
 
@@ -745,6 +746,20 @@ function NotificacoesButton() {
     }
   };
 
+  const handleDiagnosticar = async () => {
+    setLoading(true);
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg ? await reg.pushManager.getSubscription() : null;
+      const result = await EnvoxersAPI.api('/push/diagnostico', {
+        method: 'POST', body: JSON.stringify({endpoint: sub?.endpoint || ''})
+      });
+      setDiagnostico({perm: ph.getPermission(), worker: !!reg, local: !!sub, ...result});
+      setSubscribed(!!sub && result.dispositivo_registrado);
+    } catch (err) { toast(err.message || 'Falha no diagnóstico', 'error'); }
+    finally { setLoading(false); }
+  };
+
   const handleTestar = async () => {
     setLoading(true);
     try {
@@ -800,6 +815,16 @@ function NotificacoesButton() {
               </div>
             </>
           )}
+          <div className="notif-popover-actions" style={{marginTop: 10}}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={handleDiagnosticar} disabled={loading}>Diagnosticar dispositivo</button>
+          </div>
+          {diagnostico && <div className="notif-popover-text" role="status">
+            Permissão: {diagnostico.perm}. Serviço: {diagnostico.worker ? 'ativo' : 'não registrado'}.
+            Inscrição local: {diagnostico.local ? 'sim' : 'não'}.
+            Servidor: {diagnostico.dispositivo_registrado ? 'registrado' : 'não registrado'}.
+            Inscrições da conta: {diagnostico.inscricoes}.
+            {!diagnostico.dispositivo_registrado && <strong> Reative as notificações neste dispositivo.</strong>}
+          </div>}
         </div>
       )}
     </div>

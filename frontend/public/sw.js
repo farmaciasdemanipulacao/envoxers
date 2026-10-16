@@ -3,7 +3,7 @@
 // instrução manual — ver InstallBanner em tc-app.jsx) e Web Push (alerta de farol
 // piorando, mensagem de chat direto — ver app/services/push.py no backend).
 
-const CACHE_NAME = "envoxers-v29-static-only";
+const CACHE_NAME = "envoxers-v30-badges";
 
 self.addEventListener("install", event => {
   self.skipWaiting();
@@ -66,7 +66,10 @@ self.addEventListener('push', (event) => {
     data: { tag: data.tag || 'envoxers' },
   };
 
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(data.title, options),
+    self.navigator.setAppBadge ? self.navigator.setAppBadge().catch(() => {}) : Promise.resolve()
+  ]));
 });
 
 // Click na notificação: foca a aba já aberta (ou abre uma nova) e manda o React

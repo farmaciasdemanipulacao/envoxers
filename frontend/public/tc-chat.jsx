@@ -113,6 +113,14 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
 
   useEffectChat(() => { carregarCanais(); }, []);
   useEffectChat(() => {
+    window.__envoxersCanalAtivo = canalAtivoId;
+    window.dispatchEvent(new Event('envoxers:canal-em-foco'));
+    return () => {
+      window.__envoxersCanalAtivo = null;
+      window.dispatchEvent(new Event('envoxers:canal-em-foco'));
+    };
+  }, [canalAtivoId]);
+  useEffectChat(() => {
     if (newConversationSignal > 0) setNovoDmAberto(true);
   }, [newConversationSignal]);
 
@@ -144,6 +152,10 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
     if (tipo !== "mensagem_nova" || !mensagem) return;
     if (canal_id === canalAtivoRef.current) {
       setMensagens((prev) => prev.some((m) => m.id === mensagem.id) ? prev : [...prev, mensagem]);
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) {
+        carregarCanais();
+        return;
+      }
       EnvoxersAPI.api(`/chat/canais/${canal_id}/ler`, { method: "POST" })
         .then(() => { if (onLeituraAtualizada) onLeituraAtualizada(); })
         .catch(() => {});

@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/remote-schema.json",
+  "identifier": "envoxers-remote",
+  "description": "Acesso mínimo ao IPC da aplicação para a origem oficial Envoxers",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "https://envoxers.envox.com.br/*"
+    ]
+  },
+  "permissions": [
+    "core:app:default"
+  ]
+}

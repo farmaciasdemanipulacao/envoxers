@@ -19,12 +19,13 @@ function LoginScreen({ onLoggedIn }) {
   const handleSubmit = async (e) => {
     e.preventDefault(); setErro(""); setLoading(true);
     try {
-      const path = modo === "normal" ? "/auth/login" : "/acesso-rapido/login";
+      const desktop = !!window.envoxersDesktop?.active && modo === "normal";
+      const path = modo === "normal" && !desktop ? "/auth/login" : "/acesso-rapido/login";
       const dados = await EnvoxersAPI.api(path, {
         method: "POST",
-        body: JSON.stringify(modo === "normal" ? { email, senha } : { email, senha, modo, minutos })
+        body: JSON.stringify(modo === "normal" && !desktop ? { email, senha } : { email, senha, modo: desktop ? "desktop" : modo, minutos })
       });
-      if (modo === "normal") dados.modo = "normal";
+      if (modo === "normal" && !desktop) dados.modo = "normal";
       entrar(dados);
     } catch (err) { setErro(err.message || "Falha no acesso"); }
     finally { setLoading(false); }
@@ -85,7 +86,7 @@ function LoginScreen({ onLoggedIn }) {
   }, [qr && qr.id]);
 
   const opcoes = [
-    ["normal", "Meu computador", "App instalado, notificações e sessão habitual"],
+    ["normal", window.envoxersDesktop?.active ? "Envoxers Desktop" : "Meu computador", window.envoxersDesktop?.active ? "Windows, alertas nativos e sessão persistente" : "App instalado, notificações e sessão habitual"],
     ["web", "Entrar pelo navegador", "Acesso completo sem instalar"],
     ["rapido", "Acesso rápido", "Máquina emprestada ou compartilhada"]
   ];

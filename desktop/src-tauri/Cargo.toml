@@ -1,0 +1,15 @@
+[package]
+name = "envoxers-desktop"
+version = "0.1.0"
+description = "Aplicativo Windows da Envoxers"
+authors = ["Envox"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"

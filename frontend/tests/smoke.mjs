@@ -29,14 +29,15 @@ class TrackingResources extends ResourceLoader {
   urls=[];
   fetch(url,opts) {this.urls.push(url);return super.fetch(url,opts);}
 }
-async function open(authorized=false) {
-  const resources=new TrackingResources(),errors=[];
+async function open(authorized=false,desktop=false) {
+  const resources=new TrackingResources(),errors=[],nativeCalls=[];
   const virtualConsole=new VirtualConsole();
   virtualConsole.on("jsdomError",e=>errors.push(e.message));
   virtualConsole.on("error",e=>errors.push(String(e)));
   const dom=await JSDOM.fromURL(origin+"/",{
     resources,virtualConsole,runScripts:"dangerously",pretendToBeVisual:true,
     beforeParse(win) {
+      if(desktop) win.__TAURI__={core:{invoke:async (command,args)=>{nativeCalls.push({command,args});}}};
       if(!authorized) return;
       win.localStorage.setItem("envoxers_token","DUMMY_TEST_TOKEN");
       win.localStorage.setItem("envoxers_nome","Teste Envoxers");
@@ -62,7 +63,7 @@ async function open(authorized=false) {
                   : dom.window.document.querySelector(".access-headline")) break;
     await new Promise(resolve=>setTimeout(resolve,100));
   }
-  return {dom,resources,errors};
+  return {dom,resources,errors,nativeCalls};
 }
 try {
   const first=await open(false);
@@ -81,6 +82,13 @@ try {
   assert.ok(!logged.errors.length,logged.errors.join("; "));
   console.log("AUTHENTICATED_APP_OK:",logged.dom.window.document.querySelector(".main")?.textContent.slice(0,65));
   logged.dom.window.close();
+  const native=await open(true,true);
+  assert.equal(native.dom.window.envoxersDesktop?.active,true);
+  assert.ok(native.dom.window.document.querySelector('.app'));
+  assert.ok(native.nativeCalls.some(call=>call.command==='native_badge'));
+  assert.ok(!native.errors.length,native.errors.join('; '));
+  console.log('DESKTOP_BRIDGE_OK:',native.nativeCalls.length,'native calls');
+  native.dom.window.close();
 } finally {
   server.close();
 }

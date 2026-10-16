@@ -95,3 +95,21 @@ async def test_push(
     if sent == 0:
         raise HTTPException(status_code=404, detail="Nenhuma subscription ativa encontrada")
     return {"sent": sent}
+
+
+class DiagnosticoPushRequest(BaseModel):
+    endpoint: str = ""
+
+
+@router.post("/diagnostico")
+async def diagnostico_push(
+    payload: DiagnosticoPushRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+):
+    from sqlalchemy import func
+    total = await db.scalar(select(func.count()).select_from(PushSubscription).where(PushSubscription.envoxer_id == envoxer.id))
+    registrado = False
+    if payload.endpoint:
+        registrado = bool(await db.scalar(select(PushSubscription.id).where(PushSubscription.envoxer_id == envoxer.id, PushSubscription.endpoint == payload.endpoint)))
+    return {"vapid_configurado": bool(settings.VAPID_PRIVATE_KEY and settings.VAPID_PUBLIC_KEY), "inscricoes": total or 0, "dispositivo_registrado": registrado}
