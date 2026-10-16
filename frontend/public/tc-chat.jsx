@@ -167,6 +167,24 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   }, [wsEvent]);
 
   useEffectChat(() => {
+    const aoVoltar = () => {
+      if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+      const canal = canalAtivoRef.current;
+      if (!canal) return;
+      EnvoxersAPI.api(`/chat/canais/${canal}/ler`, { method: "POST" }).then(() => {
+        setCanais(prev => prev.map(c => c.id === canal ? {...c, nao_lidas: 0} : c));
+        if (onLeituraAtualizada) onLeituraAtualizada();
+      }).catch(() => {});
+    };
+    window.addEventListener("focus", aoVoltar);
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      window.removeEventListener("focus", aoVoltar);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
+  }, []);
+
+  useEffectChat(() => {
     if (mensagensRef.current) mensagensRef.current.scrollTop = mensagensRef.current.scrollHeight;
   }, [mensagens]);
 
