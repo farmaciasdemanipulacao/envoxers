@@ -7,13 +7,28 @@
 
   window.envoxersDesktop = {
     active: !!(window.__TAURI__ && window.__TAURI__.core),
+    lastError: null,
     notify(title, body) {
-      if (!this.active) return Promise.resolve();
-      return window.__TAURI__.core.invoke("native_alert", {title, body}).catch(() => {});
+      if (!this.active) return Promise.resolve(false);
+      return window.__TAURI__.core.invoke("native_alert", {title, body})
+        .then(() => { this.lastError = null; return true; })
+        .catch(err => {
+          this.lastError = String(err);
+          console.warn("Envoxers Desktop: notificação nativa falhou", err);
+          window.dispatchEvent(new Event("envoxers:desktop-diagnostic"));
+          return false;
+        });
     },
     badge(count) {
-      if (!this.active) return Promise.resolve();
-      return window.__TAURI__.core.invoke("native_badge", {count: Math.max(0, count|0)}).catch(() => {});
+      if (!this.active) return Promise.resolve(false);
+      return window.__TAURI__.core.invoke("native_badge", {count: Math.max(0, count|0)})
+        .then(() => true)
+        .catch(err => {
+          this.lastError = String(err);
+          console.warn("Envoxers Desktop: indicador falhou", err);
+          window.dispatchEvent(new Event("envoxers:desktop-diagnostic"));
+          return false;
+        });
     }
   };
   window._installPrompt = null;

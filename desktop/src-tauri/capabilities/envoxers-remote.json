@@ -11,6 +11,6 @@
     ]
   },
   "permissions": [
-    "core:app:default"
+    "core:default"
   ]
 }

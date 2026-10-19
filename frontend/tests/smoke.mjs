@@ -34,10 +34,14 @@ async function open(authorized=false,desktop=false) {
   const virtualConsole=new VirtualConsole();
   virtualConsole.on("jsdomError",e=>errors.push(e.message));
   virtualConsole.on("error",e=>errors.push(String(e)));
-  const dom=await JSDOM.fromURL(origin+"/",{
+  const dom=await JSDOM.fromURL(origin+(desktop?"/?envoxers_desktop=1":"/"),{
     resources,virtualConsole,runScripts:"dangerously",pretendToBeVisual:true,
     beforeParse(win) {
-      if(desktop) win.__TAURI__={core:{invoke:async (command,args)=>{nativeCalls.push({command,args});}}};
+      if(desktop) win.__TAURI__={core:{invoke:async (command,args)=>{
+        nativeCalls.push({command,args});
+        if(command==='native_status') return {version:'0.2.0',windows:true,autostart_registered:true,autostart_error:null};
+        if(command==='native_set_autostart') return !!args.enabled;
+      }}};
       if(!authorized) return;
       win.localStorage.setItem("envoxers_token","DUMMY_TEST_TOKEN");
       win.localStorage.setItem("envoxers_nome","Teste Envoxers");
@@ -92,6 +96,14 @@ try {
   socket.onmessage({data:JSON.stringify({tipo:'mensagem_nova',canal_id:77,mensagem:{id:991,autor_envoxer_id:444,autor_nome:'Teste',texto:'Olá do Chat'}})});
   await new Promise(resolve=>setTimeout(resolve,30));
   assert.ok(native.nativeCalls.some(call=>call.command==='native_alert'));
+  assert.ok(native.dom.window.document.querySelector('#evdx-toggle'), 'diagnóstico nativo não montou');
+  native.dom.window.document.querySelector('#evdx-toggle').click();
+  await new Promise(resolve=>setTimeout(resolve,40));
+  assert.match(native.dom.window.document.querySelector('#evdx-status').textContent,/Ponte Tauri: conectada/);
+  native.dom.window.document.querySelector('#evdx-alert').click();
+  native.dom.window.document.querySelector('#evdx-startup').click();
+  await new Promise(resolve=>setTimeout(resolve,40));
+  assert.ok(native.nativeCalls.some(call=>call.command==='native_set_autostart'));
   assert.ok(!native.errors.length,native.errors.join('; '));
   console.log('DESKTOP_BRIDGE_OK:',native.nativeCalls.length,'native calls');
   native.dom.window.close();

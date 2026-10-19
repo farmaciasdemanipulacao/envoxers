@@ -23,3 +23,30 @@ Também disponível no workflow Envoxers Desktop Windows (piloto) do GitHub.
 Testar: login, Chat enquanto no Kanban, ícone na barra de tarefas,
 fechar para bandeja, reiniciar Windows com autostart, desabilitar autostart,
 sincronização com a versão Web em outra máquina.
+
+## v0.2.0 | diagnóstico e correção Windows
+
+- Início com Windows abre uma janela visível, em vez de ficar oculto na bandeja.
+- Migração da configuração de autostart anterior sem sobrescrever a escolha
+  de quem desativou o recurso.
+- O comando nativo pode consultar/alterar o registro de inicialização.
+- Painel **Diagnóstico Windows** no canto inferior direito, visível mesmo no login.
+- Testes individuais: notificação nativa, indicador da barra de tarefas,
+  estado de inicialização e cópia de resultado.
+- Comunicação Tauri autorizada para o domínio oficial com permissões core
+  padrão; não há acesso remoto a shell nem arquivos.
+- Erros de invocação não são mais descartados silenciosamente.
+
+### Homologação no Windows 11
+
+1. Feche completamente a versão antiga pela bandeja e instale o novo .exe.
+2. Abra o painel Diagnóstico Windows e confirme a ponte Tauri conectada.
+3. Teste notificação e confira se o banner realmente apareceu.
+4. Teste a bolinha no ícone da barra de tarefas.
+5. Confira "Inicialização registrada: sim"; se não, use o botão Ativar.
+6. Reinicie o Windows. O Envoxers deve abrir com janela visível.
+7. Com a janela minimizada, receba uma mensagem de outro usuário e
+   confira notificação e badge.
+8. Informe qualquer falha com o texto copiado do painel de diagnóstico.
+
+A compilação Windows não substitui a homologação em Windows 11 real.
