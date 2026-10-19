@@ -93,9 +93,13 @@ try {
   assert.ok(native.nativeCalls.some(call=>call.command==='native_badge'));
   const socket=native.dom.window.__testSockets[0];
   assert.ok(socket && socket.onmessage);
+  socket.onopen();
+  assert.equal(native.dom.window.envoxersDesktop.socketStatus,'conectado');
   socket.onmessage({data:JSON.stringify({tipo:'mensagem_nova',canal_id:77,mensagem:{id:991,autor_envoxer_id:444,autor_nome:'Teste',texto:'Olá do Chat'}})});
   await new Promise(resolve=>setTimeout(resolve,30));
   assert.ok(native.nativeCalls.some(call=>call.command==='native_alert'));
+  assert.ok(native.dom.window.envoxersDesktop.lastMessageAt);
+  assert.ok(native.dom.window.envoxersDesktop.lastAlertAt);
   assert.ok(native.dom.window.document.querySelector('#evdx-toggle'), 'diagnóstico nativo não montou');
   native.dom.window.document.querySelector('#evdx-toggle').click();
   await new Promise(resolve=>setTimeout(resolve,40));

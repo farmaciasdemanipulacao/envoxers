@@ -683,12 +683,18 @@ function AppShell() {
 
     const conectar = () => {
       ws = new WebSocket(`${protocolo}://${window.location.host}/api/v1/chat/ws?token=${encodeURIComponent(token)}`);
-      ws.onopen = () => { enviarVisibilidade(); enviarCanalEmFoco(); };
+      ws.onopen = () => {
+        window.envoxersDesktop.socketStatus = "conectado";
+        window.dispatchEvent(new Event("envoxers:desktop-diagnostic"));
+        enviarVisibilidade(); enviarCanalEmFoco();
+      };
 
       ws.onmessage = (evt) => {
         try {
           const data = JSON.parse(evt.data);
           if (data.tipo === "mensagem_nova") {
+            window.envoxersDesktop.lastMessageAt = new Date().toLocaleString("pt-BR");
+            window.dispatchEvent(new Event("envoxers:desktop-diagnostic"));
             const msg = data.mensagem || {};
             const canalLido = viewEmFocoRef.current === "chat" && window.__envoxersCanalAtivo === data.canal_id && document.visibilityState === "visible" && document.hasFocus();
             if (msg.autor_envoxer_id !== envoxerId && !canalLido) window.envoxersDesktop?.notify(msg.autor_nome || "Chat", (msg.texto || "Novo anexo").slice(0, 300));
@@ -714,6 +720,8 @@ function AppShell() {
       // de funcionar silenciosamente até um F5, voltando ao problema que esse
       // WS existe pra resolver.
       ws.onclose = () => {
+        window.envoxersDesktop.socketStatus = "desconectado";
+        window.dispatchEvent(new Event("envoxers:desktop-diagnostic"));
         if (desmontado) return;
         reconectarTimeout = setTimeout(conectar, 3000);
       };

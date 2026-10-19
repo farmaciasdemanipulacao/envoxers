@@ -8,10 +8,18 @@
   window.envoxersDesktop = {
     active: !!(window.__TAURI__ && window.__TAURI__.core),
     lastError: null,
+    socketStatus: "aguardando",
+    lastMessageAt: null,
+    lastAlertAt: null,
     notify(title, body) {
       if (!this.active) return Promise.resolve(false);
       return window.__TAURI__.core.invoke("native_alert", {title, body})
-        .then(() => { this.lastError = null; return true; })
+        .then(() => {
+          this.lastError = null;
+          this.lastAlertAt = new Date().toLocaleString("pt-BR");
+          window.dispatchEvent(new Event("envoxers:desktop-diagnostic"));
+          return true;
+        })
         .catch(err => {
           this.lastError = String(err);
           console.warn("Envoxers Desktop: notificação nativa falhou", err);

@@ -56,6 +56,9 @@
           "Windows: " + (s.windows ? "sim" : "não"),
           "Inicialização registrada: " + (enabled ? "sim" : "não"),
           "Erro do registro: " + (s.autostart_error || "nenhum"),
+          "Chat em tempo real: " + (window.envoxersDesktop?.socketStatus || "aguardando"),
+          "Última mensagem recebida: " + (window.envoxersDesktop?.lastMessageAt || "nenhuma nesta sessão"),
+          "Último alerta nativo enviado: " + (window.envoxersDesktop?.lastAlertAt || "nenhum nesta sessão"),
           "Erro da última notificação: " + (window.envoxersDesktop?.lastError || "nenhum")
         ].join("\n");
         status.textContent = report;
