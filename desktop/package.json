@@ -1,11 +1,12 @@
 {
   "name": "envoxers-desktop",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "scripts": {
     "tauri": "tauri",
     "build": "tauri build",
-    "dev": "tauri dev"
+    "dev": "tauri dev",
+    "test:acl": "node ./scripts/check-native-acl.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.0"

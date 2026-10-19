@@ -50,3 +50,15 @@ sincronização com a versão Web em outra máquina.
 8. Informe qualquer falha com o texto copiado do painel de diagnóstico.
 
 A compilação Windows não substitui a homologação em Windows 11 real.
+
+## v0.2.1 | Correção de ACL para comandos nativos remotos
+
+A versão 0.2.0 permitia a origem remota, mas não autorizava os comandos personalizados. Isso resultava em "Command native_status not allowed by ACL", "native_badge not allowed by ACL" e no mesmo bloqueio para alertas e inicialização.
+
+Correção:
+- src-tauri/build.rs: AppManifest::commands declara os quatro comandos.
+- capabilities/envoxers-remote.json: quatro permissões allow-native-* explícitas, autorizadas somente para https://envoxers.envox.com.br/* na janela main.
+- npm run test:acl: impede regressão entre comandos Rust, manifest, permissões, origem e invocações JavaScript.
+- O CI do Windows executa o teste ACL antes de compilar o instalador.
+
+Instale a versão 0.2.1, encerre a anterior pela bandeja, abra Diagnóstico Windows e teste notificação, bolinha e inicialização. O build valida as permissões compiladas, mas somente o teste no Windows real confirma o aviso visual e o autostart.

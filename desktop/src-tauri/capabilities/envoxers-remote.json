@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/remote-schema.json",
   "identifier": "envoxers-remote",
-  "description": "Acesso mínimo ao IPC da aplicação para a origem oficial Envoxers",
+  "description": "Permite somente os quatro comandos nativos do Envoxers para o domínio oficial",
   "windows": [
     "main"
   ],
@@ -11,6 +11,10 @@
     ]
   },
   "permissions": [
-    "core:default"
+    "core:default",
+    "allow-native-alert",
+    "allow-native-badge",
+    "allow-native-status",
+    "allow-native-set-autostart"
   ]
 }
