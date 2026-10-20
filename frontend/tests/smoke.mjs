@@ -9,6 +9,15 @@ import assert from "node:assert/strict";
 const root=fileURLToPath(new URL("../public/", import.meta.url));
 const mime={".html":"text/html", ".js":"application/javascript", ".css":"text/css",
   ".json":"application/json", ".png":"image/png", ".ico":"image/x-icon"};
+async function aguardarDOM(dom, selector, tentativas = 60) {
+  for (let i = 0; i < tentativas; i++) {
+    const alvo = dom.window.document.querySelector(selector);
+    if (alvo) return alvo;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error("Timeout aguardando " + selector + " no teste visual, não um sucesso presumido");
+}
+
 const server=createServer(async (req,res)=>{
   const pathname=new URL(req.url,"http://localhost").pathname;
   try {
@@ -112,15 +121,16 @@ try {
   assert.ok(logged.dom.window.document.querySelector(".app"),"AppShell não montou");
   assert.ok(!logged.errors.length,logged.errors.join("; "));
   console.log("AUTHENTICATED_APP_OK:",logged.dom.window.document.querySelector(".main")?.textContent.slice(0,65));
-  const folder=logged.dom.window.document.querySelector('.windows-folder-tile');
+  const folder=await aguardarDOM(logged.dom, '.windows-folder-tile');
   assert.ok(folder,'Pasta de cliente não foi renderizada');
   folder.click();
   await new Promise(resolve=>setTimeout(resolve,25));
-  const card=logged.dom.window.document.querySelector('.windows-folder-tile');
+  const card=await aguardarDOM(logged.dom, '.windows-folder-tile');
   assert.ok(card,'Pasta de card não foi renderizada');
   card.click();
   await new Promise(resolve=>setTimeout(resolve,40));
-  const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');
+  await aguardarDOM(logged.dom, '.windows-file-tile');
+   const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');
   assert.equal(tiles.length,2,'Miniaturas precisam aparecer também dentro do Drive');
   assert.equal(tiles[0].querySelector('.windows-file-thumbnail img')?.alt,'Miniatura de capa-de-teste.png');
   assert.ok(tiles[1].querySelector('.windows-file-thumbnail.video'),'Card de vídeo sem prévia/fallback');
