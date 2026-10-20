@@ -1,0 +1,76 @@
+/* ENVOXERS PORTAL: identidade inspirada no cliente-dev.envox.com.br.
+ * Importante: escopo somente /portal/, nunca altera o app interno.
+ * Preserva elementos po-* funcionais vinculados ao backend Envoxers.
+ */
+:root{
+  --portal-navy:#16284D;
+  --portal-red:#C10230;
+  --portal-paper:#F7F7F5;
+  --portal-line:#E7E7E1;
+  --portal-muted:#777A82;
+  --portal-ink:#1E3462;
+}
+body{background:var(--portal-paper);color:#252934}
+.po-layout{background:var(--portal-paper);font-family:Inter,system-ui,sans-serif;color:#252934;grid-template-columns:246px minmax(0,1fr)}
+.po-sidebar{background:var(--portal-navy);border-right:0;color:white;padding:20px 12px}
+.po-brand{border-bottom:1px solid rgba(255,255,255,.12);padding:7px 10px 23px;margin-bottom:4px}
+.po-logo{font-family:Inter,system-ui,sans-serif;font-size:14px;letter-spacing:.13em;font-style:normal;font-weight:750;display:flex;align-items:center;gap:9px}
+.po-logo i{width:18px;height:18px;background:var(--portal-red);border-radius:5px}
+.po-logo span{display:none}
+.po-brand small{color:#AEB7CC;font-size:10px;letter-spacing:.1em}
+.po-org{padding:17px 10px 21px;gap:5px}
+.po-org small{color:#8594B1;font-size:9px}
+.po-org strong{color:#fff;font-size:12px}
+.po-nav{color:#C7CEDD;padding:11px 12px;font-weight:500;font-size:12.5px;transition:background .15s ease}
+.po-nav:hover{background:rgba(255,255,255,.07);color:#fff}
+.po-nav.active{background:rgba(255,255,255,.12);color:#fff;font-weight:700}
+.po-sidebar-footer{border-color:rgba(255,255,255,.13)}
+.po-sidebar-footer small,.po-sidebar-footer button{color:#AEB7CC}
+.po-sidebar-footer button:hover{color:#fff}
+.po-top{background:#fff;border-bottom:1px solid var(--portal-line);padding:31px max(3vw,22px);min-height:122px}
+.po-top small{color:#90949A}
+.po-top h1{font-size:clamp(25px,2.8vw,33px);letter-spacing:-.04em;color:#242A33}
+.po-refresh,.po-section-head button,.po-back{border-color:#D9DAD5;color:var(--portal-navy)}
+.po-refresh:hover,.po-section-head button:hover{background:#F0F1F4}
+.po-lead,.po-form-actions p{color:var(--portal-muted)}
+.po-metric,.po-solicitacao,.po-panel,.po-info-grid>div,.po-form{border:1px solid var(--portal-line);border-radius:13px;box-shadow:0 1px 2px rgba(15,18,24,.035)}
+.po-metric small{color:#888B91;text-transform:uppercase;letter-spacing:.09em;font-size:10px;font-weight:700}
+.po-metric strong{color:var(--portal-navy);font-weight:650}
+.po-solicitacao{transition:box-shadow .15s,border-color .15s}
+.po-solicitacao:hover{border-color:#C7CEDD;box-shadow:0 5px 16px rgba(15,18,24,.08)}
+.po-status{background:#E9EDF7;color:var(--portal-ink);text-transform:uppercase;letter-spacing:.045em}
+.po-primary{background:var(--portal-navy)}
+.po-primary:hover{background:var(--portal-red)}
+.po-search:focus,.po-field input:focus,.po-field select:focus,.po-field textarea:focus,.po-comment-form textarea:focus{border-color:var(--portal-navy);box-shadow:0 0 0 3px rgba(22,40,77,.10)}
+.po-event-dot{background:var(--portal-red)}
+.po-form{padding:28px}
+.po-form-actions{border-top-color:var(--portal-line)}
+.po-panel h3,.po-section-head h2{color:var(--portal-navy)}
+.po-solicitacao small{color:#92979F}
+/* Login reproduz a distribuição editorial e o contraste navy/creme do cliente-dev. */
+.portal-login{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(420px,.95fr);background:var(--portal-navy);font-family:Inter,system-ui,sans-serif}
+.portal-login-brand{padding:clamp(30px,5vw,64px);background:radial-gradient(600px circle at 20% 10%,rgba(193,2,48,.20),transparent 60%),var(--portal-navy);color:#fff;display:flex;flex-direction:column;justify-content:space-between;gap:50px}
+.portal-login-mark{display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.13em;font-size:12px;font-weight:750}
+.portal-login-mark i{width:18px;height:18px;background:var(--portal-red);border-radius:5px}
+.portal-login-mark span{color:#AEB7CC;font-weight:400}
+.portal-login-copy{max-width:560px}
+.portal-login-copy h1{font-family:'Instrument Serif',Georgia,serif;font-size:clamp(38px,4.5vw,64px);line-height:.98;font-weight:400;letter-spacing:-.015em;margin:0 0 20px}
+.portal-login-copy p{font-size:15px;line-height:1.7;color:#C7CEDD;max-width:46ch}
+.portal-login-footer{font-size:10px;letter-spacing:.15em;color:#AEB7CC}
+.portal-login-panel{background:var(--portal-paper);display:flex;align-items:center;justify-content:center;padding:30px}
+.portal-login-box{width:100%;max-width:390px;background:#fff;border:1px solid var(--portal-line);border-radius:14px;padding:30px;box-shadow:0 12px 40px rgba(16,20,30,.08)}
+.portal-login-kicker{font-size:10px;letter-spacing:.13em;font-weight:700;color:var(--portal-red);margin-bottom:15px}
+.portal-login-box h2{margin:0 0 7px;color:#222831;font-size:25px;letter-spacing:-.03em}
+.portal-login-sub{font-size:13px;color:var(--portal-muted);line-height:1.6;margin:0 0 24px}
+.portal-login-field{display:grid;gap:7px;margin-bottom:17px}
+.portal-login-field span{font-size:11px;color:#777A82;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.portal-login-field input{width:100%;border:1px solid #DCDDD7;border-radius:9px;padding:12px;background:#FBFBF9;color:#222;font-size:13px;outline:none}
+.portal-login-field input:focus{border-color:var(--portal-navy);box-shadow:0 0 0 3px rgba(22,40,77,.08)}
+.portal-login-submit{display:block;width:100%;margin-top:22px;background:var(--portal-navy);color:#fff;border:0;border-radius:9px;padding:13px;cursor:pointer;font-weight:650}
+.portal-login-submit:hover{background:var(--portal-red)}
+.portal-login-submit:disabled{opacity:.5;cursor:wait}
+.portal-login-help{font-size:11px;color:#888B91;line-height:1.7;margin-top:19px}
+@media(max-width:900px){.po-layout{grid-template-columns:190px minmax(0,1fr)}}
+@media(max-width:720px){.portal-login{grid-template-columns:1fr}.portal-login-brand{padding:28px 22px;gap:24px}.portal-login-copy h1{font-size:38px}.portal-login-footer{display:none}.portal-login-panel{padding:22px;min-height:52vh}.portal-login-box{max-width:470px}.po-layout{display:block}.po-sidebar{position:static;height:auto;padding:12px}.po-brand{margin:0;padding:8px 8px 15px}.po-sidebar nav{display:flex;overflow-x:auto;padding:9px 0;gap:4px}.po-nav{white-space:nowrap;padding:10px}.po-top{padding:24px 18px}}
+@media(max-width:400px){.portal-login-panel{padding:12px}.portal-login-box{padding:24px 19px}.portal-login-brand{padding:24px 20px}.portal-login-copy h1{font-size:33px}}
+@media(prefers-reduced-motion:reduce){.po-nav,.po-solicitacao{transition:none}}
