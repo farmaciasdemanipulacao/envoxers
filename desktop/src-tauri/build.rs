@@ -8,6 +8,8 @@ fn main() {
                 "native_badge",
                 "native_status",
                 "native_set_autostart",
+                "native_download",
+                "native_save_file",
             ]),
         ),
     )

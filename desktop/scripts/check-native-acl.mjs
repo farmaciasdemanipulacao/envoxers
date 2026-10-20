@@ -6,7 +6,7 @@ const root = resolve(import.meta.dirname, "..");
 const read = path => readFileSync(resolve(root, path), "utf8");
 const json = path => JSON.parse(read(path));
 
-const commands = ["native_alert", "native_badge", "native_status", "native_set_autostart"];
+const commands = ["native_alert", "native_badge", "native_status", "native_set_autostart", "native_download", "native_save_file"];
 const expectedPermissions = commands.map(c => "allow-" + c.replaceAll("_", "-"));
 const build = read("src-tauri/build.rs");
 const main = read("src-tauri/src/main.rs");
@@ -23,7 +23,7 @@ assert.deepEqual([...declared].sort(), [...commands].sort(), "Manifest não corr
 
 const handler = main.match(/tauri::generate_handler!\[([\s\S]*?)\]/);
 assert.ok(handler, "invoke_handler não encontrado");
-const registered = handler[1].split(",").map(s => s.trim()).filter(Boolean);
+const registered = handler[1].split(",").map(s => s.trim().split("::").at(-1)).filter(Boolean);
 assert.deepEqual([...registered].sort(), [...commands].sort(), "invoke_handler difere do AppManifest");
 
 assert.deepEqual(cap.windows, ["main"], "Somente a janela main deve acessar comandos");
@@ -31,11 +31,16 @@ assert.deepEqual(cap.remote?.urls, ["https://envoxers.envox.com.br/*"], "Origem 
 assert.deepEqual(cap.permissions, ["core:default", ...expectedPermissions], "Permissões explícitas faltando");
 assert.deepEqual(conf.app.security.capabilities, ["envoxers-remote"], "Capability não ativada");
 
-const js = read("../frontend/public/runtime-boot.js") + read("../frontend/public/desktop-diagnostics.js");
+const js = read("../frontend/public/runtime-boot.js") + read("../frontend/public/desktop-diagnostics.js") + read("../frontend/public/desktop-downloads.js");
 for (const command of commands) {
   assert.ok(js.includes('"' + command + '"'), "Frontend não invoca comando: " + command);
 }
-assert.equal(conf.version, "0.2.1");
+const nativeDownload = read("src-tauri/src/downloads.rs");
+assert.ok(nativeDownload.includes('Some("envoxers.envox.com.br")'), "Domínio do download não está restrito");
+assert.ok(nativeDownload.includes('"/api/v1/uploads/"'), "Caminho do download não está restrito");
+assert.ok(nativeDownload.includes("create_new(true)"), "Downloads não podem sobrescrever arquivos");
+assert.ok(nativeDownload.includes("LIMIT"), "Download precisa limitar o tamanho");
+assert.equal(conf.version, "0.2.2");
 assert.equal(pkg.version, conf.version);
 assert.equal(lock.version, pkg.version);
-console.log("NATIVE_ACL_OK: 4 comandos registrados, 4 permissões remotas explícitas, domínio restrito.");
+console.log("NATIVE_ACL_OK: 6 comandos registrados, 6 permissões remotas explícitas, downloads restritos.");

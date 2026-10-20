@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod downloads;
 use serde::Serialize;
 use tauri::{
     image::Image,
@@ -125,7 +126,9 @@ fn main() {
             native_alert,
             native_badge,
             native_status,
-            native_set_autostart
+            native_set_autostart,
+            downloads::native_download,
+            downloads::native_save_file
         ])
         .setup(|app| {
             let open = MenuItem::with_id(app, "open", "Abrir Envoxers", true, None::<&str>)?;

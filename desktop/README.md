@@ -62,3 +62,23 @@ Correção:
 - O CI do Windows executa o teste ACL antes de compilar o instalador.
 
 Instale a versão 0.2.1, encerre a anterior pela bandeja, abra Diagnóstico Windows e teste notificação, bolinha e inicialização. O build valida as permissões compiladas, mas somente o teste no Windows real confirma o aviso visual e o autostart.
+
+## v0.2.2 | downloads nativos
+
+O aplicativo Windows baixa os anexos gerenciados pelo Envoxers diretamente
+na pasta Downloads do Windows, sem depender de abas do WebView2.
+
+- Links /api/v1/uploads/*: download nativo em streaming (até 300 MB).
+- Relatórios CSV (Clientes, Relatórios, Foco): salvar arquivo por IPC, até 12 MB.
+- Nomes de arquivos sanitizados e renomeação automática quando já existe
+  arquivo com o mesmo nome. Nenhum download sobrescreve arquivos existentes.
+- Downloads HTTP permitidos apenas por HTTPS no domínio oficial
+  envoxers.envox.com.br e somente na rota de uploads. Redirecionamentos
+  externos são bloqueados.
+- Mensagem de sucesso ou falha na tela e diagnóstico do último download.
+- Diagnóstico Windows inclui botão Testar download, que salva um TXT pequeno.
+
+Testar no Windows 11: clique em Testar download e confira o TXT em Downloads;
+em seguida baixe um PDF e um arquivo grande enviados pelo Chat/Arquivos.
+Confirme também exportação CSV e nomes repetidos. Downloads de URLs externas
+não são interceptados por esta implementação.

@@ -1,6 +1,6 @@
 [package]
 name = "envoxers-desktop"
-version = "0.2.1"
+version = "0.2.2"
 description = "Aplicativo Windows da Envoxers"
 authors = ["Envox"]
 edition = "2021"
@@ -14,3 +14,6 @@ tauri-plugin-autostart = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["fs", "io-util"] }
+base64 = "0.22"

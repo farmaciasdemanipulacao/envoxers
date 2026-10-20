@@ -229,9 +229,14 @@ function FocoRelatorioScreen() {
     ];
     const csv = linhas.map((l) => l.map((v) => '"' + String(v ?? "").replace(/"/g,'""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+    const nomeCsv = "focos-time-"+inicio+"-"+fim+".csv";
+    if (window.envoxersDesktop?.active) {
+      window.envoxersDesktop.saveBlob(blob, nomeCsv);
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href=url; a.download="focos-time-"+inicio+"-"+fim+".csv";
+    a.href=url; a.download=nomeCsv;
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   };
 

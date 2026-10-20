@@ -18,6 +18,7 @@
       '<div class="actions">',
       '<button type="button" id="evdx-alert">Testar notificação</button>',
       '<button type="button" id="evdx-badge">Testar bolinha</button>',
+      '<button type="button" id="evdx-download">Testar download</button>',
       '<button type="button" id="evdx-startup">Ativar início com Windows</button>',
       '<button type="button" id="evdx-refresh">Atualizar</button>',
       '<button type="button" id="evdx-copy">Copiar resultado</button>',
@@ -59,7 +60,9 @@
           "Chat em tempo real: " + (window.envoxersDesktop?.socketStatus || "aguardando"),
           "Última mensagem recebida: " + (window.envoxersDesktop?.lastMessageAt || "nenhuma nesta sessão"),
           "Último alerta nativo enviado: " + (window.envoxersDesktop?.lastAlertAt || "nenhum nesta sessão"),
-          "Erro da última notificação: " + (window.envoxersDesktop?.lastError || "nenhum")
+          "Último download: " + (window.envoxersDesktop?.lastDownloadAt || "nenhum nesta sessão"),
+          "Último arquivo: " + (window.envoxersDesktop?.lastDownloadName || "nenhum"),
+          "Último erro nativo: " + (window.envoxersDesktop?.lastError || "nenhum")
         ].join("\n");
         status.textContent = report;
       } catch (err) {
@@ -87,6 +90,12 @@
         await invoke("native_badge", { count: badgeOn ? 1 : 0 });
         result.textContent = badgeOn ? "Bolinha ativada. Confira a barra de tarefas; clique novamente para limpar." : "Bolinha removida.";
       } catch (err) { result.textContent = "Falha no indicador: " + String(err); }
+    });
+    el("evdx-download").addEventListener("click", async () => {
+      const testFile = new Blob(["Envoxers Desktop: download nativo funcionando."], {type:"text/plain"});
+      const ok = await window.envoxersDesktop.saveBlob(testFile, "envoxers-teste-download.txt");
+      result.textContent = ok ? "Arquivo de teste salvo na pasta Downloads." : "Falha no download. Veja o erro acima.";
+      await refresh();
     });
     startButton.addEventListener("click", async () => {
       startButton.disabled = true;
