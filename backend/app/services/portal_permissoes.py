@@ -25,6 +25,7 @@ def pode_ver_solicitacao(papel: str, contato_id: int, criador_id: int | None, un
     caps = capacidades(papel, extras)
     if "ver_todas" in caps:
         return True
-    if criador_id is not None and criador_id == contato_id and "ver_proprias" in caps:
-        return True
-    return "ver_unidades" in caps and unidade_id is not None and unidade_id in unidades
+    # Perfis regionais só enxergam unidades vigentes, mesmo quando criaram o pedido.
+    if "ver_unidades" in caps:
+        return unidade_id is not None and unidade_id in unidades
+    return criador_id is not None and criador_id == contato_id and "ver_proprias" in caps
