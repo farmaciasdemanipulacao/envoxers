@@ -23,28 +23,26 @@ function PortalDefinirSenhaScreen({ token, onDefinida }) {
   };
 
   return (
-    <div className="login-screen">
-      <div className="login-box">
-        <div className="brand" style={{ paddingBottom: 20, justifyContent: "center" }}>
-          <span className="brand-mark">envox<span className="brand-dot"></span></span>
-          <span className="brand-sub">Portal do Cliente</span>
+    <div className="portal-login">
+      <section className="portal-login-brand" aria-label="Portal do Cliente Envox">
+        <div className="portal-login-mark"><i aria-hidden="true"></i> Envox <span>Portal</span></div>
+        <div className="portal-login-copy"><h1>Seu acesso começa aqui.</h1><p>Crie uma senha para acompanhar solicitações, aprovações e entregas.</p></div>
+        <div className="portal-login-footer">ENVOX · PORTAL DO CLIENTE</div>
+      </section>
+      <section className="portal-login-panel">
+        <div className="portal-login-box">
+          <div className="portal-login-kicker">PRIMEIRO ACESSO</div>
+          <h2>Defina sua senha</h2>
+          <p className="portal-login-sub">Use pelo menos oito caracteres.</p>
+          <form onSubmit={handleSubmit}>
+            <label className="portal-login-field"><span>Nova senha</span><input type="password" autoComplete="new-password" minLength={8} value={senha} onChange={e=>setSenha(e.target.value)} required autoFocus /></label>
+            <label className="portal-login-field"><span>Confirmar senha</span><input type="password" autoComplete="new-password" minLength={8} value={confirmacao} onChange={e=>setConfirmacao(e.target.value)} required /></label>
+            <button className="portal-login-submit" type="submit" disabled={loading}>{loading ? "Salvando…" : "Definir senha →"}</button>
+          </form>
         </div>
-        <div style={{ fontSize: 13, color: "var(--ink-3)", marginBottom: 16 }}>Defina sua senha de acesso.</div>
-        <form onSubmit={handleSubmit}>
-          <div className="field">
-            <label>Nova senha</label>
-            <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Mínimo 8 caracteres" required autoFocus />
-          </div>
-          <div className="field" style={{ marginTop: 12 }}>
-            <label>Confirmar senha</label>
-            <input type="password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} placeholder="Repita a senha" required />
-          </div>
-          <button className="btn btn-envox" type="submit" disabled={loading} style={{ width: "100%", marginTop: 16, justifyContent: "center" }}>
-            {loading ? "Salvando…" : "Definir senha"}
-          </button>
-        </form>
-      </div>
+      </section>
     </div>
+
   );
 }
 
@@ -69,27 +67,34 @@ function PortalLoginScreen({ onLoggedIn }) {
   };
 
   return (
-    <div className="login-screen">
-      <div className="login-box">
-        <div className="brand" style={{ paddingBottom: 20, justifyContent: "center" }}>
-          <span className="brand-mark">envox<span className="brand-dot"></span></span>
-          <span className="brand-sub">Portal do Cliente</span>
+    <div className="portal-login">
+      <section className="portal-login-brand" aria-label="Portal do Cliente Envox">
+        <div className="portal-login-mark"><i aria-hidden="true"></i> Envox <span>Portal</span></div>
+        <div className="portal-login-copy">
+          <h1>Comunicação em um único fluxo.</h1>
+          <p>Solicite, acompanhe e aprove materiais com contexto, histórico e decisões centralizados.</p>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="field">
-            <label>E-mail</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@suaempresa.com.br" required autoFocus />
-          </div>
-          <div className="field" style={{ marginTop: 12 }}>
-            <label>Senha</label>
-            <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="••••••••" required />
-          </div>
-          <button className="btn btn-envox" type="submit" disabled={loading} style={{ width: "100%", marginTop: 16, justifyContent: "center" }}>
-            {loading ? "Entrando…" : "Entrar"}
-          </button>
-        </form>
-      </div>
+        <div className="portal-login-footer">ENVOX · PORTAL DO CLIENTE</div>
+      </section>
+      <section className="portal-login-panel">
+        <div className="portal-login-box">
+          <div className="portal-login-kicker">PORTAL DO CLIENTE</div>
+          <h2>Acesse sua conta</h2>
+          <p className="portal-login-sub">Seu espaço para acompanhar o trabalho da Envox.</p>
+          <form onSubmit={handleSubmit}>
+            <label className="portal-login-field"><span>E-mail</span>
+              <input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@suaempresa.com.br" required autoFocus />
+            </label>
+            <label className="portal-login-field"><span>Senha</span>
+              <input type="password" autoComplete="current-password" value={senha} onChange={e=>setSenha(e.target.value)} required />
+            </label>
+            <button className="portal-login-submit" type="submit" disabled={loading}>{loading ? "Entrando…" : "Entrar no portal →"}</button>
+          </form>
+          <p className="portal-login-help">Acesso exclusivo aos contatos autorizados. Solicite seu acesso à equipe Envox.</p>
+        </div>
+      </section>
     </div>
+
   );
 }
 
