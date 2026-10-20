@@ -134,7 +134,7 @@ def publish():
             return
         if current.get("version") == version:
             target_url = current.get("platforms", {}).get("windows-x86_64", {}).get("url", "")
-            filename = target_url.rsplit("/", 1)[-1]
+            filename = unquote(target_url.rsplit("/", 1)[-1])
             if filename and (OUT / filename).exists():
                 print(f"Versão {version} já publicada; sem alterações.")
                 return
