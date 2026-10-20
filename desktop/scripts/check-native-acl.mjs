@@ -40,7 +40,7 @@ assert.ok(nativeDownload.includes('Some("envoxers.envox.com.br")'), "Domínio do
 assert.ok(nativeDownload.includes('"/api/v1/uploads/"'), "Caminho do download não está restrito");
 assert.ok(nativeDownload.includes("create_new(true)"), "Downloads não podem sobrescrever arquivos");
 assert.ok(nativeDownload.includes("LIMIT"), "Download precisa limitar o tamanho");
-assert.equal(conf.version, "0.3.0");
+assert.equal(conf.version, "0.3.1");
 assert.equal(conf.plugins?.updater?.endpoints?.[0], "https://envoxers.envox.com.br/desktop-updates/latest.json");
 assert.ok(conf.plugins?.updater?.pubkey?.length > 100, "Chave pública do atualizador ausente");
 assert.equal(conf.bundle.createUpdaterArtifacts, false, "Assinatura deve ocorrer apenas na VPS");

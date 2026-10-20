@@ -140,7 +140,7 @@ def publish():
                 return
 
     name, url = pick_asset(release, version)
-    with tempfile.TemporaryDirectory(prefix="envoxers-signer-") as temp:
+    with tempfile.TemporaryDirectory(prefix=".signing-", dir=OUT) as temp:
         tempdir = Path(temp)
         executable = tempdir / name
         size, sha256 = download(url, executable)

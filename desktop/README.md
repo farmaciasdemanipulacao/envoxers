@@ -118,3 +118,11 @@ O serviço systemd usa a conta dedicada envox-updater, com acesso restrito à ch
 **A primeira instalação da versão 0.3.0 ainda é manual**, porque os instaladores 0.2.x não possuíam o atualizador. A partir dela, novas versões podem ser instaladas pelo próprio aplicativo.
 
 A instalação exige confirmação para não interromper tarefas. Build e publicação no servidor não substituem um teste real de upgrade no Windows.
+
+
+### v0.3.1 | Teste de atualização real
+
+Release incremental de homologação. Instale a versão 0.3.0, clique em
+Verificar atualizações no diagnóstico e confirme que a versão 0.3.1
+é oferecida pelo servidor. Ao aceitar, o Windows deverá instalar a nova
+versão, sem desinstalação manual.
