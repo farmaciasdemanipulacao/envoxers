@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: envoxers-desktop-windows-main
+  cancel-in-progress: true
+
 jobs:
   windows-installer:
     runs-on: windows-latest
