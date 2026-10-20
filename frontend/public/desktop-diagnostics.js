@@ -112,6 +112,7 @@
       btn.disabled = false;
       result.textContent = next.status === "disponivel" ? "Versão " + next.version + " disponível. Veja o aviso para atualizar." :
         next.status === "atualizado" ? "Seu Envoxers Desktop está atualizado." :
+        next.status === "instalador_antigo" ? "Instale a versão 0.3.0 uma última vez para ativar o atualizador." :
         "Não foi possível consultar atualizações: " + (next.error || "erro desconhecido");
       await refresh();
     });

@@ -7,7 +7,16 @@
     status: "aguardando", version: null, notes: "", lastCheckedAt: null, error: null,
     installing: false, progress: ""
   };
-  let pending = null, checking = null, banner;
+  let checking = null, banner, supportsUpdater;
+  async function supportsNativeUpdater() {
+    if (supportsUpdater !== undefined) return supportsUpdater;
+    try {
+      const native = await core.invoke("native_status");
+      const parts = String(native.version || "").split(".").map(Number);
+      supportsUpdater = parts[0] > 0 || (parts[0] === 0 && parts[1] >= 3);
+    } catch { supportsUpdater = false; }
+    return supportsUpdater;
+  }
   const notify = () => window.dispatchEvent(new Event("envoxers:updater-status"));
   const text = (value) => String(value || "");
 
@@ -45,6 +54,11 @@
     notify();
     checking = (async () => {
       try {
+        if (!await supportsNativeUpdater()) {
+          state.status = "instalador_antigo";
+          state.lastCheckedAt = new Date().toLocaleString("pt-BR");
+          return {...state};
+        }
         const update = await core.invoke("native_check_update");
         state.lastCheckedAt = new Date().toLocaleString("pt-BR");
         if (update?.version) {

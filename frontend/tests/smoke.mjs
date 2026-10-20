@@ -39,7 +39,7 @@ async function open(authorized=false,desktop=false) {
     beforeParse(win) {
       if(desktop) win.__TAURI__={core:{invoke:async (command,args)=>{
         nativeCalls.push({command,args});
-        if(command==='native_status') return {version:'0.2.0',windows:true,autostart_registered:true,autostart_error:null};
+        if(command==='native_status') return {version:'0.3.0',windows:true,autostart_registered:true,autostart_error:null};
         if(command==='native_set_autostart') return !!args.enabled;
         if(command==='native_download') return args.filename || 'arquivo.pdf';
         if(command==='native_save_file') return args.filename;
