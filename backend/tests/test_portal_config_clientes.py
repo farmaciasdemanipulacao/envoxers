@@ -1,13 +1,18 @@
 """Configuração multi-cliente: desativado por padrão, habilitação explícita e travas de módulos não homologados."""
 import unittest
 from fastapi import HTTPException
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, engine
 from app.models.cliente import Cliente
 from app.models.cliente_contato import ClienteContato
 from app.models.portal_operacao import PortalClienteConfig
 from app.api.routes.portal_operacao import ConfigClientePatch, contato_habilitado, salvar_config_portal, serializar_config
 
 class PortalConfigClientesTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncTearDown(self):
+        # IsolatedAsyncioTestCase usa novo event loop por teste.
+        # Descarta conexões do pool antes do loop seguinte, evitando Future de outro loop.
+        await engine.dispose()
+
     async def test_opt_in_modulos_e_separacao(self):
         async with AsyncSessionLocal() as db:
             a=Cliente(nome="Empresa A laboratório")
