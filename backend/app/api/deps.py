@@ -12,6 +12,7 @@ from app.models.envoxer import Envoxer
 from app.models.sessao_web import SessaoWeb
 from app.services.sessoes_web import utcnow, valida_sessao
 from app.models.cliente_contato import ClienteContato
+from app.models.cliente import Cliente
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 oauth2_scheme_portal = OAuth2PasswordBearer(tokenUrl="/api/v1/portal/auth/login", auto_error=False)
@@ -111,6 +112,9 @@ async def get_current_cliente_contato(
     result = await db.execute(select(ClienteContato).where(ClienteContato.id == int(contato_id)))
     contato = result.scalar_one_or_none()
     if contato is None or not contato.ativo:
+        raise credentials_exception
+    cliente = await db.get(Cliente, contato.cliente_id)
+    if cliente is None or not cliente.ativo or cliente.deleted_at is not None:
         raise credentials_exception
     return contato
 
