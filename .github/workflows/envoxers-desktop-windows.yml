@@ -3,6 +3,7 @@ name: Envoxers Desktop Windows (piloto)
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
       - 'desktop/**'
       - '.github/workflows/envoxers-desktop-windows.yml'
@@ -41,6 +42,7 @@ jobs:
       - name: Build installer NSIS
         run: npm run build -- --bundles nsis
       - name: Publicar release do Desktop (uma vez por versão)
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
