@@ -42,7 +42,7 @@
     }
     const msg = banner.querySelector("#envoxers-update-message");
     msg.textContent = state.installing ? (state.progress || "Baixando atualização…") :
-      "Versão " + state.version + " disponível. Salve seu trabalho antes de atualizar. O aplicativo será reiniciado.";
+      "Versão " + state.version + " disponível. Salve seu trabalho antes de atualizar. O aplicativo será fechado durante a instalação; reabra se necessário.";
     banner.querySelector("#envoxers-update-install").disabled = state.installing;
     banner.querySelector("#envoxers-update-later").disabled = state.installing;
   }
@@ -93,7 +93,7 @@
     notify();
     try {
       await core.invoke("native_install_update");
-      state.progress = "Instalação iniciada. O Envoxers será reiniciado.";
+      state.progress = "Instalação iniciada. Reabra o Envoxers se ele não iniciar sozinho.";
       renderBanner();
       notify();
       return true;
