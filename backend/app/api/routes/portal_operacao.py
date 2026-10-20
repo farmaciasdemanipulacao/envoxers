@@ -157,6 +157,27 @@ async def criar(
             raise HTTPException(422, "Frente inválida")
         if not pode(contato.portal_papel, "ver_todas", contato.portal_capacidades) and frente.id not in ids:
             raise HTTPException(403, "Frente não autorizada")
+    # O frontend não é a autoridade de validação: exigir campos extras ativos no servidor.
+    formulario_ativo = (await db.execute(select(PortalFormulario).where(
+        PortalFormulario.cliente_id == contato.cliente_id, PortalFormulario.ativo.is_(True)
+    ).order_by(PortalFormulario.versao.desc()).limit(1))).scalar_one_or_none()
+    if formulario_ativo:
+        campos = formulario_ativo.campos or []
+        chaves = {f.get("chave") for f in campos if isinstance(f, dict)}
+        extras = payload.campos_customizados or {}
+        if set(extras) - chaves:
+            raise HTTPException(422, "O formulário contém campos não autorizados")
+        for campo in campos:
+            chave = campo.get("chave")
+            if chave in ("regional", "tipo", "titulo", "descricao", "prazo_solicitado", "apoio_envox", "referencias"):
+                continue
+            valor = extras.get(chave)
+            if campo.get("obrigatorio") and (not isinstance(valor, str) or not valor.strip()):
+                raise HTTPException(422, f"Campo obrigatório ausente: {chave}")
+            if valor is not None and (not isinstance(valor, str) or len(valor) > 4000):
+                raise HTTPException(422, f"Campo inválido: {chave}")
+    elif payload.campos_customizados:
+        raise HTTPException(422, "Campos extras ainda não foram configurados")
     s = Solicitacao(
         cliente_id=contato.cliente_id, portal_contato_id=contato.id,
         portal_unidade_id=payload.unidade_id, portal_frente_id=payload.frente_id,
@@ -316,9 +337,10 @@ async def vincular_tarefa(
 
 @router.post("/admin/solicitacoes/{solicitacao_id}/comentarios", status_code=201)
 async def comentar_interno(
-    solicitacao_id: int, payload: ComentarioNovo, publico: bool = False,
+    solicitacao_id: int, payload: ComentarioNovo,
     envoxer: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    publico: bool = False,
 ):
     s = await db.get(Solicitacao, solicitacao_id)
     if not s:
