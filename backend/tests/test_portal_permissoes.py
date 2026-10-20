@@ -16,6 +16,7 @@ class PortalPermissoesTest(unittest.TestCase):
     def test_gestor_regional_so_enxerga_suas_unidades(self):
         self.assertTrue(pode_ver_solicitacao("gestor_regional", 10, 11, 100, {100}))
         self.assertFalse(pode_ver_solicitacao("gestor_regional", 10, 11, 200, {100}))
+        self.assertFalse(pode_ver_solicitacao("gestor_regional", 10, 10, 200, {100}))
         self.assertFalse(pode_ver_solicitacao("gestor_regional", 10, 11, None, {100}))
 
     def test_aprovador_nao_vira_admin(self):
