@@ -67,7 +67,7 @@ pub async fn native_download(app: tauri::AppHandle, url: String, filename: Optio
         return Err("Apenas downloads do domínio oficial são permitidos".into());
     }
     let stored = parsed.path().strip_prefix("/api/v1/uploads/")
-        .ok_or("Este link não é um anexo do Envoxers")?;
+        .ok_or("Este link não é um anexo do Envoxers")?.to_string();
     if stored.is_empty() || stored.contains('/') || stored.contains('\\') {
         return Err("Nome do anexo inválido".into());
     }
