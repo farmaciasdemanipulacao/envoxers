@@ -13,11 +13,11 @@ function PortalClientesAdminScreen() {
   const [novoTipo,setNovoTipo]=React.useState("regional");
   const [contatoEdit,setContatoEdit]=React.useState(null);
   const [formCampos,setFormCampos]=React.useState([]);
-  const api=(path,opts)=>EnvoxersAPI.api("/portal/operacao/admin"+path,opts);
+  const portalAdminApi=(path,opts)=>api("/portal/operacao/admin"+path,opts);
   const falha=(err)=>toast(err?.message||"Não foi possível concluir a operação","error");
   const buscar=async()=>{
     setLoading(true);
-    try {let r=await api("/clientes");setClientes(r);setClienteId(id=>id||String(r[0]?.id||""));}
+    try {let r=await portalAdminApi("/clientes");setClientes(r);setClienteId(id=>id||String(r[0]?.id||""));}
     catch(e){falha(e);}
     finally{setLoading(false);}
   };
@@ -25,7 +25,7 @@ function PortalClientesAdminScreen() {
     if(!id){setDados(null);return;}
     setLoading(true);
     try {
-      const d=await api("/clientes/"+id+"/configuracao");
+      const d=await portalAdminApi("/clientes/"+id+"/configuracao");
       setDados(d);setEdit({...d.config,modulos:{...d.config.modulos},notificacoes:{...d.config.notificacoes},visibilidade:{...d.config.visibilidade}});
       setFormCampos((d.formulario?.campos||[]).filter(x=>!["regional","tipo","titulo","descricao","prazo_solicitado","apoio_envox","referencias"].includes(x.chave)).map(x=>({...x})));
     }catch(e){falha(e);setDados(null)}
@@ -36,9 +36,9 @@ function PortalClientesAdminScreen() {
   const salvar=async()=>{
     setSalvando(true);
     try {
-      await api("/clientes/"+clienteId+"/configuracao",{method:"PUT",body:JSON.stringify(edit)});
+      await portalAdminApi("/clientes/"+clienteId+"/configuracao",{method:"PUT",body:JSON.stringify(edit)});
       await carregar(clienteId);toast("Configuração do portal salva.","success");
-      const r=await api("/clientes");setClientes(r);
+      const r=await portalAdminApi("/clientes");setClientes(r);
     }catch(e){falha(e)}
     finally{setSalvando(false)}
   };
@@ -46,14 +46,14 @@ function PortalClientesAdminScreen() {
     e.preventDefault();if(!novoNome.trim())return;
     setSalvando(true);
     try{
-      await api("/clientes/"+clienteId+"/unidades",{method:"POST",body:JSON.stringify({nome:novoNome.trim(),tipo:novoTipo})});
+      await portalAdminApi("/clientes/"+clienteId+"/unidades",{method:"POST",body:JSON.stringify({nome:novoNome.trim(),tipo:novoTipo})});
       setNovoNome("");await carregar(clienteId);toast("Unidade cadastrada.","success");
     }catch(e){falha(e)}finally{setSalvando(false)}
   };
   const salvarPapel=async()=>{
     if(!contatoEdit)return;setSalvando(true);
     try{
-      await api("/clientes/"+clienteId+"/contatos/"+contatoEdit.id+"/acesso",{method:"PATCH",body:JSON.stringify({
+      await portalAdminApi("/clientes/"+clienteId+"/contatos/"+contatoEdit.id+"/acesso",{method:"PATCH",body:JSON.stringify({
         papel:contatoEdit.papel,unidade_ids:contatoEdit.unidade_ids,capacidades:{}
       })});
       setContatoEdit(null);await carregar(clienteId);toast("Permissões atualizadas.","success");
@@ -65,7 +65,7 @@ function PortalClientesAdminScreen() {
       const campos=(dados.formulario?.campos||[]).filter(x=>["regional","tipo","titulo","descricao","prazo_solicitado","apoio_envox","referencias"].includes(x.chave));
       if(new Set(formCampos.map(x=>x.chave)).size!==formCampos.length)throw Error("Chaves de campos repetidas");
       if(formCampos.some(x=>!x.rotulo?.trim()||!x.chave?.trim()))throw Error("Informe chave e nome para todos os campos");
-      await api("/clientes/"+clienteId+"/formularios",{method:"POST",body:JSON.stringify({campos:[...campos,...formCampos]})});
+      await portalAdminApi("/clientes/"+clienteId+"/formularios",{method:"POST",body:JSON.stringify({campos:[...campos,...formCampos]})});
       await carregar(clienteId);toast("Nova versão do formulário salva.","success");
     }catch(e){falha(e)}finally{setSalvando(false)}
   };
