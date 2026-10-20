@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import BigInteger, String, Boolean, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -23,6 +24,10 @@ class ClienteContato(Base, TimestampMixin):
     criado_por_envoxer_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("envoxer.id", ondelete="SET NULL"), nullable=True
     )
+
+    # Sem privilégios institucionais por padrão; RBAC configurado explicitamente.
+    portal_papel: Mapped[str] = mapped_column(String(32), nullable=False, default="consulta")
+    portal_capacidades: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     # Link de definição de primeira senha (e reenvio) — sem infra de e-mail no
     # projeto, o gestor copia o link e manda pelo canal que preferir.
