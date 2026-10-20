@@ -87,7 +87,6 @@ def representacao(s: Solicitacao) -> dict:
         "id": s.id, "protocolo": s.protocolo or f"LEGADO-{s.id:06d}",
         "titulo": s.titulo, "tipo": s.tipo, "descricao": s.descricao,
         "status": PUBLIC_STATUS.get(s.status, "Em acompanhamento"),
-        "status_interno_solicitacao": s.status,
         "unidade_id": s.portal_unidade_id, "frente_id": s.portal_frente_id,
         "prazo_solicitado": s.prazo_solicitado, "prazo_confirmado": s.prazo_confirmado,
         "criado_em": s.created_at, "solicitante": s.solicitante_nome,
