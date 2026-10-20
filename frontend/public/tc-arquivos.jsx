@@ -40,6 +40,132 @@ function FileGlyph({ mime }) {
   );
 }
 
+// Miniaturas reais do Drive: imagens em lazy-loading e um frame dos vídeos
+// compatíveis. A fila limita decodificações simultâneas de vídeos grandes.
+const arquivoVideoThumbCache = new Map();
+const arquivoVideoThumbQueue = [];
+let arquivoVideoThumbActive = 0;
+
+function arquivoTrustedPreviewURL(url) {
+  try {
+    const resolved = new URL(url, window.location.origin);
+    if (resolved.origin !== window.location.origin ||
+        !/^\/api\/v1\/uploads\/[^/]+$/.test(resolved.pathname) ||
+        resolved.search || resolved.hash) return null;
+    return resolved.href;
+  } catch { return null; }
+}
+
+function arquivoThumbnailVideo(url) {
+  if (arquivoVideoThumbCache.has(url)) return arquivoVideoThumbCache.get(url);
+  const task = new Promise((resolve) => {
+    arquivoVideoThumbQueue.push({ url, resolve });
+    arquivoVideoThumbPump();
+  });
+  arquivoVideoThumbCache.set(url, task);
+  if (arquivoVideoThumbCache.size > 160) {
+    const key = arquivoVideoThumbCache.keys().next().value;
+    arquivoVideoThumbCache.delete(key);
+  }
+  return task;
+}
+
+function arquivoVideoThumbPump() {
+  while (arquivoVideoThumbActive < 2 && arquivoVideoThumbQueue.length) {
+    const { url, resolve } = arquivoVideoThumbQueue.shift();
+    arquivoVideoThumbActive++;
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute("aria-hidden", "true");
+    let finished = false, timer;
+    const end = (thumbnail) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      video.pause();
+      video.removeAttribute("src");
+      try { video.load(); } catch {}
+      resolve(thumbnail || null);
+      arquivoVideoThumbActive--;
+      arquivoVideoThumbPump();
+    };
+    const capture = () => {
+      if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return;
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 320; canvas.height = 190;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, 320, 190);
+        end(canvas.toDataURL("image/jpeg", 0.74));
+      } catch { end(null); }
+    };
+    video.addEventListener("loadedmetadata", () => {
+      try {
+        const duration = Number.isFinite(video.duration) ? video.duration : 2;
+        video.currentTime = Math.min(1, Math.max(0, duration / 4));
+      } catch { end(null); }
+    }, { once: true });
+    video.addEventListener("seeked", capture, { once: true });
+    video.addEventListener("loadeddata", capture, { once: true });
+    video.addEventListener("error", () => end(null), { once: true });
+    timer = setTimeout(() => end(null), 9000);
+    video.src = url + "#t=0.5";
+  }
+}
+
+function FileThumbnail({ a }) {
+  const root = React.useRef(null);
+  const [src, setSrc] = useStateArquivos(null);
+  const [seen, setSeen] = useStateArquivos(false);
+  const mime = String(a.mime_type || "").toLowerCase();
+  const ext = String(a.nome || a.url || "").toLowerCase().split(".").pop();
+  const isImage = mime.startsWith("image/") || ["jpg","jpeg","png","gif","webp","bmp","avif"].includes(ext);
+  const isVideo = mime.startsWith("video/") || ["mp4","webm","mov","m4v","ogv"].includes(ext);
+  const url = arquivoTrustedPreviewURL(a.url);
+
+  useEffectArquivos(() => {
+    const node = root.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setSeen(true);
+      return;
+    }
+    const obs = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setSeen(true);
+        obs.disconnect();
+      }
+    }, { rootMargin: "130px" });
+    obs.observe(node);
+    return () => obs.disconnect();
+  }, [url]);
+
+  useEffectArquivos(() => {
+    let live = true;
+    setSrc(null);
+    if (seen && isVideo && url) {
+      arquivoThumbnailVideo(url).then((thumbnail) => {
+        if (live && thumbnail) setSrc(thumbnail);
+      });
+    }
+    return () => { live = false; };
+  }, [seen, url, isVideo]);
+
+  return (
+    <div className={"windows-file-thumbnail" + (isVideo ? " video" : "")} ref={root}>
+      <FileGlyph mime={isVideo ? "video/mp4" : isImage ? "image/png" : a.mime_type} />
+      {isImage && seen && url && (
+        <img src={url} alt={"Miniatura de " + (a.nome || "imagem")} loading="lazy"
+          onError={(e) => { e.currentTarget.style.display = "none"; }} />
+      )}
+      {isVideo && src && <img src={src} alt={"Prévia do vídeo " + (a.nome || "")} />}
+      {isVideo && <span className="windows-file-thumbnail-play" aria-hidden="true">▶</span>}
+    </div>
+  );
+}
+
 function ArquivosScreen({ permissao, onAbrirTarefa }) {
   const toast = EnvoxersShared.useToast();
   const [arquivos, setArquivos] = useStateArquivos(null);
@@ -128,7 +254,7 @@ function ArquivosScreen({ permissao, onAbrirTarefa }) {
   const FileTile = ({ a }) => (
     <div className="windows-file-tile">
       <a className="windows-file-open" href={a.url} target="_blank" rel="noreferrer">
-        <FileGlyph mime={a.mime_type} />
+        <FileThumbnail a={a} />
         <strong title={a.nome}>{a.nome}</strong>
       </a>
       <div className="windows-file-meta">{fmtArquivoTamanho(a.tamanho_kb)} · {fmtArquivoData(a.criado_em)}</div>

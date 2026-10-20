@@ -44,7 +44,12 @@
     const toggle = make("button","ev-collapse","▾");
     toggle.type = "button";
     toggle.setAttribute("aria-label","Minimizar ou expandir downloads");
-    head.append(title,open,toggle);
+    const close = make("button","ev-close","×");
+    close.type = "button";
+    close.title = "Fechar painel de downloads";
+    close.setAttribute("aria-label","Fechar painel de downloads");
+    close.addEventListener("click",() => { panel.hidden = true; });
+    head.append(title,open,toggle,close);
     list = make("div","ev-list");
     list.setAttribute("aria-live","polite");
     toggle.addEventListener("click",() => {
@@ -115,13 +120,19 @@
       caption.setAttribute("role","status");
       const bar = make("progress","ev-progress");
       bar.setAttribute("aria-label","Progresso do download");
-      info.append(name,caption,bar);
+      const reveal = make("button","ev-reveal","📂 Ver na pasta");
+      reveal.type = "button";
+      reveal.title = "Abrir pasta Downloads no Explorador";
+      reveal.hidden = true;
+      reveal.addEventListener("click",() => desktop.openDownloads());
+      info.append(name,caption,bar,reveal);
       row.append(preview,info);
-      item.node = row; item.caption = caption; item.bar = bar;
+      item.node = row; item.caption = caption; item.bar = bar; item.reveal = reveal;
       drawPreview(item,preview);
       list.prepend(row);
     }
     item.caption.className = "ev-caption";
+    item.reveal.hidden = item.status !== "done";
     if (item.status === "done") {
       item.caption.textContent = "✓ Salvo em Downloads" + (item.received ? " · " + readable(item.received) : "");
       item.caption.classList.add("ev-status-ok");
@@ -144,6 +155,7 @@
   }
   function add(name,url) {
     showPanel();
+    panel.hidden = false;
     list.hidden = false;
     const item = {id:"dl-" + Date.now().toString(36) + "-" + (++serial),
       name:String(name || "arquivo").slice(0,220),url,status:"downloading",

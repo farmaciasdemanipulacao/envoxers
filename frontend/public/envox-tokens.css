@@ -5756,6 +5756,19 @@ body.kanban-fullscreen-active .main {
 .windows-file-glyph{width:44px;height:54px;border:1px solid var(--line-2);border-radius:5px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:18px;margin-bottom:9px}
 .windows-file-glyph.video{color:var(--envox)}
 .windows-file-glyph.image{color:var(--farol-verde)}
+
+/* Prévias compactas no Drive (todas as pastas e resultados de busca). */
+.windows-file-thumbnail{width:100%;height:110px;border:1px solid var(--line-2);
+  border-radius:8px;background:var(--bg);display:flex;align-items:center;
+  justify-content:center;overflow:hidden;position:relative;margin-bottom:9px}
+.windows-file-thumbnail img{width:100%;height:100%;object-fit:cover;
+  display:block;position:absolute;inset:0;z-index:1}
+.windows-file-thumbnail .windows-file-glyph{margin:0;flex-shrink:0}
+.windows-file-thumbnail-play{position:absolute;z-index:2;bottom:7px;right:7px;
+  color:#fff;background:rgba(0,0,0,.72);border-radius:6px;padding:2px 7px;
+  font-size:11px;line-height:1.5}
+.windows-file-thumbnail:not(.video) .windows-file-thumbnail-play{display:none}
+.windows-file-open:hover .windows-file-thumbnail{border-color:var(--envox)}
 .windows-file-open strong{display:block;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .windows-file-meta{font-size:8.5px;color:var(--ink-4);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .windows-file-actions{display:flex;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}

@@ -75,6 +75,16 @@ async function open(authorized=false,desktop=false) {
         if(path.includes("/auth/me")) data={id:333,nome:"Teste Envoxers",
           permissao:"envoxer",modulos:["operacao","chat","entregas"]};
         if(path.includes("/chat/bloqueio")) data={bloqueado:false,canais:[]};
+        if(path.endsWith("/arquivos")) data=[
+          {contexto_nome:"Mister Bim",card_chave:"tarefa:10",card_id:10,
+            card_tipo:"tarefa",card_titulo:"Social Media — Edição de Cortes",servico_nome:"Vídeo",
+            nome:"capa-de-teste.png",url:"/api/v1/uploads/fixture.png",
+            mime_type:"image/png",tamanho_kb:75,criado_em:"2026-10-20T10:00:00"},
+          {contexto_nome:"Mister Bim",card_chave:"tarefa:10",card_id:10,
+            card_tipo:"tarefa",card_titulo:"Social Media — Edição de Cortes",servico_nome:"Vídeo",
+            nome:"corte-de-teste.mp4",url:"/api/v1/uploads/fixture.mp4",
+            mime_type:"video/mp4",tamanho_kb:15000,criado_em:"2026-10-20T10:00:00"}
+        ];
         return Promise.resolve({ok:true,status:200,json:async()=>data});
       };
     }
@@ -102,6 +112,21 @@ try {
   assert.ok(logged.dom.window.document.querySelector(".app"),"AppShell não montou");
   assert.ok(!logged.errors.length,logged.errors.join("; "));
   console.log("AUTHENTICATED_APP_OK:",logged.dom.window.document.querySelector(".main")?.textContent.slice(0,65));
+  const folder=logged.dom.window.document.querySelector('.windows-folder-tile');
+  assert.ok(folder,'Pasta de cliente não foi renderizada');
+  folder.click();
+  await new Promise(resolve=>setTimeout(resolve,25));
+  const card=logged.dom.window.document.querySelector('.windows-folder-tile');
+  assert.ok(card,'Pasta de card não foi renderizada');
+  card.click();
+  await new Promise(resolve=>setTimeout(resolve,40));
+  const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');
+  assert.equal(tiles.length,2,'Miniaturas precisam aparecer também dentro do Drive');
+  assert.equal(tiles[0].querySelector('.windows-file-thumbnail img')?.alt,'Miniatura de capa-de-teste.png');
+  assert.ok(tiles[1].querySelector('.windows-file-thumbnail.video'),'Card de vídeo sem prévia/fallback');
+  assert.ok(tiles[1].querySelector('.windows-file-thumbnail-play'),'Ícone de vídeo ausente');
+  assert.ok(!logged.errors.length,logged.errors.join('; '));
+  console.log('DRIVE_THUMBNAILS_OK:',tiles.length,'file cards');
   logged.dom.window.close();
   const native=await open(true,true);
   assert.equal(native.dom.window.envoxersDesktop?.active,true);
@@ -142,6 +167,14 @@ try {
   assert.ok(download.args.url.endsWith('/api/v1/uploads/arquivo-123.pdf'));
   assert.ok(download.args.transferId.startsWith('dl-'));
   assert.match(native.dom.window.document.querySelector('#envox-download-panel .ev-caption').textContent,/Salvo em Downloads/);
+  const perFileFolder=native.dom.window.document.querySelector('#envox-download-panel .ev-reveal');
+  assert.ok(perFileFolder,'Link Ver na pasta ausente no card de download');
+  assert.equal(perFileFolder.hidden,false,'Link só pode aparecer ao finalizar');
+  perFileFolder.click();
+  const closeDownload=native.dom.window.document.querySelector('#envox-download-panel .ev-close');
+  assert.ok(closeDownload,'Botão X não existe');
+  closeDownload.click();
+  assert.equal(native.dom.window.document.querySelector('#envox-download-panel').hidden,true,'X não fechou o card');
   native.dom.window.document.querySelector('#envox-download-panel .ev-folder').click();
   await new Promise(resolve=>setTimeout(resolve,10));
   assert.ok(native.nativeCalls.some(call=>call.command==='native_open_downloads'));
@@ -151,6 +184,7 @@ try {
   imageLink.title='imagem.jpg';
   native.dom.window.document.body.appendChild(imageLink);
   imageLink.click();
+  assert.equal(native.dom.window.document.querySelector('#envox-download-panel').hidden,false,'Novo download deve reabrir painel fechado');
   await new Promise(resolve=>setTimeout(resolve,95));
   assert.ok(native.dom.window.document.querySelector('#envox-download-panel .ev-preview'));
   const csv=new native.dom.window.Blob(['coluna,valor'],{type:'text/csv'});

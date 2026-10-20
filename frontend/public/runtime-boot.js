@@ -167,7 +167,7 @@
         const manifest = await res.json();
         if (!manifest.app?.file) throw new Error("Versão dos módulos inválida");
         await Promise.all([
-          style("/envox-tokens.css?v=20261015commentavatars1"),
+          style("/envox-tokens.css?v=20261020-drivethumbs1"),
           style("/envox-forms.css?v=2"),
           style("/pdi-jornada.css?v=20261015commentavatars1"),
           style("/f4-premium.css?v=20261015compact1"),

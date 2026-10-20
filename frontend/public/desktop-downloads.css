@@ -21,3 +21,14 @@
 #envox-download-panel .ev-error{color:#a02c46}
 #envox-download-panel .ev-status-ok{color:#20784a}
 @media(max-width:540px){#envox-download-panel{right:8px;bottom:64px}}
+
+
+/* Fechamento acessível e acesso direto à pasta por download concluído. */
+#envox-download-panel[hidden],
+#envox-download-panel .ev-reveal[hidden] {display:none!important}
+#envox-download-panel .ev-close{border:0;background:transparent;color:#60708a;
+  font-weight:700;font-size:21px;line-height:1;border-radius:6px;min-width:24px;min-height:26px}
+#envox-download-panel .ev-close:hover{background:#e5e9f7;color:#252d48}
+#envox-download-panel .ev-reveal{display:inline-block;border:0;background:transparent;
+  color:#294fcd;padding:4px 0 0;text-align:left;font-size:11px;font-weight:700}
+#envox-download-panel .ev-reveal:hover{text-decoration:underline}
