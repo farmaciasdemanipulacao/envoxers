@@ -1,9 +1,42 @@
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use serde::Serialize;
 use tokio::io::AsyncWriteExt;
 use base64::Engine;
 use std::path::Path;
 
 const LIMIT: u64 = 300 * 1024 * 1024;
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DownloadProgress<'a> {
+    transfer_id: &'a str,
+    received: u64,
+    total: Option<u64>,
+    state: &'a str,
+}
+fn report_progress(app: &tauri::AppHandle, transfer_id: Option<&str>, received: u64, total: Option<u64>, state: &'static str) {
+    if let Some(id) = transfer_id.filter(|id| !id.is_empty() && id.len() < 90 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')) {
+        let _ = app.emit("envoxers:download-progress", DownloadProgress { transfer_id: id, received, total, state });
+    }
+}
+
+#[tauri::command]
+pub fn native_open_downloads(app: tauri::AppHandle) -> Result<(), String> {
+    let folder = app.path().download_dir().map_err(|e| format!("Pasta Downloads indisponível: {e}"))?;
+    std::fs::create_dir_all(&folder).map_err(|e| format!("Não foi possível abrir Downloads: {e}"))?;
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer.exe").arg(&folder)
+            .spawn().map_err(|e| format!("Não foi possível abrir o Explorador: {e}"))?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = folder;
+        Err("Abrir pasta está disponível apenas no Windows".into())
+    }
+}
+
 fn safe_name(name: &str) -> String {
     let s: String = name.chars().take(160).map(|c|
         if c.is_control() || "<>:\"/\\|?*".contains(c) { '_' } else { c }
@@ -55,7 +88,7 @@ pub async fn native_save_file(app: tauri::AppHandle, filename: String, data_base
 }
 
 #[tauri::command]
-pub async fn native_download(app: tauri::AppHandle, url: String, filename: Option<String>) -> Result<String, String> {
+pub async fn native_download(app: tauri::AppHandle, url: String, filename: Option<String>, transfer_id: Option<String>) -> Result<String, String> {
     let parsed = reqwest::Url::parse(&url).map_err(|_| "URL inválida")?;
     if parsed.scheme() != "https"
         || parsed.host_str() != Some("envoxers.envox.com.br")
@@ -80,6 +113,8 @@ pub async fn native_download(app: tauri::AppHandle, url: String, filename: Optio
         return Err(format!("Servidor recusou o download (HTTP {})", response.status()));
     }
     if response.content_length().unwrap_or(0) > LIMIT { return Err("Arquivo acima de 300 MB".into()); }
+    let total = response.content_length();
+    report_progress(&app, transfer_id.as_deref(), 0, total, "downloading");
     let name = filename.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| stored.to_string());
     let folder = app.path().download_dir().map_err(|e| e.to_string())?;
     tokio::fs::create_dir_all(&folder).await.map_err(|e| e.to_string())?;
@@ -99,18 +134,29 @@ pub async fn native_download(app: tauri::AppHandle, url: String, filename: Optio
             Err(err) => return Err(format!("Falha na pasta Downloads: {err}")),
         };
         let outcome: Result<(), String> = async {
-            let mut total = 0u64;
+            let mut received = 0u64;
+            let mut last_event = std::time::Instant::now();
+            let mut last_percent: Option<u64> = None;
             while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
-                total += chunk.len() as u64;
-                if total > LIMIT { return Err("Arquivo acima de 300 MB".into()); }
+                received += chunk.len() as u64;
+                if received > LIMIT { return Err("Arquivo acima de 300 MB".into()); }
                 file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+                let percent = total.filter(|n| *n > 0).map(|n| received.saturating_mul(100) / n);
+                if last_event.elapsed() >= std::time::Duration::from_millis(160) ||
+                    (percent.is_some() && percent != last_percent) {
+                    report_progress(&app, transfer_id.as_deref(), received, total, "downloading");
+                    last_event = std::time::Instant::now();
+                    last_percent = percent;
+                }
             }
             file.flush().await.map_err(|e| e.to_string())?;
+            report_progress(&app, transfer_id.as_deref(), received, total.or(Some(received)), "complete");
             Ok(())
         }.await;
         drop(file);
         if let Err(err) = outcome {
             let _ = tokio::fs::remove_file(&dest).await;
+            report_progress(&app, transfer_id.as_deref(), 0, total, "error");
             return Err(err);
         }
         return Ok(candidate);

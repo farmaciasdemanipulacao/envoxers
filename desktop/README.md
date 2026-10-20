@@ -126,3 +126,36 @@ Release incremental de homologação. Instale a versão 0.3.0, clique em
 Verificar atualizações no diagnóstico e confirme que a versão 0.3.1
 é oferecida pelo servidor. Ao aceitar, o Windows deverá instalar a nova
 versão, sem desinstalação manual.
+
+## v0.3.2 | Central de downloads com progresso e prévias
+
+- Downloads em streaming agora emitem progresso nativo em bytes.
+- A central de downloads mostra uma barra com porcentagem real quando
+  o servidor informa Content-Length, ou um indicador indeterminado quando
+  não houver tamanho informado.
+- O card apresenta as últimas cinco transferências da sessão, status,
+  ícone por formato e miniatura para fotos.
+- Vídeos suportados pelo WebView2 tentam mostrar um quadro capturado de
+  um instante do vídeo (sem reproduzir áudio). Caso o codec ou formato
+  não permita, permanece o ícone de vídeo como alternativa.
+- Botão **Abrir pasta** da central chama o Explorador de Arquivos
+  exclusivamente na pasta Downloads resolvida pelo Windows.
+- Relatórios CSV seguem o mesmo card, com indicador de leitura e etapa
+  de salvamento, sem porcentagem fictícia.
+- O atualizador nativo também emite progresso em bytes e porcentagem,
+  exibido no card da atualização com barra e texto.
+- Acesso a comandos nativos segue restrito à origem oficial
+  envoxers.envox.com.br e à janela principal, com testes de ACL.
+- Aplicativos anteriores podem continuar baixando, porém apenas a
+  versão 0.3.2 oferece porcentagem nativa e abertura da pasta.
+
+### Homologação Windows 11
+
+1. Com 0.3.1 instalado, atualizar automaticamente para 0.3.2.
+2. Baixar PDF médio e vídeo grande; conferir progresso e nome.
+3. Baixar foto JPG/PNG e conferir miniatura.
+4. Baixar vídeo MP4 compatível e conferir quadro de prévia ou fallback.
+5. Clicar em Abrir pasta e confirmar Downloads no Explorador.
+6. Baixar arquivo repetido e garantir que não seja sobrescrito.
+7. Abrir com uma versão anterior e confirmar compatibilidade.
+8. Conferir progresso da próxima atualização de 0.3.2 para uma versão futura.

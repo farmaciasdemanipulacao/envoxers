@@ -62,7 +62,7 @@ jobs:
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: Envoxers-Windows-v0.3.1-AutoUpdater-Test
+          name: Envoxers-Windows-v0.3.2-Downloads-Preview
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 30

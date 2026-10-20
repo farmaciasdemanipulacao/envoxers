@@ -131,6 +131,7 @@ fn main() {
             native_set_autostart,
             downloads::native_download,
             downloads::native_save_file,
+            downloads::native_open_downloads,
             updates::native_check_update,
             updates::native_install_update
         ])

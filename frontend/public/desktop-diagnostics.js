@@ -61,6 +61,7 @@
           "Chat em tempo real: " + (window.envoxersDesktop?.socketStatus || "aguardando"),
           "Última mensagem recebida: " + (window.envoxersDesktop?.lastMessageAt || "nenhuma nesta sessão"),
           "Último alerta nativo enviado: " + (window.envoxersDesktop?.lastAlertAt || "nenhum nesta sessão"),
+          "Pasta de downloads: botão Abrir pasta no painel de transferências",
           "Último download: " + (window.envoxersDesktop?.lastDownloadAt || "nenhum nesta sessão"),
           "Último arquivo: " + (window.envoxersDesktop?.lastDownloadName || "nenhum"),
           "Atualizador: " + (window.envoxersDesktopUpdater?.state?.status || "indisponível"),

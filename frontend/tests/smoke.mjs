@@ -30,7 +30,7 @@ class TrackingResources extends ResourceLoader {
   fetch(url,opts) {this.urls.push(url);return super.fetch(url,opts);}
 }
 async function open(authorized=false,desktop=false) {
-  const resources=new TrackingResources(),errors=[],nativeCalls=[];
+  const resources=new TrackingResources(),errors=[],nativeCalls=[],nativeEvents=new Map();
   const virtualConsole=new VirtualConsole();
   virtualConsole.on("jsdomError",e=>errors.push(e.message));
   virtualConsole.on("error",e=>errors.push(String(e)));
@@ -41,11 +41,23 @@ async function open(authorized=false,desktop=false) {
         nativeCalls.push({command,args});
         if(command==='native_status') return {version:'0.3.0',windows:true,autostart_registered:true,autostart_error:null};
         if(command==='native_set_autostart') return !!args.enabled;
-        if(command==='native_download') return args.filename || 'arquivo.pdf';
+        if(command==='native_download') {
+          const event=nativeEvents.get('envoxers:download-progress');
+          event?.({payload:{transferId:args.transferId,received:50,total:100,state:'downloading'}});
+          await new Promise(resolve=>setTimeout(resolve,80));
+          event?.({payload:{transferId:args.transferId,received:100,total:100,state:'complete'}});
+          return args.filename || 'arquivo.pdf';
+        }
+        if(command==='native_open_downloads') return true;
         if(command==='native_save_file') return args.filename;
         if(command==='native_check_update') return {version:'0.3.1',notes:'Teste de atualização'};
-        if(command==='native_install_update') return true;
-      }}};
+        if(command==='native_install_update') {
+          const event=nativeEvents.get('envoxers:update-progress');
+          event?.({payload:{phase:'downloading',received:500,total:1000,percent:50}});
+          await new Promise(resolve=>setTimeout(resolve,80));
+          return true;
+        }
+      }},event:{listen:async (event,callback)=>{nativeEvents.set(event,callback);return ()=>nativeEvents.delete(event);}}};
       if(!authorized) return;
       win.localStorage.setItem("envoxers_token","DUMMY_TEST_TOKEN");
       win.localStorage.setItem("envoxers_nome","Teste Envoxers");
@@ -72,7 +84,7 @@ async function open(authorized=false,desktop=false) {
                   : dom.window.document.querySelector(".access-headline")) break;
     await new Promise(resolve=>setTimeout(resolve,100));
   }
-  return {dom,resources,errors,nativeCalls};
+  return {dom,resources,errors,nativeCalls,nativeEvents};
 }
 try {
   const first=await open(false);
@@ -119,10 +131,28 @@ try {
   fileLink.textContent='proposta.pdf';
   native.dom.window.document.body.appendChild(fileLink);
   fileLink.click();
-  await new Promise(resolve=>setTimeout(resolve,30));
+  await new Promise(resolve=>setTimeout(resolve,15));
+  const activeBar=native.dom.window.document.querySelector('#envox-download-panel .ev-progress');
+  assert.ok(activeBar,'Gerenciador de download não foi aberto');
+  assert.match(native.dom.window.document.querySelector('#envox-download-panel .ev-caption').textContent,/50%/);
+  assert.equal(Number(activeBar.value),50);
+  await new Promise(resolve=>setTimeout(resolve,90));
   const download=native.nativeCalls.find(call=>call.command==='native_download');
   assert.equal(download?.args?.filename,'proposta.pdf');
   assert.ok(download.args.url.endsWith('/api/v1/uploads/arquivo-123.pdf'));
+  assert.ok(download.args.transferId.startsWith('dl-'));
+  assert.match(native.dom.window.document.querySelector('#envox-download-panel .ev-caption').textContent,/Salvo em Downloads/);
+  native.dom.window.document.querySelector('#envox-download-panel .ev-folder').click();
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert.ok(native.nativeCalls.some(call=>call.command==='native_open_downloads'));
+  // Prévia de imagem recebe o URL oficial e card com tipo visual.
+  const imageLink=native.dom.window.document.createElement('a');
+  imageLink.href='/api/v1/uploads/imagem.jpg';
+  imageLink.title='imagem.jpg';
+  native.dom.window.document.body.appendChild(imageLink);
+  imageLink.click();
+  await new Promise(resolve=>setTimeout(resolve,95));
+  assert.ok(native.dom.window.document.querySelector('#envox-download-panel .ev-preview'));
   const csv=new native.dom.window.Blob(['coluna,valor'],{type:'text/csv'});
   assert.equal(await native.dom.window.envoxersDesktop.saveBlob(csv,'relatorio.csv'),true);
   const saved=native.nativeCalls.find(call=>call.command==='native_save_file');
@@ -135,7 +165,10 @@ try {
   assert.equal(native.dom.window.envoxersDesktopUpdater.state.version,'0.3.1');
   assert.ok(native.dom.window.document.querySelector('#envoxers-update-banner'),'Aviso de atualização ausente');
   native.dom.window.document.querySelector('#envoxers-update-install').click();
-  await new Promise(resolve=>setTimeout(resolve,60));
+  await new Promise(resolve=>setTimeout(resolve,30));
+  assert.equal(native.dom.window.envoxersDesktopUpdater.state.progressPercent,50);
+  assert.equal(Number(native.dom.window.document.querySelector('#envoxers-update-bar').value),50);
+  await new Promise(resolve=>setTimeout(resolve,80));
   assert.ok(native.nativeCalls.some(call=>call.command==='native_install_update'));
   assert.ok(!native.errors.length,native.errors.join('; '));
   console.log('DESKTOP_BRIDGE_OK:',native.nativeCalls.length,'native calls');
