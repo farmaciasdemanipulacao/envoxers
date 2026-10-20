@@ -53,3 +53,13 @@ class PortalFormulario(Base):
     campos: Mapped[list] = mapped_column(JSONB, nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+class PortalClienteConfig(Base):
+    """Somente flags/permissões da experiência externa, sem replicar dados operacionais."""
+    __tablename__ = "portal_cliente_config"
+    cliente_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("cliente.id", ondelete="CASCADE"), primary_key=True)
+    habilitado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    modulos: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    notificacoes: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    visibilidade: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -6,14 +6,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_cliente_contato, get_current_gestor_ou_admin
+from app.api.deps import get_current_cliente_contato, get_current_gestor_ou_admin, get_current_admin
 from app.db.session import get_db
 from app.models.cliente_contato import ClienteContato
 from app.models.envoxer import Envoxer
 from app.models.solicitacao import Solicitacao, TIPO_SOLICITACAO_VALUES
 from app.models.tarefa import Tarefa
 from app.models.registro_foco import RegistroFoco
-from app.models.portal_operacao import PortalUnidade, PortalContatoUnidade, PortalSolicitacaoTarefa, PortalEvento, PortalComentario, PortalFormulario
+from app.models.portal_operacao import PortalUnidade, PortalContatoUnidade, PortalSolicitacaoTarefa, PortalEvento, PortalComentario, PortalFormulario, PortalClienteConfig
 from app.services.portal_permissoes import capacidades, pode, pode_ver_solicitacao
 
 router = APIRouter(prefix="/portal/operacao", tags=["portal-operacao"])
@@ -105,9 +105,118 @@ async def escopo_stmt(db: AsyncSession, contato: ClienteContato):
             stmt = stmt.where(Solicitacao.portal_contato_id == contato.id)
     return stmt
 
+
+# Flags de produto, nunca uma fonte alternativa para tarefas ou entregas.
+MODULOS_PORTAL = ("solicitacoes", "documentos", "aprovacoes", "campanhas", "biblioteca", "ia")
+MODULOS_PRONTOS_PARA_HABILITAR = frozenset({"solicitacoes", "documentos"})
+DEFAULT_MODULOS_PORTAL = {
+    "solicitacoes": True, "documentos": True, "aprovacoes": False,
+    "campanhas": False, "biblioteca": False, "ia": False,
+}
+NOTIFICACOES_PERMITIDAS = frozenset({"alteracao_status", "aprovar_material", "comentario", "nova_solicitacao"})
+VISIBILIDADE_PERMITIDA = frozenset({"mostrar_prazo", "mostrar_responsavel", "mostrar_horas"})
+
+class ConfigClientePatch(BaseModel):
+    habilitado: bool
+    modulos: dict[str, bool] = Field(default_factory=dict)
+    notificacoes: dict[str, bool] = Field(default_factory=dict)
+    visibilidade: dict[str, bool] = Field(default_factory=dict)
+
+def serializar_config(cliente_id: int, config: PortalClienteConfig | None) -> dict:
+    return {
+        "cliente_id": cliente_id,
+        "habilitado": bool(config.habilitado) if config else False,
+        "modulos": {**DEFAULT_MODULOS_PORTAL, **(config.modulos or {})} if config else DEFAULT_MODULOS_PORTAL.copy(),
+        "notificacoes": config.notificacoes or {} if config else {},
+        "visibilidade": config.visibilidade or {} if config else {},
+    }
+
+async def contato_habilitado(
+    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ClienteContato:
+    conf = await db.get(PortalClienteConfig, contato.cliente_id)
+    if conf is None or not conf.habilitado or not (conf.modulos or {}).get("solicitacoes", True):
+        # Não revela a existência de configurações de outros clientes.
+        raise HTTPException(403, "Portal não habilitado para esta organização")
+    return contato
+
+@router.get("/admin/clientes")
+async def listar_clientes_portal(
+    _: Annotated[Envoxer, Depends(get_current_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    from app.models.cliente import Cliente
+    resultado = (await db.execute(
+        select(Cliente, PortalClienteConfig)
+        .outerjoin(PortalClienteConfig, PortalClienteConfig.cliente_id == Cliente.id)
+        .where(Cliente.deleted_at.is_(None))
+        .order_by(Cliente.nome)
+    )).all()
+    return [
+        {"id": c.id, "nome": c.nome, "config": serializar_config(c.id, conf)}
+        for c, conf in resultado
+    ]
+
+@router.get("/admin/clientes/{cliente_id}/configuracao")
+async def obter_config_portal(
+    cliente_id: int,
+    _: Annotated[Envoxer, Depends(get_current_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    from app.models.cliente import Cliente
+    cliente = await db.get(Cliente, cliente_id)
+    if not cliente or cliente.deleted_at is not None:
+        raise HTTPException(404, "Cliente não encontrado")
+    config = await db.get(PortalClienteConfig, cliente_id)
+    unidades = (await db.execute(select(PortalUnidade).where(PortalUnidade.cliente_id == cliente_id).order_by(PortalUnidade.tipo, PortalUnidade.nome))).scalars().all()
+    contatos = (await db.execute(select(ClienteContato).where(ClienteContato.cliente_id == cliente_id).order_by(ClienteContato.nome))).scalars().all()
+    return {
+        "cliente": {"id": cliente.id, "nome": cliente.nome},
+        "config": serializar_config(cliente_id, config),
+        "unidades": [{"id": u.id, "nome": u.nome, "tipo": u.tipo, "ativo": u.ativo} for u in unidades],
+        "contatos": [{"id": c.id, "nome": c.nome, "email": c.email, "papel": c.portal_papel, "ativo": c.ativo} for c in contatos],
+        "modulos_habilitaveis": sorted(MODULOS_PRONTOS_PARA_HABILITAR),
+    }
+
+@router.put("/admin/clientes/{cliente_id}/configuracao")
+async def salvar_config_portal(
+    cliente_id: int,
+    payload: ConfigClientePatch,
+    _: Annotated[Envoxer, Depends(get_current_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    from app.models.cliente import Cliente
+    cliente = await db.get(Cliente, cliente_id)
+    if not cliente or cliente.deleted_at is not None:
+        raise HTTPException(404, "Cliente não encontrado")
+    if set(payload.modulos) - set(MODULOS_PORTAL):
+        raise HTTPException(422, "Módulo desconhecido")
+    if any(valor is True and nome not in MODULOS_PRONTOS_PARA_HABILITAR for nome, valor in payload.modulos.items()):
+        raise HTTPException(422, "Este módulo ainda não passou pela homologação de segurança")
+    if set(payload.notificacoes) - NOTIFICACOES_PERMITIDAS:
+        raise HTTPException(422, "Notificação desconhecida")
+    if any(payload.notificacoes.values()):
+        raise HTTPException(422, "Notificações externas ainda não estão homologadas")
+    if set(payload.visibilidade) - VISIBILIDADE_PERMITIDA:
+        raise HTTPException(422, "Regra de visibilidade desconhecida")
+    if payload.visibilidade.get("mostrar_horas"):
+        raise HTTPException(422, "Indicadores de horas exigem política de exposição homologada")
+    config = await db.get(PortalClienteConfig, cliente_id)
+    if config is None:
+        config = PortalClienteConfig(cliente_id=cliente_id)
+        db.add(config)
+    config.habilitado = payload.habilitado
+    config.modulos = {**DEFAULT_MODULOS_PORTAL, **payload.modulos}
+    config.notificacoes = payload.notificacoes
+    config.visibilidade = payload.visibilidade
+    config.atualizado_em = datetime.now(timezone.utc)
+    await db.flush()
+    return serializar_config(cliente_id, config)
+
 @router.get("/configuracao")
 async def configuracao(
-    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    contato: Annotated[ClienteContato, Depends(contato_habilitado)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     ids = await unidades_do_contato(db, contato)
@@ -121,6 +230,7 @@ async def configuracao(
     ).order_by(PortalFormulario.versao.desc()).limit(1))).scalar_one_or_none()
     return {
         "papel": contato.portal_papel, "capacidades": sorted(caps),
+        "produto": serializar_config(contato.cliente_id, await db.get(PortalClienteConfig, contato.cliente_id)),
         "unidades": [{"id": u.id, "nome": u.nome, "tipo": u.tipo} for u in unidades],
         "tipo_opcoes": list(TIPO_SOLICITACAO_VALUES),
         "formulario": {"versao": formulario.versao if formulario else 0, "campos": formulario.campos if formulario else CAMPOS_PADRAO},
@@ -128,7 +238,7 @@ async def configuracao(
 
 @router.get("/solicitacoes")
 async def listar(
-    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    contato: Annotated[ClienteContato, Depends(contato_habilitado)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     stmt = await escopo_stmt(db, contato)
@@ -138,7 +248,7 @@ async def listar(
 @router.post("/solicitacoes", status_code=201)
 async def criar(
     payload: SolicitacaoNova,
-    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    contato: Annotated[ClienteContato, Depends(contato_habilitado)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     if not pode(contato.portal_papel, "solicitar", contato.portal_capacidades):
@@ -198,7 +308,7 @@ async def criar(
 @router.get("/solicitacoes/{solicitacao_id}")
 async def detalhar(
     solicitacao_id: int,
-    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    contato: Annotated[ClienteContato, Depends(contato_habilitado)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     s = await solicitar_acesso(db, contato, solicitacao_id)
@@ -235,7 +345,7 @@ async def detalhar(
 @router.post("/solicitacoes/{solicitacao_id}/comentarios", status_code=201)
 async def comentar(
     solicitacao_id: int, payload: ComentarioNovo,
-    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    contato: Annotated[ClienteContato, Depends(contato_habilitado)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     s = await solicitar_acesso(db, contato, solicitacao_id)
@@ -248,7 +358,7 @@ async def comentar(
 
 @router.get("/dashboard")
 async def dashboard(
-    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    contato: Annotated[ClienteContato, Depends(contato_habilitado)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     stmt = await escopo_stmt(db, contato)
