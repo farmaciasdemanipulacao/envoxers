@@ -4,7 +4,7 @@ from datetime import date
 from fastapi import HTTPException
 from sqlalchemy import select
 
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, engine
 from app.models.cliente import Cliente
 from app.models.cliente_contato import ClienteContato
 from app.models.portal_operacao import PortalUnidade, PortalContatoUnidade
@@ -13,6 +13,11 @@ from app.api.routes.portal_operacao import (
 )
 
 class PortalDatabaseTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncTearDown(self):
+        # IsolatedAsyncioTestCase usa novo event loop por teste.
+        # Descarta conexões do pool antes do loop seguinte, evitando Future de outro loop.
+        await engine.dispose()
+
     async def test_escopo_cadastro_e_acesso_cruzado(self):
         async with AsyncSessionLocal() as db:
             cliente_a = Cliente(nome="Organização Laboratório A")
