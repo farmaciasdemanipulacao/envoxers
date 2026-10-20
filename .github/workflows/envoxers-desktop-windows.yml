@@ -30,6 +30,8 @@ jobs:
       - run: npm ci
       - name: Validate native ACL
         run: npm run test:acl
+      - name: Validate release publisher
+        run: python scripts/test-publisher.py
       - name: Validate configuration
         run: npm run tauri -- info
       - name: Build installer NSIS
@@ -44,8 +46,9 @@ jobs:
           $tag = "desktop-v$version"
           $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
           if (-not $installer) { throw "Instalador NSIS não encontrado" }
-          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
-          if ($LASTEXITCODE -eq 0) {
+          $existing = gh release list --repo $env:GITHUB_REPOSITORY --limit 100 --json tagName | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "Não foi possível consultar releases" }
+          if (@($existing | Where-Object { $_.tagName -eq $tag }).Count -gt 0) {
             Write-Host "Release $tag já existe. Não será sobrescrita."
           } else {
             gh release create $tag $installer.FullName --repo $env:GITHUB_REPOSITORY --title "Envoxers Desktop $version" --notes "Atualização oficial do Envoxers Desktop $version. O servidor da Envox assinará digitalmente este instalador antes de oferecê-lo aos aplicativos." --latest
