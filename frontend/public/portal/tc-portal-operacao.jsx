@@ -128,7 +128,7 @@ const PortalOperacao = (() => {
     return (
       <div className="po-layout">
         <aside className="po-sidebar">
-          <div className="po-brand"><span className="po-logo">envox<span>●</span></span><small>PORTAL DO CLIENTE</small></div>
+          <div className="po-brand"><span className="po-logo"><i aria-hidden="true"/> ENVOX</span><small>PORTAL DO CLIENTE</small></div>
           <div className="po-org"><small>ORGANIZAÇÃO</small><strong>{organizacao}</strong></div>
           <nav aria-label="Navegação principal">
             {principal.filter(([key])=> key!=="nova" || mostrarNova).map(([key,txt]) =>
