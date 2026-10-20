@@ -1,0 +1,62 @@
+name: Portal SECOVI - validação isolada
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/public/portal/**'
+      - 'frontend/tests/portal-compile.mjs'
+      - '.github/workflows/portal-security.yml'
+  workflow_dispatch:
+
+jobs:
+  portal-python:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: portal
+          POSTGRES_PASSWORD: portal
+          POSTGRES_DB: portal_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U portal -d portal_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql+asyncpg://portal:portal@localhost:5432/portal_ci
+      SECRET_KEY: ci-portal-only-not-for-production-xxxxxxxxxxxxxxxx
+      AUTO_MIGRATE: "false"
+      UPLOAD_DIR: /tmp/envoxers-ci-uploads
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python syntax
+        run: python -m compileall -q backend/app backend/migrations/versions backend/tests
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Migrate ephemeral PostgreSQL
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Authorization unit and database tests
+        working-directory: backend
+        run: python -m unittest discover -s tests -p "test_portal_*.py" -v
+  portal-react:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Portal JSX syntax
+        run: node tests/portal-compile.mjs

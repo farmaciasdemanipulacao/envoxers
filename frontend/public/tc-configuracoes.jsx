@@ -39,6 +39,11 @@ function ConfiguracoesScreen({
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 4h10M3 8h10M3 12h6" /></svg>
           )}
           {permissao === "admin" && linkItem(
+            "portal-clientes",
+            "Portal do Cliente",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6h6M5 9h4"/></svg>
+          )}
+          {permissao === "admin" && linkItem(
             "perfis-acesso",
             "Perfis de acesso",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="5" cy="5" r="2"/><circle cx="11" cy="6" r="1.6"/><path d="M2 13c0-2.2 1.4-4 3-4s3 1.8 3 4M9 13c.1-1.7 1.1-3 2.5-3 1.3 0 2.2 1.1 2.5 2.5"/></svg>
@@ -64,6 +69,7 @@ function ConfiguracoesScreen({
       {item === "envoxers" && <EnvoxersScreen permissao={permissao} />}
       {item === "servicos" && <ServicosScreen permissao={permissao} />}
       {item === "perfis-acesso" && permissao === "admin" && <PerfisAcessoScreen />}
+      {item === "portal-clientes" && permissao === "admin" && <PortalClientesAdminScreen />}
       {item === "perfil" && (
         <MeuPerfilScreen nome={nome} permissao={permissao} fotoUrl={fotoUrl} envoxerId={envoxerId} onFotoAtualizada={onFotoAtualizada} />
       )}
