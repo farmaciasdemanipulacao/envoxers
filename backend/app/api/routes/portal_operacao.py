@@ -98,10 +98,11 @@ async def escopo_stmt(db: AsyncSession, contato: ClienteContato):
     caps = capacidades(contato.portal_papel, contato.portal_capacidades)
     stmt = select(Solicitacao).where(Solicitacao.cliente_id == contato.cliente_id)
     if "ver_todas" not in caps:
-        condicoes = [Solicitacao.portal_contato_id == contato.id]
-        if "ver_unidades" in caps and unidades:
-            condicoes.append(Solicitacao.portal_unidade_id.in_(unidades))
-        stmt = stmt.where(or_(*condicoes))
+        if "ver_unidades" in caps:
+            # Filtro restritivo: jamais unir "meus pedidos" a unidades não autorizadas.
+            stmt = stmt.where(Solicitacao.portal_unidade_id.in_(unidades))
+        else:
+            stmt = stmt.where(Solicitacao.portal_contato_id == contato.id)
     return stmt
 
 @router.get("/configuracao")
