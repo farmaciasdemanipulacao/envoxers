@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod downloads;
+mod updates;
 use serde::Serialize;
 use tauri::{
     image::Image,
@@ -120,6 +121,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| abrir(app)))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Sem --minimized: o usuário consegue ver que o app iniciou com o Windows.
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .invoke_handler(tauri::generate_handler![
@@ -128,7 +130,9 @@ fn main() {
             native_status,
             native_set_autostart,
             downloads::native_download,
-            downloads::native_save_file
+            downloads::native_save_file,
+            updates::native_check_update,
+            updates::native_install_update
         ])
         .setup(|app| {
             let open = MenuItem::with_id(app, "open", "Abrir Envoxers", true, None::<&str>)?;

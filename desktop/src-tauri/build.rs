@@ -10,6 +10,8 @@ fn main() {
                 "native_set_autostart",
                 "native_download",
                 "native_save_file",
+                "native_check_update",
+                "native_install_update",
             ]),
         ),
     )

@@ -17,6 +17,8 @@
     "allow-native-status",
     "allow-native-set-autostart",
     "allow-native-download",
-    "allow-native-save-file"
+    "allow-native-save-file",
+    "allow-native-check-update",
+    "allow-native-install-update"
   ]
 }

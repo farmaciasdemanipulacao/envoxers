@@ -7,6 +7,9 @@ on:
       - 'desktop/**'
       - '.github/workflows/envoxers-desktop-windows.yml'
 
+permissions:
+  contents: write
+
 jobs:
   windows-installer:
     runs-on: windows-latest
@@ -31,9 +34,26 @@ jobs:
         run: npm run tauri -- info
       - name: Build installer NSIS
         run: npm run build -- --bundles nsis
+      - name: Publicar release do Desktop (uma vez por versão)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Versão inválida: $version" }
+          $tag = "desktop-v$version"
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $installer) { throw "Instalador NSIS não encontrado" }
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag já existe. Não será sobrescrita."
+          } else {
+            gh release create $tag $installer.FullName --repo $env:GITHUB_REPOSITORY --title "Envoxers Desktop $version" --notes "Atualização oficial do Envoxers Desktop $version. O servidor da Envox assinará digitalmente este instalador antes de oferecê-lo aos aplicativos." --latest
+            if ($LASTEXITCODE -ne 0) { throw "Falha ao publicar release $tag" }
+          }
       - uses: actions/upload-artifact@v4
         with:
-          name: Envoxers-Windows-v0.2.2-Downloads
+          name: Envoxers-Windows-v0.3.0-AutoUpdater
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 30

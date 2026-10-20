@@ -31,3 +31,6 @@ build/
 # Local operational artifacts
 backups/
 CREDENCIAIS_TESTER.md
+
+# Artefatos de atualização assinados pela VPS
+frontend/public/desktop-updates/

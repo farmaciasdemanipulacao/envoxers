@@ -19,6 +19,7 @@
       '<button type="button" id="evdx-alert">Testar notificação</button>',
       '<button type="button" id="evdx-badge">Testar bolinha</button>',
       '<button type="button" id="evdx-download">Testar download</button>',
+      '<button type="button" id="evdx-update">Verificar atualizações</button>',
       '<button type="button" id="evdx-startup">Ativar início com Windows</button>',
       '<button type="button" id="evdx-refresh">Atualizar</button>',
       '<button type="button" id="evdx-copy">Copiar resultado</button>',
@@ -62,6 +63,10 @@
           "Último alerta nativo enviado: " + (window.envoxersDesktop?.lastAlertAt || "nenhum nesta sessão"),
           "Último download: " + (window.envoxersDesktop?.lastDownloadAt || "nenhum nesta sessão"),
           "Último arquivo: " + (window.envoxersDesktop?.lastDownloadName || "nenhum"),
+          "Atualizador: " + (window.envoxersDesktopUpdater?.state?.status || "indisponível"),
+          "Nova versão: " + (window.envoxersDesktopUpdater?.state?.version || "nenhuma"),
+          "Última consulta: " + (window.envoxersDesktopUpdater?.state?.lastCheckedAt || "ainda não"),
+          "Erro de atualização: " + (window.envoxersDesktopUpdater?.state?.error || "nenhum"),
           "Último erro nativo: " + (window.envoxersDesktop?.lastError || "nenhum")
         ].join("\n");
         status.textContent = report;
@@ -97,6 +102,19 @@
       result.textContent = ok ? "Arquivo de teste salvo na pasta Downloads." : "Falha no download. Veja o erro acima.";
       await refresh();
     });
+    el("evdx-update").addEventListener("click", async () => {
+      const updater = window.envoxersDesktopUpdater;
+      if (!updater) { result.textContent = "Atualizador indisponível. Instale a versão 0.3.0."; return; }
+      const btn = el("evdx-update");
+      btn.disabled = true;
+      result.textContent = "Consultando atualizações…";
+      const next = await updater.check(true);
+      btn.disabled = false;
+      result.textContent = next.status === "disponivel" ? "Versão " + next.version + " disponível. Veja o aviso para atualizar." :
+        next.status === "atualizado" ? "Seu Envoxers Desktop está atualizado." :
+        "Não foi possível consultar atualizações: " + (next.error || "erro desconhecido");
+      await refresh();
+    });
     startButton.addEventListener("click", async () => {
       startButton.disabled = true;
       try {
@@ -112,6 +130,7 @@
       } catch { result.textContent = "Não foi possível copiar; selecione o texto do diagnóstico."; }
     });
     window.addEventListener("envoxers:desktop-diagnostic", () => { if (!panel.hidden) refresh(); });
+    window.addEventListener("envoxers:updater-status", () => { if (!panel.hidden) refresh(); });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
   else start();

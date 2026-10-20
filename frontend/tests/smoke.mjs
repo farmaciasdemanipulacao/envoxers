@@ -43,6 +43,8 @@ async function open(authorized=false,desktop=false) {
         if(command==='native_set_autostart') return !!args.enabled;
         if(command==='native_download') return args.filename || 'arquivo.pdf';
         if(command==='native_save_file') return args.filename;
+        if(command==='native_check_update') return {version:'0.3.1',notes:'Teste de atualização'};
+        if(command==='native_install_update') return true;
       }}};
       if(!authorized) return;
       win.localStorage.setItem("envoxers_token","DUMMY_TEST_TOKEN");
@@ -127,6 +129,14 @@ try {
   assert.equal(saved?.args?.filename,'relatorio.csv');
   assert.ok(saved.args.dataBase64.length>0);
   assert.equal(native.dom.window.envoxersDesktop.lastDownloadName,'relatorio.csv');
+  assert.ok(native.dom.window.envoxersDesktopUpdater,'Atualizador não montou');
+  native.dom.window.document.querySelector('#evdx-update').click();
+  await new Promise(resolve=>setTimeout(resolve,60));
+  assert.equal(native.dom.window.envoxersDesktopUpdater.state.version,'0.3.1');
+  assert.ok(native.dom.window.document.querySelector('#envoxers-update-banner'),'Aviso de atualização ausente');
+  native.dom.window.document.querySelector('#envoxers-update-install').click();
+  await new Promise(resolve=>setTimeout(resolve,60));
+  assert.ok(native.nativeCalls.some(call=>call.command==='native_install_update'));
   assert.ok(!native.errors.length,native.errors.join('; '));
   console.log('DESKTOP_BRIDGE_OK:',native.nativeCalls.length,'native calls');
   native.dom.window.close();

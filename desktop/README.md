@@ -82,3 +82,39 @@ Testar no Windows 11: clique em Testar download e confira o TXT em Downloads;
 em seguida baixe um PDF e um arquivo grande enviados pelo Chat/Arquivos.
 Confirme também exportação CSV e nomes repetidos. Downloads de URLs externas
 não são interceptados por esta implementação.
+
+
+## v0.3.0 | Atualização automática assinada
+
+O Desktop consulta a versão em https://envoxers.envox.com.br/desktop-updates/latest.json ao iniciar (15 segundos após carregar) e a cada 6 horas com o aplicativo aberto. Quando há nova versão, apresenta um aviso com **Atualizar agora** e **Depois**. O usuário deve salvar o trabalho antes de confirmar, pois o Windows encerra o app para instalar.
+
+O painel Diagnóstico Windows também tem **Verificar atualizações**.
+
+### Publicação sem expor a chave privada ao GitHub
+
+1. GitHub Actions compila o instalador NSIS e cria a release pública desktop-vX.Y.Z, apenas uma vez por versão.
+2. Na VPS, o timer envoxers-desktop-updater.timer consulta as releases oficiais a cada 5 minutos.
+3. O serviço baixa o instalador por HTTPS, valida origem, nome, tamanho e cabeçalho PE, e assina com a chave Tauri local.
+4. O serviço publica o instalador e o manifesto latest.json de forma atômica no servidor Envoxers.
+5. O aplicativo Windows valida a assinatura criptográfica antes de instalar.
+
+A chave privada fica somente em /etc/envoxers-desktop-updater/signing.key, fora do Git. **É obrigatório manter um backup seguro dessa chave privada.** Perdê-la impede assinar futuras atualizações para clientes existentes. Nunca copie a chave para o GitHub, repositórios, logs, tickets ou chat.
+
+O serviço systemd usa a conta dedicada envox-updater, com acesso restrito à chave e ao diretório de publicação. Verificação operacional:
+
+    sudo systemctl status envoxers-desktop-updater.timer
+    sudo systemctl start envoxers-desktop-updater.service
+    sudo journalctl -u envoxers-desktop-updater.service -n 30 --no-pager
+    curl -fsS https://envoxers.envox.com.br/desktop-updates/latest.json
+
+### Processo de lançamento
+
+1. Incrementar version em desktop/package.json, desktop/src-tauri/Cargo.toml e desktop/src-tauri/tauri.conf.json; atualizar teste ACL.
+2. Executar npm run test:acl, build e testes de fumaça.
+3. Enviar para main; a Action publica a release da versão.
+4. O timer assina e publica a atualização em até aproximadamente 5 minutos.
+5. Verificar latest.json e testar no Windows com uma versão anterior.
+
+**A primeira instalação da versão 0.3.0 ainda é manual**, porque os instaladores 0.2.x não possuíam o atualizador. A partir dela, novas versões podem ser instaladas pelo próprio aplicativo.
+
+A instalação exige confirmação para não interromper tarefas. Build e publicação no servidor não substituem um teste real de upgrade no Windows.
