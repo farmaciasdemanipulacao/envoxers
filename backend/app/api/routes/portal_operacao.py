@@ -171,11 +171,21 @@ async def obter_config_portal(
     config = await db.get(PortalClienteConfig, cliente_id)
     unidades = (await db.execute(select(PortalUnidade).where(PortalUnidade.cliente_id == cliente_id).order_by(PortalUnidade.tipo, PortalUnidade.nome))).scalars().all()
     contatos = (await db.execute(select(ClienteContato).where(ClienteContato.cliente_id == cliente_id).order_by(ClienteContato.nome))).scalars().all()
+    vinculos = (await db.execute(select(PortalContatoUnidade).join(
+        PortalUnidade, PortalUnidade.id == PortalContatoUnidade.unidade_id
+    ).where(PortalUnidade.cliente_id == cliente_id))).scalars().all()
+    ids_por_contato: dict[int, list[int]] = {}
+    for vinc in vinculos:
+        ids_por_contato.setdefault(vinc.contato_id, []).append(vinc.unidade_id)
+    formulario = (await db.execute(select(PortalFormulario).where(
+        PortalFormulario.cliente_id == cliente_id, PortalFormulario.ativo.is_(True)
+    ).order_by(PortalFormulario.versao.desc()).limit(1))).scalar_one_or_none()
     return {
         "cliente": {"id": cliente.id, "nome": cliente.nome},
         "config": serializar_config(cliente_id, config),
         "unidades": [{"id": u.id, "nome": u.nome, "tipo": u.tipo, "ativo": u.ativo} for u in unidades],
-        "contatos": [{"id": c.id, "nome": c.nome, "email": c.email, "papel": c.portal_papel, "ativo": c.ativo} for c in contatos],
+        "contatos": [{"id": c.id, "nome": c.nome, "email": c.email, "papel": c.portal_papel, "ativo": c.ativo, "unidade_ids": ids_por_contato.get(c.id, [])} for c in contatos],
+        "formulario": {"versao": formulario.versao, "campos": formulario.campos} if formulario else {"versao": 0, "campos": CAMPOS_PADRAO},
         "modulos_habilitaveis": sorted(MODULOS_PRONTOS_PARA_HABILITAR),
     }
 
