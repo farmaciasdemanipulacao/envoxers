@@ -158,6 +158,41 @@ async def listar_clientes_portal(
         for c, conf in resultado
     ]
 
+@router.get("/admin/clientes/{cliente_id}/gargalos")
+async def indicadores_gargalos_portal(
+    cliente_id: int,
+    _: Annotated[Envoxer, Depends(get_current_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Painel interno da Envox com dados canônicos do Kanban, sem contagem duplicada."""
+    from app.models.cliente import Cliente
+    cliente = await db.get(Cliente, cliente_id)
+    if not cliente or cliente.deleted_at is not None:
+        raise HTTPException(404, "Cliente não encontrado")
+    hoje = date.today()
+    tarefas = select(func.count(Tarefa.id)).where(
+        Tarefa.cliente_id == cliente_id,
+        Tarefa.deleted_at.is_(None),
+    )
+    solicitacoes = select(func.count(Solicitacao.id)).where(Solicitacao.cliente_id == cliente_id)
+    # Cada contador consulta exclusivamente a fonte operacional preexistente.
+    def t(*criterios):
+        return tarefas.where(*criterios)
+    def s(*criterios):
+        return solicitacoes.where(*criterios)
+    consultas = {
+        "solicitacoes_sem_triagem": s(Solicitacao.status == "nova"),
+        "solicitacoes_em_triagem": s(Solicitacao.status == "em_analise"),
+        "tarefas_sem_responsavel": t(Tarefa.responsavel_envoxer_id.is_(None), Tarefa.status != "finalizado"),
+        "tarefas_aguardando_cliente": t(Tarefa.status == "aprovacao_cliente"),
+        "tarefas_atrasadas": t(Tarefa.prazo < hoje, Tarefa.status != "finalizado"),
+    }
+    indicadores = {}
+    for chave, consulta in consultas.items():
+        indicadores[chave] = int((await db.execute(consulta)).scalar_one() or 0)
+    return {"cliente_id": cliente_id, "indicadores": indicadores, "gerado_em": datetime.now(timezone.utc)}
+
+
 @router.get("/admin/clientes/{cliente_id}/configuracao")
 async def obter_config_portal(
     cliente_id: int,
