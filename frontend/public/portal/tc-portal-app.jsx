@@ -218,7 +218,7 @@ function PortalRoot() {
 
   return (
     <EnvoxersShared.ToastProvider>
-      <PortalShell />
+      <PortalOperacao.Shell />
     </EnvoxersShared.ToastProvider>
   );
 }
