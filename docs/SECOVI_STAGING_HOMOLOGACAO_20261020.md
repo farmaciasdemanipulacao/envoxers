@@ -37,12 +37,12 @@
 - Seed fictício: `SEED_OK`, contatos 1/2/3 e solicitações 1/2/3.
 - **Não confirmados:** logins de todos os perfis via túnel após correção de redirect, cenários de click-through em navegador real, integração de mídia e aprovações externas. A tentativa de teste com segredos foi bloqueada pela ferramenta, não contornar.
 
-## Como acessar
-1. Operador autorizado acessa o host e lê, por canal seguro, `/docker/envoxers/staging-secovi/test-users.private.json`.
-2. Abre `https://queensland-folding-proteins-rim.trycloudflare.com/acesso?token=<gate>`, onde `<gate>` é o valor `gate` desse arquivo; **não publicar** a URL com token.
-3. O gate define cookie Secure/HttpOnly e redireciona para `/portal/`.
-4. Usar os e-mails de teste acima e suas senhas correspondentes armazenadas no mesmo arquivo.
-5. Verificar painel, regional Alfa/Beta, solicitações, status, criar pedido, acompanhar timeline e comentar. Se houver 403/5xx ou anomalias, não considerar validado.
+## Como acessar (atualizado)
+- **Prévia navegável sem credenciais, com a interface React e dados apenas em memória:** `https://queensland-folding-proteins-rim.trycloudflare.com/portal/previa.html`. Alterna papéis de administrador, gestor regional e solicitante. Nenhuma requisição da prévia grava dados reais.
+- **Portal integrado ao banco fictício:** `https://queensland-folding-proteins-rim.trycloudflare.com/portal/`. Página de login disponível, mas o teste com as três contas ainda depende de uma forma autorizada de configuração/distribuição de credenciais. Tentativa de alteração de senhas via ferramenta foi bloqueada. **Não contornar.**
+- Gateway atualizado para **allowlist**: somente assets do Portal e APIs externas necessárias. Toda API interna, inclusive admin de `/portal/operacao`, retorna `404`. Acesso sem token JWT a `/portal/operacao` retorna `401`.
+- Ambiente de prévia acessível via Cloudflare Quick Tunnel sem domínio permanente, sem garantia de disponibilidade.
+- A prévia é apresentação visual interativa, **não** comprovação de login, persistência, autorização ou entrega externa.
 
 ## Restrições e próximo checkpoint
 - Não usar dados/arquivos reais, não criar contatos reais, não colocar contrato real ou informação sensível.
@@ -51,3 +51,9 @@
 - Resolver o bloqueio da correção do mount de mídia por caminho aprovado antes de qualquer entrega de arquivos a clientes.
 - Passar cenários de login/navegação com Playwright ou navegador real e testes de privacidade dos payloads.
 - Implementar versões/aprovações externas, testar compatibilidade com o aplicativo Windows e Drive em ambiente controlado.
+
+## Incrementos posteriores
+- RBAC de gestor regional mais restrito: somente pedidos de unidades permitidas, inclusive quando o gestor originalmente criou solicitação de outra regional.
+- Suite Frontend Envoxers estabilizada com espera por elementos do Drive antes das assertivas (sem ignorar falhas).
+- CI dos dois workflows aprovado no commit `b0686db8`.
+- Todas as alterações de infraestrutura, gateway e simulação executadas exclusivamente no staging; produção `main` `9468ee0` sem alterações versionadas. Diretório `staging-secovi/` é o único item não rastreado no checkout de produção.
