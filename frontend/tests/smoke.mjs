@@ -129,7 +129,9 @@ try {
   assert.ok(card,'Pasta de card não foi renderizada');
   card.click();
   await new Promise(resolve=>setTimeout(resolve,40));
-  await aguardarDOM(logged.dom, '.windows-file-tile');
+  // A tile pode chegar antes da miniatura assíncrona, especialmente no CI.
+  await aguardarDOM(logged.dom, '.windows-file-thumbnail img[alt="Miniatura de capa-de-teste.png"]');
+  await aguardarDOM(logged.dom, '.windows-file-thumbnail.video');
    const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');
   assert.equal(tiles.length,2,'Miniaturas precisam aparecer também dentro do Drive');
   assert.equal(tiles[0].querySelector('.windows-file-thumbnail img')?.alt,'Miniatura de capa-de-teste.png');
