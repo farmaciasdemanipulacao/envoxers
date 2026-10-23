@@ -401,6 +401,33 @@ async def comentar(
     await db.flush()
     return {"id": comentario.id, "ok": True}
 
+@router.get("/pendencias")
+async def pendencias_de_validacao(
+    contato: Annotated[ClienteContato, Depends(contato_habilitado)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Consulta pendências do Kanban canônico, sem autorizar aprovação por esta rota."""
+    if not pode(contato.portal_papel, "aprovar", contato.portal_capacidades):
+        raise HTTPException(403, "Sem permissão para consultar aprovações")
+    stmt = await escopo_stmt(db, contato)
+    stmt = stmt.join(
+        PortalSolicitacaoTarefa,
+        PortalSolicitacaoTarefa.solicitacao_id == Solicitacao.id,
+    ).join(
+        Tarefa,
+        Tarefa.id == PortalSolicitacaoTarefa.tarefa_id,
+    ).where(
+        Tarefa.cliente_id == contato.cliente_id,
+        Tarefa.deleted_at.is_(None),
+        Tarefa.status == "aprovacao_cliente",
+    ).distinct().order_by(Solicitacao.created_at.desc()).limit(100)
+    items = (await db.execute(stmt)).scalars().all()
+    return [
+        {**representacao(s), "orientacao": "Material em validação. Aprovação externa ainda não habilitada."}
+        for s in items
+    ]
+
+
 @router.get("/pessoas")
 async def pessoas_da_instituicao(
     contato: Annotated[ClienteContato, Depends(contato_habilitado)],
