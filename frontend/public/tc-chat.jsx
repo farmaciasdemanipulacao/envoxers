@@ -90,6 +90,9 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const [canais, setCanais] = useStateChat([]);
   const [canalAtivoId, setCanalAtivoId] = useStateChat(null);
   const [mensagens, setMensagens] = useStateChat([]);
+  const [leituras, setLeituras] = useStateChat([]);
+  const [detalheLeiturasId, setDetalheLeiturasId] = useStateChat(null);
+  const [posDetalhesLeitura, setPosDetalhesLeitura] = useStateChat({ top: 0, left: 0 });
   const [texto, setTexto] = useStateChat("");
   const [respondendo, setRespondendo] = useStateChat(null);
   const [imagemAberta, setImagemAberta] = useStateChat(null);
@@ -105,6 +108,8 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const [diretasAberto, setDiretasAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_diretas", true));
   const [clientesAberto, setClientesAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_clientes", false));
   const mensagensRef = useRefChat(null);
+  const mensagensAtuaisRef = useRefChat([]);
+  mensagensAtuaisRef.current = mensagens;
   const ultimaMensagemRef = useRefChat(null);
   const textareaRef = useRefChat(null);
   const canalAtivoRef = useRefChat(null);
@@ -136,6 +141,48 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
     return next;
   });
 
+  const abrirDetalhesLeitura = (evento, id) => {
+    if (detalheLeiturasId === id) { setDetalheLeiturasId(null); return; }
+    const bounds = evento.currentTarget.getBoundingClientRect();
+    const largura = Math.min(290, Math.max(180, window.innerWidth - 16));
+    const alturaPrevista = 250;
+    const top = bounds.bottom + alturaPrevista + 12 < window.innerHeight
+      ? bounds.bottom + 7
+      : Math.max(8, bounds.top - alturaPrevista - 7);
+    const left = Math.max(8, Math.min(bounds.right - largura, window.innerWidth - largura - 8));
+    setPosDetalhesLeitura({ top, left });
+    setDetalheLeiturasId(id);
+  };
+
+  const atualizarLeituraWS = (evento) => {
+    if (!evento?.envoxer_id || !evento.last_read_at) return;
+    setLeituras((prev) => {
+      const atual = prev.find((l) => l.envoxer_id === evento.envoxer_id);
+      if (atual && new Date(atual.last_read_at).getTime() >= new Date(evento.last_read_at).getTime()) return prev;
+      return [
+        ...prev.filter((l) => l.envoxer_id !== evento.envoxer_id),
+        { envoxer_id: evento.envoxer_id, nome: evento.nome || atual?.nome || "Envoxer", last_read_at: evento.last_read_at },
+      ];
+    });
+  };
+
+  const carregarLeituras = async (id) => {
+    const dados = await EnvoxersAPI.api(`/chat/canais/${id}/leituras`);
+    if (canalAtivoRef.current === id) setLeituras(dados);
+    return dados;
+  };
+
+  const confirmarLeituraVisivel = async (id, mensagemId) => {
+    if (!id || !mensagemId || canalAtivoRef.current !== id) return;
+    if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+    const area = mensagensRef.current;
+    // Se a pessoa está lendo mensagens anteriores, não confirma as novas abaixo.
+    if (area && area.scrollHeight - area.scrollTop - area.clientHeight > 80) return;
+    await EnvoxersAPI.api(`/chat/canais/${id}/ler?ate_mensagem_id=${mensagemId}`, { method: "POST" });
+    setCanais((prev) => prev.map((c) => c.id === id ? { ...c, nao_lidas: 0 } : c));
+    if (onLeituraAtualizada) onLeituraAtualizada();
+  };
+
   const carregarCanais = async () => {
     try {
       const data = await EnvoxersAPI.api("/chat/canais");
@@ -147,7 +194,7 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   };
 
   useEffectChat(() => { carregarCanais(); }, []);
-  useEffectChat(() => { setRespondendo(null); setImagemAberta(null); setReagindoId(null); ultimaMensagemRef.current = null; }, [canalAtivoId]);
+  useEffectChat(() => { setRespondendo(null); setImagemAberta(null); setReagindoId(null); setDetalheLeiturasId(null); setLeituras([]); ultimaMensagemRef.current = null; }, [canalAtivoId]);
   useEffectChat(() => {
     if (reagindoId == null) return;
     const onEscape = (e) => { if (e.key === "Escape") setReagindoId(null); };
@@ -174,22 +221,35 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
 
   useEffectChat(() => {
     if (canalAtivoId === null) return;
+    let cancelado = false;
     (async () => {
       try {
-        const data = await EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/mensagens`);
+        const [data, lidos] = await Promise.all([
+          EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/mensagens`),
+          EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/leituras`),
+        ]);
+        if (cancelado || canalAtivoRef.current !== canalAtivoId) return;
         setMensagens(data);
-        await EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/ler`, { method: "POST" });
-        setCanais((prev) => prev.map((c) => (c.id === canalAtivoId ? { ...c, nao_lidas: 0 } : c)));
-        if (onLeituraAtualizada) onLeituraAtualizada();
+        setLeituras(lidos);
+        // A mensagem precisa ter sido efetivamente exibida, com a tela ativa.
+        // Nunca confirmamos "lida" só porque a API carregou em segundo plano.
+        if (data.length) requestAnimationFrame(() => {
+          if (!cancelado) confirmarLeituraVisivel(canalAtivoId, data[data.length - 1].id).catch(() => {});
+        });
       } catch (err) {
-        toast(err.message, "error");
+        if (!cancelado) toast(err.message, "error");
       }
     })();
+    return () => { cancelado = true; };
   }, [canalAtivoId]);
 
   useEffectChat(() => {
     if (!wsEvent) return;
     const { tipo, canal_id, mensagem } = wsEvent;
+    if (tipo === "chat_leitura_atualizada") {
+      if (canal_id === canalAtivoRef.current) atualizarLeituraWS(wsEvent);
+      return;
+    }
     if (tipo === "mensagem_reacoes") {
       if (canal_id === canalAtivoRef.current) aplicarReacaoChat(wsEvent);
       return;
@@ -208,9 +268,9 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
         carregarCanais();
         return;
       }
-      EnvoxersAPI.api(`/chat/canais/${canal_id}/ler`, { method: "POST" })
-        .then(() => { if (onLeituraAtualizada) onLeituraAtualizada(); })
-        .catch(() => {});
+      requestAnimationFrame(() => {
+        confirmarLeituraVisivel(canal_id, mensagem.id).catch(() => {});
+      });
     } else if (canaisRef.current.some((c) => c.id === canal_id)) {
       setCanais((prev) => prev.map((c) => (c.id === canal_id ? { ...c, nao_lidas: (c.nao_lidas || 0) + 1 } : c)));
     } else {
@@ -223,10 +283,9 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
       if (document.visibilityState !== "visible" || !document.hasFocus()) return;
       const canal = canalAtivoRef.current;
       if (!canal) return;
-      EnvoxersAPI.api(`/chat/canais/${canal}/ler`, { method: "POST" }).then(() => {
-        setCanais(prev => prev.map(c => c.id === canal ? {...c, nao_lidas: 0} : c));
-        if (onLeituraAtualizada) onLeituraAtualizada();
-      }).catch(() => {});
+      carregarLeituras(canal).catch(() => {});
+      const ultima = mensagensAtuaisRef.current[mensagensAtuaisRef.current.length - 1];
+      if (ultima) confirmarLeituraVisivel(canal, ultima.id).catch(() => {});
     };
     window.addEventListener("focus", aoVoltar);
     document.addEventListener("visibilitychange", aoVoltar);
@@ -508,6 +567,11 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
             const dentroPrazoExclusao = !m.prazo_exclusao || Date.now() <= new Date(m.prazo_exclusao).getTime();
             const podeEditar = propria && !excluida && !!m.pode_editar && dentroPrazoEdicao;
             const podeExcluir = propria && !excluida && !!m.pode_excluir && dentroPrazoExclusao;
+            const leitores = propria && !excluida ? leituras.filter((l) =>
+              l.envoxer_id !== meuId && new Date(l.last_read_at).getTime() >= new Date(m.created_at).getTime()
+            ) : [];
+            const lidaDm = canalAtivo?.tipo === "dm" && leitores.some((l) => l.envoxer_id === canalAtivo.outro_envoxer_id);
+            const comLeitura = canalAtivo?.tipo === "dm" ? lidaDm : leitores.length > 0;
             return (
               <React.Fragment key={m.id}>
               {separadorDia && <div className="chat-day-divider" role="separator" aria-label={tituloDiaChat(m.created_at)}><span>{tituloDiaChat(m.created_at)}</span></div>}
@@ -517,6 +581,34 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                   <div className="chat-msg-meta">
                     {!propria && <span className="chat-msg-autor">{m.autor_nome}</span>}
                     <span className="chat-msg-hora">{fmtHoraChat(m.created_at)}{m.editado_em && !excluida ? " · editada" : ""}</span>
+                    {propria && !excluida && (
+                      <span className="chat-read-position">
+                        <button type="button"
+                          className={"chat-read-receipt" + (comLeitura ? " read" : "")}
+                          title={comLeitura ? (canalAtivo?.tipo === "dm" ? "Mensagem lida" : "Ver quem leu") : "Mensagem enviada, aguardando leitura"}
+                          aria-label={comLeitura ? (canalAtivo?.tipo === "dm" ? "Mensagem lida" : "Lido por " + leitores.length + " pessoas") : "Mensagem enviada, ainda não lida"}
+                          onClick={(e) => abrirDetalhesLeitura(e, m.id)}>
+                          {comLeitura ? "✓✓" : "✓"}
+                          {canalAtivo?.tipo !== "dm" && leitores.length > 0 && <small>Lido por {leitores.length}</small>}
+                        </button>
+                        {detalheLeiturasId === m.id && (
+                          <div className="chat-read-details" style={{ top: posDetalhesLeitura.top, left: posDetalhesLeitura.left }} role="group" aria-label="Detalhes de leitura">
+                            <strong>{comLeitura ? "Confirmações de leitura" : "Aguardando leitura"}</strong>
+                            {leitores.length ? leitores.map((l) => (
+                              <span className="chat-read-person" key={l.envoxer_id}>
+                                <EnvoxersShared.Avatar
+                                  nome={l.nome}
+                                  fotoUrl={(envoxersList || []).find((e) => e.id === l.envoxer_id)?.foto_url}
+                                  size="sm"
+                                  envoxerId={l.envoxer_id}
+                                />
+                                <span>{l.nome}<small>{new Date(l.last_read_at).toLocaleString("pt-BR", {dateStyle:"short",timeStyle:"short"})}</small></span>
+                              </span>
+                            )) : <span>Ainda não há confirmação de leitura.</span>}
+                          </div>
+                        )}
+                      </span>
+                    )}
                     {!excluida && editandoId !== m.id && (
                       <span className="chat-msg-actions">
                         <button type="button" onClick={() => selecionarResposta(m)} title="Responder esta mensagem">Responder</button>

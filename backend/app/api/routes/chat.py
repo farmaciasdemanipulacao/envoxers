@@ -6,6 +6,7 @@ visibilidade da aba do cliente (usado pra decidir push de mensagem nova).
 """
 import json
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Annotated, Optional
@@ -13,6 +14,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.sql import func
 
 from app.api.deps import get_current_envoxer
@@ -30,11 +32,12 @@ from app.models.envoxer import Envoxer
 from app.models.alerta_config import AlertaConfig
 from app.schemas.chat import (
     ChatCanalResponse, ChatMensagemCreate, ChatMensagemEdit, ChatMensagemResponse, ChatCitacaoResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
-    ChatReacaoCreate, ChatReacaoCount, ChatReacaoToggleResponse,
+    ChatReacaoCreate, ChatReacaoCount, ChatReacaoToggleResponse, ChatLeituraResponse,
 )
 from app.services.chat_ws_manager import chat_ws_manager
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
@@ -451,45 +454,52 @@ async def _enviar_mensagem_core(
     db.add(mensagem)
     await db.flush()
     await db.refresh(mensagem)
+    # Persistir antes do WS permite confirmar leitura sem corrida com o INSERT.
+    await db.commit()
 
     resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id, citacao)
     payload_ws = {"tipo": "mensagem_nova", "canal_id": canal_id, "mensagem": resposta.model_dump(mode="json")}
 
-    if canal.tipo == "dm":
-        await chat_ws_manager.broadcast_dm(canal.dm_envoxer_a_id, canal.dm_envoxer_b_id, payload_ws)
-        destinatario_id = canal.dm_envoxer_b_id if canal.dm_envoxer_a_id == envoxer.id else canal.dm_envoxer_a_id
-        if not chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
-            config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_dm"))
-            config_chat = config_result.scalar_one_or_none()
-            if config_chat is None or config_chat.ativo:
-                from app.services.push import broadcast_push
-                await broadcast_push(
-                    db,
-                    destinatario_id,
-                    title=envoxer.nome,
-                    body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
-                    tag="envoxers-chat",
-                )
-    else:
-        result = await db.execute(select(Envoxer.id).where(Envoxer.ativo == True))  # noqa: E712
-        ids_ativos = [row[0] for row in result.all()]
-        await chat_ws_manager.broadcast_geral_ou_cliente(ids_ativos, payload_ws)
+    # Notificação é efeito colateral; nunca duplicar um envio persistido.
+    try:
+        if canal.tipo == "dm":
+            await chat_ws_manager.broadcast_dm(canal.dm_envoxer_a_id, canal.dm_envoxer_b_id, payload_ws)
+            destinatario_id = canal.dm_envoxer_b_id if canal.dm_envoxer_a_id == envoxer.id else canal.dm_envoxer_a_id
+            if not chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
+                config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_dm"))
+                config_chat = config_result.scalar_one_or_none()
+                if config_chat is None or config_chat.ativo:
+                    from app.services.push import broadcast_push
+                    await broadcast_push(
+                        db,
+                        destinatario_id,
+                        title=envoxer.nome,
+                        body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
+                        tag="envoxers-chat",
+                    )
+        else:
+            result = await db.execute(select(Envoxer.id).where(Envoxer.ativo == True))  # noqa: E712
+            ids_ativos = [row[0] for row in result.all()]
+            await chat_ws_manager.broadcast_geral_ou_cliente(ids_ativos, payload_ws)
 
-        config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_geral"))
-        config_geral = config_result.scalar_one_or_none()
-        if config_geral is None or config_geral.ativo:
-            from app.services.push import broadcast_push
-            titulo = f"{envoxer.nome} · geral" if canal.tipo == "geral" else f"{envoxer.nome} · cliente"
-            for destinatario_id in ids_ativos:
-                if destinatario_id == envoxer.id or chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
-                    continue
-                await broadcast_push(
-                    db,
-                    destinatario_id,
-                    title=titulo,
-                    body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
-                    tag="envoxers-chat",
-                )
+            config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_geral"))
+            config_geral = config_result.scalar_one_or_none()
+            if config_geral is None or config_geral.ativo:
+                from app.services.push import broadcast_push
+                titulo = f"{envoxer.nome} · geral" if canal.tipo == "geral" else f"{envoxer.nome} · cliente"
+                for destinatario_id in ids_ativos:
+                    if destinatario_id == envoxer.id or chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
+                        continue
+                    await broadcast_push(
+                        db,
+                        destinatario_id,
+                        title=titulo,
+                        body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
+                        tag="envoxers-chat",
+                    )
+    except Exception:
+        await db.rollback()
+        logger.exception("Falha ao notificar mensagem persistida no canal %s, mensagem %s", canal_id, mensagem.id)
     return resposta
 
 
@@ -681,26 +691,86 @@ async def excluir_mensagem_para_todos(
     return resposta
 
 
+@router.get("/canais/{canal_id}/leituras", response_model=list[ChatLeituraResponse])
+async def listar_leituras(
+    canal_id: int,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Confirmações de leitura autorizadas por canal."""
+    canal = await db.get(ChatCanal, canal_id)
+    if canal is None:
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
+    _validar_acesso_dm(canal, envoxer)
+    resultado = await db.execute(
+        select(ChatLeitura.envoxer_id, Envoxer.nome, ChatLeitura.last_read_at)
+        .join(Envoxer, Envoxer.id == ChatLeitura.envoxer_id)
+        .where(ChatLeitura.canal_id == canal_id)
+    )
+    return [
+        ChatLeituraResponse(envoxer_id=user_id, nome=nome, last_read_at=leu_ate)
+        for user_id, nome, leu_ate in resultado.all()
+    ]
+
+
 @router.post("/canais/{canal_id}/ler", status_code=status.HTTP_204_NO_CONTENT)
 async def marcar_lido(
     canal_id: int,
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    ate_mensagem_id: Optional[int] = Query(None, gt=0),
 ):
+    """Marca leitura apenas até a mensagem apresentada ao usuário, sem antecipar."""
     canal = await db.get(ChatCanal, canal_id)
     if canal is None:
         raise HTTPException(status_code=404, detail="Canal não encontrado")
     _validar_acesso_dm(canal, envoxer)
 
-    agora = datetime.now(timezone.utc)
-    result = await db.execute(
-        select(ChatLeitura).where(ChatLeitura.canal_id == canal_id, ChatLeitura.envoxer_id == envoxer.id)
-    )
-    leitura = result.scalar_one_or_none()
-    if leitura is None:
-        db.add(ChatLeitura(envoxer_id=envoxer.id, canal_id=canal_id, last_read_at=agora))
+    if ate_mensagem_id is None:
+        result = await db.execute(
+            select(ChatMensagem).where(ChatMensagem.canal_id == canal_id)
+            .order_by(ChatMensagem.id.desc()).limit(1)
+        )
+        ultima = result.scalar_one_or_none()
     else:
-        leitura.last_read_at = agora
+        ultima = await db.get(ChatMensagem, ate_mensagem_id)
+        if ultima is None or ultima.canal_id != canal_id:
+            raise HTTPException(status_code=400, detail="Mensagem não pertence a esta conversa")
+    if ultima is None:
+        return
+
+    novo_cursor = ultima.created_at
+    existente = await db.execute(
+        select(ChatLeitura.last_read_at).where(
+            ChatLeitura.canal_id == canal_id, ChatLeitura.envoxer_id == envoxer.id
+        )
+    )
+    atual = existente.scalar_one_or_none()
+    if atual is not None and atual >= novo_cursor:
+        return
+
+    stmt = pg_insert(ChatLeitura).values(
+        envoxer_id=envoxer.id, canal_id=canal_id, last_read_at=novo_cursor,
+    )
+    await db.execute(stmt.on_conflict_do_update(
+        index_elements=[ChatLeitura.envoxer_id, ChatLeitura.canal_id],
+        set_={"last_read_at": func.greatest(ChatLeitura.last_read_at, stmt.excluded.last_read_at)},
+    ))
+    await db.flush()
+    result = await db.execute(
+        select(ChatLeitura.last_read_at).where(
+            ChatLeitura.canal_id == canal_id, ChatLeitura.envoxer_id == envoxer.id
+        )
+    )
+    leitura_ate = result.scalar_one()
+    await db.commit()
+    await _broadcast_evento_mensagem(db, canal, {
+        "tipo": "chat_leitura_atualizada",
+        "canal_id": canal_id,
+        "envoxer_id": envoxer.id,
+        "nome": envoxer.nome,
+        "last_read_at": leitura_ate.isoformat(),
+    })
 
 
 @router.websocket("/ws")

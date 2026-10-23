@@ -67,6 +67,7 @@ async function open(authorized=false,desktop=false,chatFixture=false) {
       win.sessionStorage.setItem("envoxers_view_333",chatFixture?"chat":"arquivos");
       win.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
       win.__testSockets=[];
+      win.__testReadAcks=[];
       win.WebSocket=class {constructor(){this.readyState=0;win.__testSockets.push(this)}close(){}send(){}};
       win.fetch=(url,options={})=>{
         const path=String(url);
@@ -77,6 +78,12 @@ async function open(authorized=false,desktop=false,chatFixture=false) {
             texto:"Teste de mensagem",created_at:"2026-10-20T10:00:00Z",anexo_url:null,
             excluida_para_todos_em:null,resposta_a_id:null,resposta_a:null};
           if(path.endsWith("/chat/canais")) data=[{id:77,tipo:"geral",nome:"Geral",nao_lidas:0}];
+          if(path.endsWith("/chat/canais/77/leituras")) data=[
+            {envoxer_id:444,nome:"Colaboradora",last_read_at:"2026-10-21T10:04:00Z"}
+          ];
+          if(path.includes("/chat/canais/77/ler") && options.method==="POST") {
+            win.__testReadAcks.push(path);
+          }
           if(path.endsWith("/chat/canais/77/mensagens/301/reacoes") && options.method==="POST") {
             const emoji=JSON.parse(options.body).emoji;
             win.__testReacted=!win.__testReacted;
@@ -89,7 +96,7 @@ async function open(authorized=false,desktop=false,chatFixture=false) {
               resposta_a_id:body.resposta_a_id,resposta_a:{id:301,autor_nome:"Colaboradora",texto:"Primeiro dia"}};
           } else if(path.endsWith("/chat/canais/77/mensagens")) data=[
             {...base,id:301,texto:"Primeiro dia"},
-            {...base,id:302,created_at:"2026-10-21T10:00:00Z",texto:"Veja o print",
+            {...base,id:302,autor_envoxer_id:333,autor_nome:"Teste Envoxers",created_at:"2026-10-21T10:00:00Z",texto:"Veja o print",
               anexo_url:"/api/v1/uploads/print-teste.png",anexo_nome:"print-teste.png",anexo_mime_type:"image/png"}
           ];
         }
@@ -165,6 +172,22 @@ try {
   const separators=await aguardarCondicao(()=>chatDoc.querySelectorAll('.chat-day-divider').length===2);
   assert.ok(separators,'Separadores de data ausentes');
   assert.equal(chatDoc.querySelectorAll('.chat-msg').length,2);
+  const readMark=chatDoc.querySelector('[data-chat-mensagem-id="302"] .chat-read-receipt.read');
+  assert.ok(readMark, 'Confirmação de leitura não aparece na mensagem enviada');
+  assert.match(readMark.textContent,/Lido por 1/, 'Grupo deve mostrar total de leitores');
+  readMark.click();
+  const readDetails=await aguardarElemento(chatDoc,'[data-chat-mensagem-id="302"] .chat-read-details');
+  assert.match(readDetails.textContent,/Colaboradora/, 'Detalhes de quem leu ausentes');
+  readMark.click();
+  const chatSocketReceipts=chat.dom.window.__testSockets[0];
+  assert.ok(chatSocketReceipts?.onmessage, 'WS não conectado para confirmação');
+  chatSocketReceipts.onmessage({data:JSON.stringify({
+    tipo:'chat_leitura_atualizada',canal_id:77,envoxer_id:555,nome:'Outra pessoa',
+    last_read_at:'2026-10-21T10:05:00Z'
+  })});
+  await aguardarCondicao(()=>chatDoc.querySelector('[data-chat-mensagem-id="302"] .chat-read-receipt')?.textContent.includes('Lido por 2'));
+  assert.match(chatDoc.querySelector('[data-chat-mensagem-id="302"] .chat-read-receipt').textContent,/Lido por 2/,
+    'Confirmação de leitura de outro usuário não chegou em tempo real');
   // Status acompanha a FOTO, nunca o final de uma mensagem/anexo alto.
   const messageAvatar=chatDoc.querySelector('.chat-msg > .avatar-wrap');
   assert.ok(messageAvatar, 'Avatar com status ausente no Chat');
@@ -218,6 +241,10 @@ try {
   assert.ok(replySaved,'Resposta enviada não apareceu');
   assert.ok(replySaved.querySelector('.chat-quoted-msg'),'Vínculo da resposta não foi renderizado');
   assert.equal(chatDoc.activeElement,textarea,'Enter retirou o foco do campo');
+  chat.dom.window.dispatchEvent(new chat.dom.window.Event('focus'));
+  await aguardarCondicao(()=>chat.dom.window.__testReadAcks.length>0);
+  assert.ok(chat.dom.window.__testReadAcks.every((p)=>p.includes('ate_mensagem_id=')),
+    'Confirmação de leitura deve se limitar às mensagens exibidas');
   assert.ok(!chat.errors.length,chat.errors.join('; '));
   console.log('CHAT_UX_OK:',separators,'date separators; reply + preview + focus');
   chat.dom.window.close();
