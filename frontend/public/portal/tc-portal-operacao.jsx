@@ -27,6 +27,8 @@ const PortalOperacao = (() => {
       prazo_solicitado: "", apoio_envox: "", referencias: ""
     });
     const [camposExtras, setCamposExtras] = useState({});
+    const [pessoas, setPessoas] = useState(null);
+    const [pendencias, setPendencias] = useState(null);
 
     const carregar = useCallback(async (silencioso = false) => {
       if (!silencioso) setCarregando(true);
@@ -94,11 +96,49 @@ const PortalOperacao = (() => {
       finally { setEnviando(false); }
     };
 
-    const principal = [
-      ["inicio","Visão geral"], ["solicitacoes","Solicitações"],
-      ["nova","Nova solicitação"], ["documentos","Documentos"]
-    ];
     const caps = new Set(config?.capacidades || []);
+    const papel = config?.papel || "consulta";
+    const perfis = {
+      admin_institucional: {
+        nome:"Administrador institucional", escopo:"Toda a organização",
+        descricao:"Visão geral das regionais e pessoas autorizadas. Você administra a instituição, não o sistema interno da Envox.",
+        titulo:"Visão institucional",
+      },
+      gestor_geral: {
+        nome:"Gestor geral", escopo:"Todas as regionais",
+        descricao:"Acompanhe as solicitações da organização e identifique o que precisa de atenção.",
+        titulo:"Panorama da organização",
+      },
+      gestor_regional: {
+        nome:"Gestor regional", escopo:"Somente regionais autorizadas",
+        descricao:"Acompanhe as solicitações da sua equipe, mesmo quando foram enviadas por outras pessoas da regional.",
+        titulo:"Visão da regional",
+      },
+      solicitante: {
+        nome:"Solicitante", escopo:"Somente pedidos próprios",
+        descricao:"Aqui você acompanha exclusivamente os pedidos que enviou à Envox.",
+        titulo:"Meus pedidos",
+      },
+      aprovador: {
+        nome:"Aprovador", escopo:"Regionais autorizadas",
+        descricao:"Identifique demandas em validação. A aprovação externa ainda será habilitada após os testes de segurança.",
+        titulo:"Acompanhamento de aprovações",
+      },
+      consulta: {
+        nome:"Consulta", escopo:"Somente pedidos próprios",
+        descricao:"Consulte o andamento dos pedidos disponíveis para seu acesso.",
+        titulo:"Minhas solicitações",
+      },
+    };
+    const perfil = perfis[papel] || perfis.consulta;
+    const menu = [["inicio", "Início"], ["solicitacoes",
+      caps.has("ver_todas") ? "Todas as solicitações" : caps.has("ver_unidades") ? "Pedidos das regionais" : "Meus pedidos"]];
+    if (caps.has("ver_unidades")) menu.push(["regional", "Visão regional"]);
+    if (caps.has("gerenciar_usuarios")) menu.push(["equipe", "Pessoas e acessos"]);
+    if (caps.has("aprovar")) menu.push(["pendencias", "Em validação"]);
+    if (caps.has("solicitar")) menu.push(["nova", "Nova solicitação"]);
+    if (config?.produto?.modulos?.documentos !== false) menu.push(["documentos", "Documentos"]);
+    const principal = menu;
     const regionais = (config?.unidades || []).filter(u => u.tipo === "regional");
     const frentes = (config?.unidades || []).filter(u => u.tipo === "frente");
     const mostrarNova = caps.has("solicitar");
@@ -107,6 +147,28 @@ const PortalOperacao = (() => {
     );
     const nome = localStorage.getItem("portal_nome") || "Olá";
     const organizacao = localStorage.getItem("portal_cliente_nome") || "Portal do Cliente";
+    useEffect(() => {
+      if (aba !== "equipe" || !caps.has("gerenciar_usuarios")) return;
+      let ativo = true;
+      PortalAPI.api("/portal/operacao/pessoas")
+        .then(d => { if (ativo) setPessoas(d); })
+        .catch(e => { if (ativo) toast(e.message || "Falha ao consultar pessoas", "error"); });
+      return () => { ativo = false; };
+    }, [aba, papel]);
+
+    useEffect(() => {
+      if (aba !== "pendencias" || !caps.has("aprovar")) return;
+      let ativo = true;
+      PortalAPI.api("/portal/operacao/pendencias")
+        .then(d => { if (ativo) setPendencias(d); })
+        .catch(e => { if (ativo) toast(e.message || "Falha ao consultar validações", "error"); });
+      return () => { ativo = false; };
+    }, [aba, papel]);
+
+    const totaisRegionais = regionais.map(u => ({
+      nome:u.nome, quantidade:solicitacoes.filter(s => s.unidade_id === u.id).length
+    }));
+
 
     const campo = (id,label,tipo="text",required=true,placeholder="") =>
       <label className="po-field"><span>{label}{required ? " *" : ""}</span>
@@ -131,45 +193,93 @@ const PortalOperacao = (() => {
           <div className="po-brand"><span className="po-logo"><i aria-hidden="true"/> ENVOX</span><small>PORTAL DO CLIENTE</small></div>
           <div className="po-org"><small>ORGANIZAÇÃO</small><strong>{organizacao}</strong></div>
           <nav aria-label="Navegação principal">
-            {principal.filter(([key])=> key!=="nova" || mostrarNova).map(([key,txt]) =>
+            {principal.map(([key,txt]) =>
               <button key={key} type="button" className={aba===key?"po-nav active":"po-nav"} onClick={()=>{setSelecionada(null);setAba(key);}}>{txt}</button>
             )}
           </nav>
           <div className="po-sidebar-footer">
-            <span>{nome}</span><small>{config?.papel?.replace(/_/g, " ") || "Portal externo"}</small>
+            <span>{nome}</span><small>{perfil.nome} · {perfil.escopo}</small>
             <button type="button" onClick={()=>{PortalAPI.clearSession();location.reload();}}>Sair da conta</button>
           </div>
         </aside>
         <main className="po-main">
           <header className="po-top">
             <div><small>ENVOX / {organizacao.toUpperCase()}</small><h1>{
-              aba==="inicio" ? "Sua operação, em um só lugar" :
-              aba==="solicitacoes" ? "Solicitações" : aba==="nova" ? "Nova solicitação" :
+              aba==="inicio" ? perfil.titulo :
+              aba==="solicitacoes" ? (caps.has("ver_todas") ? "Todas as solicitações" : caps.has("ver_unidades") ? "Pedidos das regionais" : "Meus pedidos") :
+              aba==="nova" ? "Nova solicitação" : aba==="regional" ? "Visão regional" :
+              aba==="equipe" ? "Pessoas e acessos" : aba==="pendencias" ? "Em validação" :
               aba==="detalhe" ? "Acompanhar solicitação" : "Documentos"
             }</h1></div>
             <button className="po-refresh" onClick={()=>carregar()} aria-label="Atualizar dados">↻ Atualizar</button>
           </header>
+          <div className="po-role-banner" aria-live="polite">
+            <div><span className="po-role-label">SEU PERFIL</span>
+              <strong>{perfil.nome}</strong><span className="po-role-divider" aria-hidden="true">•</span>
+              <span>{perfil.escopo}</span>
+            </div>
+            <small>{perfil.descricao}</small>
+          </div>
           {carregando ? <Empty text="Carregando dados da operação…" /> :
            erro && !config ? <Empty text={erro} /> :
            <>
             {aba==="inicio" && <section className="po-content">
-              <p className="po-lead">Acompanhe o que foi solicitado à Envox, os próximos passos e as entregas da sua organização.</p>
+              <p className="po-lead">{perfil.descricao}</p>
               <div className="po-metrics">
                 {[
                   ["Solicitações",dashboard?.total||0],["Recebidas",dashboard?.recebidas||0],
                   ["Em triagem",dashboard?.triagem||0],["Em andamento",dashboard?.em_andamento||0]
                 ].map(([label,valor])=><div className="po-metric" key={label}><small>{label}</small><strong>{valor}</strong></div>)}
               </div>
-              <div className="po-section-head"><h2>Solicitações recentes</h2><button onClick={()=>setAba("solicitacoes")}>Ver todas →</button></div>
+              <div className="po-section-head"><h2>{caps.has("ver_todas")?"Pedidos de toda a instituição":caps.has("ver_unidades")?"Pedidos da sua regional":"Seus pedidos recentes"}</h2><button onClick={()=>setAba("solicitacoes")}>Ver todas →</button></div>
               {!solicitacoes.length && <Empty text="Ainda não há solicitações disponíveis para o seu acesso." />}
               {solicitacoes.slice(0,6).map(item=><CartaoSolicitacao key={item.id} item={item}/>)}
               {mostrarNova && <button className="po-primary po-home-cta" onClick={()=>setAba("nova")}>+ Abrir nova solicitação</button>}
             </section>}
             {aba==="solicitacoes" && <section className="po-content">
-              <p className="po-lead">Cada protocolo mostra o status da solicitação e o histórico que foi compartilhado com você.</p>
+              <p className="po-lead">{perfil.escopo}. Cada protocolo mostra apenas informações autorizadas para seu perfil.</p>
               <input className="po-search" value={pesquisa} onChange={e=>setPesquisa(e.target.value)} placeholder="Buscar por título, protocolo ou status…" aria-label="Buscar solicitações"/>
               {!listaFiltrada.length && <Empty text="Nenhuma solicitação encontrada." />}
               {listaFiltrada.map(item=><CartaoSolicitacao key={item.id} item={item}/>)}
+            </section>}
+            {aba==="regional" && caps.has("ver_unidades") && <section className="po-content">
+              <p className="po-lead">Este resumo considera somente os pedidos das regionais atribuídas à sua conta. Não inclui outras organizações.</p>
+              <div className="po-scope-grid">
+                {totaisRegionais.map(u=><div className="po-metric" key={u.nome}>
+                  <small>{u.nome}</small><strong>{u.quantidade}</strong><span className="po-scope-hint">solicitações visíveis</span>
+                </div>)}
+              </div>
+              <div className="po-section-head"><h2>Pedidos das regionais</h2>
+                <button onClick={()=>setAba("solicitacoes")}>Ver solicitações →</button></div>
+              {solicitacoes.map(item=><CartaoSolicitacao key={item.id} item={item}/>)}
+              {!solicitacoes.length && <Empty text="Nenhum pedido nas suas regionais."/>}
+            </section>}
+            {aba==="equipe" && caps.has("gerenciar_usuarios") && <section className="po-content">
+              <p className="po-lead">Visão institucional de pessoas e regionais. Gerencie os papéis e acessos pelo painel administrativo da Envox até a gestão externa ser homologada.</p>
+              {!pessoas && <Empty text="Consultando acessos da instituição…"/>}
+              {pessoas && <>
+                <div className="po-metrics">
+                  <div className="po-metric"><small>Pessoas ativas</small><strong>{pessoas.pessoas.length}</strong></div>
+                  <div className="po-metric"><small>Regionais</small><strong>{pessoas.regionais.length}</strong></div>
+                </div>
+                <article className="po-panel"><h3>Pessoas autorizadas</h3>
+                  {pessoas.pessoas.map((u,i)=><div className="po-person-row" key={i}>
+                    <strong>{u.nome}</strong><span>{u.papel.replace(/_/g," ")}</span>
+                    <small>{u.regionais.join(", ") || "Visão institucional / sem regional atribuída"}</small>
+                  </div>)}
+                  {!pessoas.pessoas.length && <Empty text="Nenhum contato ativo."/>}
+                </article>
+              </>}
+            </section>}
+            {aba==="pendencias" && caps.has("aprovar") && <section className="po-content">
+              <p className="po-lead">Solicitações vinculadas a demandas que estão aguardando validação no Kanban da Envox. A ação de aprovar ou pedir ajustes ainda não está disponível nesta homologação.</p>
+              {!pendencias && <Empty text="Consultando demandas em validação…"/>}
+              {pendencias && <>
+                <div className="po-metric po-single-metric"><small>Materiais em validação</small><strong>{pendencias.length}</strong></div>
+                {!pendencias.length && <Empty text="Nenhum material aguardando validação para seu acesso."/>}
+                {pendencias.map(item=><CartaoSolicitacao key={item.id} item={item}/>)}
+                <p className="po-footnote">Consulta somente leitura. Nenhuma aprovação será registrada aqui.</p>
+              </>}
             </section>}
             {aba==="nova" && <section className="po-content po-form-area">
               {!mostrarNova ? <Empty text="Seu perfil não está autorizado a enviar solicitações."/> :
