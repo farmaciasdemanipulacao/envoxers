@@ -1,0 +1,41 @@
+name: Chat assets - branch build (temporary)
+on:
+  push:
+    branches:
+      - feat/chat-datas-respostas-preview-foco-20261023
+    paths:
+      - 'frontend/public/tc-chat.jsx'
+      - 'frontend/public/runtime-boot.js'
+      - 'frontend/public/chat-improvements.css'
+      - 'frontend/tests/smoke.mjs'
+      - '.github/workflows/chat-assets-temporary.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npm run test:smoke
+        working-directory: frontend
+      - name: Commit built runtime
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/assets-runtime/app.js frontend/public/assets-runtime/manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "build(frontend): compile chat UX assets"
+            git push
+          fi
