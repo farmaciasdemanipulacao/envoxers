@@ -83,6 +83,13 @@ class ChatCanalPendenteItem(BaseModel):
     qtd_pendente: int
 
 
+class ChatLeituraResponse(BaseModel):
+    envoxer_id: int
+    nome: str
+    last_read_at: datetime
+
+
+
 class ChatBloqueioResponse(BaseModel):
     bloqueado: bool
     canais: list[ChatCanalPendenteItem] = []
