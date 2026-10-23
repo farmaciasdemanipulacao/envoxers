@@ -7,10 +7,19 @@ from pydantic import BaseModel, ConfigDict
 class ChatMensagemCreate(BaseModel):
     texto: Optional[str] = None
     anexo_url: Optional[str] = None
+    resposta_a_id: Optional[int] = None
 
 
 class ChatMensagemEdit(BaseModel):
     texto: str
+
+
+class ChatCitacaoResponse(BaseModel):
+    id: int
+    autor_nome: str
+    texto: Optional[str] = None
+    anexo_nome: Optional[str] = None
+    excluida: bool = False
 
 
 class ChatMensagemResponse(BaseModel):
@@ -20,6 +29,8 @@ class ChatMensagemResponse(BaseModel):
     canal_id: int
     autor_envoxer_id: int
     autor_nome: str
+    resposta_a_id: Optional[int] = None
+    resposta_a: Optional[ChatCitacaoResponse] = None
     autor_foto: Optional[str] = None
     texto: Optional[str] = None
     anexo_url: Optional[str] = None
