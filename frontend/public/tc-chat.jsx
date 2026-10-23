@@ -92,6 +92,7 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const [mensagens, setMensagens] = useStateChat([]);
   const [leituras, setLeituras] = useStateChat([]);
   const [detalheLeiturasId, setDetalheLeiturasId] = useStateChat(null);
+  const [posDetalhesLeitura, setPosDetalhesLeitura] = useStateChat({ top: 0, left: 0 });
   const [texto, setTexto] = useStateChat("");
   const [respondendo, setRespondendo] = useStateChat(null);
   const [imagemAberta, setImagemAberta] = useStateChat(null);
@@ -139,6 +140,19 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
     localStorage.setItem("envoxers_chat_acc_clientes", next ? "1" : "0");
     return next;
   });
+
+  const abrirDetalhesLeitura = (evento, id) => {
+    if (detalheLeiturasId === id) { setDetalheLeiturasId(null); return; }
+    const bounds = evento.currentTarget.getBoundingClientRect();
+    const largura = Math.min(290, Math.max(180, window.innerWidth - 16));
+    const alturaPrevista = 250;
+    const top = bounds.bottom + alturaPrevista + 12 < window.innerHeight
+      ? bounds.bottom + 7
+      : Math.max(8, bounds.top - alturaPrevista - 7);
+    const left = Math.max(8, Math.min(bounds.right - largura, window.innerWidth - largura - 8));
+    setPosDetalhesLeitura({ top, left });
+    setDetalheLeiturasId(id);
+  };
 
   const atualizarLeituraWS = (evento) => {
     if (!evento?.envoxer_id || !evento.last_read_at) return;
@@ -573,15 +587,23 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                           className={"chat-read-receipt" + (comLeitura ? " read" : "")}
                           title={comLeitura ? (canalAtivo?.tipo === "dm" ? "Mensagem lida" : "Ver quem leu") : "Mensagem enviada, aguardando leitura"}
                           aria-label={comLeitura ? (canalAtivo?.tipo === "dm" ? "Mensagem lida" : "Lido por " + leitores.length + " pessoas") : "Mensagem enviada, ainda não lida"}
-                          onClick={() => setDetalheLeiturasId((id) => id === m.id ? null : m.id)}>
+                          onClick={(e) => abrirDetalhesLeitura(e, m.id)}>
                           {comLeitura ? "✓✓" : "✓"}
                           {canalAtivo?.tipo !== "dm" && leitores.length > 0 && <small>Lido por {leitores.length}</small>}
                         </button>
                         {detalheLeiturasId === m.id && (
-                          <div className="chat-read-details" role="group" aria-label="Detalhes de leitura">
+                          <div className="chat-read-details" style={{ top: posDetalhesLeitura.top, left: posDetalhesLeitura.left }} role="group" aria-label="Detalhes de leitura">
                             <strong>{comLeitura ? "Confirmações de leitura" : "Aguardando leitura"}</strong>
                             {leitores.length ? leitores.map((l) => (
-                              <span key={l.envoxer_id}>{l.nome}<small>{new Date(l.last_read_at).toLocaleString("pt-BR", {dateStyle:"short",timeStyle:"short"})}</small></span>
+                              <span className="chat-read-person" key={l.envoxer_id}>
+                                <EnvoxersShared.Avatar
+                                  nome={l.nome}
+                                  fotoUrl={(envoxersList || []).find((e) => e.id === l.envoxer_id)?.foto_url}
+                                  size="sm"
+                                  envoxerId={l.envoxer_id}
+                                />
+                                <span>{l.nome}<small>{new Date(l.last_read_at).toLocaleString("pt-BR", {dateStyle:"short",timeStyle:"short"})}</small></span>
+                              </span>
                             )) : <span>Ainda não há confirmação de leitura.</span>}
                           </div>
                         )}
