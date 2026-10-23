@@ -117,7 +117,7 @@ function PortalClientesAdminScreen() {
         {dados.contatos.length===0&&<p style={{fontSize:13}}>Nenhum contato cadastrado nesta organização.</p>}
         {dados.contatos.map(c=><div key={c.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 0",borderBottom:"1px solid var(--line)",flexWrap:"wrap"}}>
           <div><strong style={{fontSize:13}}>{c.nome}</strong><div style={{fontSize:12,color:"var(--ink-3)"}}>{c.email} · {c.papel==="admin_institucional"?"Administrador/Gestor SECOVI":c.papel==="solicitante"?"Solicitante":"Perfil antigo: "+(c.papel||"não definido")} {c.pode_aprovar?" · Pode aprovar":""} {c.ativo?"":"· inativo"}</div></div>
-          <button className="btn btn-sm" onClick={()=>setContatoEdit({...c,unidade_ids:[...c.unidade_ids]})}>Definir acesso</button>
+          <button className="btn btn-sm" onClick={()=>setContatoEdit({...c,papel:c.papel==="admin_institucional"?"admin_institucional":"solicitante",unidade_ids:[...c.unidade_ids]})}>Definir acesso</button>
         </div>)}
         {contatoEdit&&<div style={{background:"var(--bg-inset)",padding:18,marginTop:14,borderRadius:12}}>
           <strong>{contatoEdit.nome}</strong>
