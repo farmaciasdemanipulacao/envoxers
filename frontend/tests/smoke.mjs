@@ -163,11 +163,11 @@ try {
   assert.ok(viewButton,'Prévia de imagem não encontrada');
   assert.ok(chatDoc.querySelector('.chat-image-download'),'Opção de download não encontrada');
   viewButton.click();
-  assert.ok(chatDoc.querySelector('.chat-image-overlay'),'Imagem não abriu dentro do sistema');
+  assert.ok(await aguardarElemento(chatDoc,'.chat-image-overlay'),'Imagem não abriu dentro do sistema');
   chatDoc.querySelector('.chat-image-dialog-header button').click();
   const replyBtn=chatDoc.querySelector('.chat-msg-actions button');
   replyBtn.click();
-  assert.ok(chatDoc.querySelector('.chat-reply-draft'),'Citação da resposta ausente');
+  assert.ok(await aguardarElemento(chatDoc,'.chat-reply-draft'),'Citação da resposta ausente');
   const textarea=chatDoc.querySelector('.chat-input-bar textarea');
   textarea.focus();
   const setter=Object.getOwnPropertyDescriptor(chat.dom.window.HTMLTextAreaElement.prototype,'value').set;
