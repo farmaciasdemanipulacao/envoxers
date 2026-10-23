@@ -13,6 +13,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.sql import func
 
 from app.api.deps import get_current_envoxer
@@ -30,7 +31,7 @@ from app.models.envoxer import Envoxer
 from app.models.alerta_config import AlertaConfig
 from app.schemas.chat import (
     ChatCanalResponse, ChatMensagemCreate, ChatMensagemEdit, ChatMensagemResponse, ChatCitacaoResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
-    ChatReacaoCreate, ChatReacaoCount, ChatReacaoToggleResponse,
+    ChatReacaoCreate, ChatReacaoCount, ChatReacaoToggleResponse, ChatLeituraResponse,
 )
 from app.services.chat_ws_manager import chat_ws_manager
 
@@ -681,26 +682,82 @@ async def excluir_mensagem_para_todos(
     return resposta
 
 
+@router.get("/canais/{canal_id}/leituras", response_model=list[ChatLeituraResponse])
+async def listar_leituras(
+    canal_id: int,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Confirmações de leitura: autorizadas por canal e baseadas no histórico real."""
+    canal = await db.get(ChatCanal, canal_id)
+    if canal is None:
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
+    _validar_acesso_dm(canal, envoxer)
+    resultado = await db.execute(
+        select(ChatLeitura.envoxer_id, Envoxer.nome, ChatLeitura.last_read_at)
+        .join(Envoxer, Envoxer.id == ChatLeitura.envoxer_id)
+        .where(ChatLeitura.canal_id == canal_id)
+    )
+    return [
+        ChatLeituraResponse(envoxer_id=user_id, nome=nome, last_read_at=leu_ate)
+        for user_id, nome, leu_ate in resultado.all()
+    ]
+
+
 @router.post("/canais/{canal_id}/ler", status_code=status.HTTP_204_NO_CONTENT)
 async def marcar_lido(
     canal_id: int,
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    ate_mensagem_id: Optional[int] = Query(None, gt=0),
 ):
+    """Confirma leitura somente até mensagem realmente exibida pelo cliente.
+
+    O endpoint sem parâmetro permanece compatível com clientes antigos; usa a
+    última mensagem já persistida, nunca um instante posterior ao conteúdo.
+    """
     canal = await db.get(ChatCanal, canal_id)
     if canal is None:
         raise HTTPException(status_code=404, detail="Canal não encontrado")
     _validar_acesso_dm(canal, envoxer)
 
-    agora = datetime.now(timezone.utc)
-    result = await db.execute(
-        select(ChatLeitura).where(ChatLeitura.canal_id == canal_id, ChatLeitura.envoxer_id == envoxer.id)
-    )
-    leitura = result.scalar_one_or_none()
-    if leitura is None:
-        db.add(ChatLeitura(envoxer_id=envoxer.id, canal_id=canal_id, last_read_at=agora))
+    if ate_mensagem_id is None:
+        result = await db.execute(
+            select(ChatMensagem).where(ChatMensagem.canal_id == canal_id)
+            .order_by(ChatMensagem.id.desc()).limit(1)
+        )
+        ultima = result.scalar_one_or_none()
     else:
-        leitura.last_read_at = agora
+        ultima = await db.get(ChatMensagem, ate_mensagem_id)
+        if ultima is None or ultima.canal_id != canal_id:
+            raise HTTPException(status_code=400, detail="Mensagem não pertence a esta conversa")
+    if ultima is None:
+        return
+
+    # O cursor persistido no banco é monotônico: duas abas não conseguem
+    # retroceder a leitura uma da outra, mesmo em chamadas concorrentes.
+    novo_cursor = ultima.created_at
+    stmt = pg_insert(ChatLeitura).values(
+        envoxer_id=envoxer.id, canal_id=canal_id, last_read_at=novo_cursor,
+    )
+    await db.execute(stmt.on_conflict_do_update(
+        index_elements=[ChatLeitura.envoxer_id, ChatLeitura.canal_id],
+        set_={"last_read_at": func.greatest(ChatLeitura.last_read_at, stmt.excluded.last_read_at)},
+    ))
+    await db.flush()
+    result = await db.execute(
+        select(ChatLeitura.last_read_at).where(
+            ChatLeitura.canal_id == canal_id, ChatLeitura.envoxer_id == envoxer.id
+        )
+    )
+    leitura_ate = result.scalar_one()
+    await _broadcast_evento_mensagem(db, canal, {
+        "tipo": "chat_leitura_atualizada",
+        "canal_id": canal_id,
+        "envoxer_id": envoxer.id,
+        "nome": envoxer.nome,
+        "last_read_at": leitura_ate.isoformat(),
+    })
 
 
 @router.websocket("/ws")
