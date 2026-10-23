@@ -77,6 +77,28 @@ for(const c of cenarios) {
  assert.ok(!menu.includes("Visão regional")&&!menu.includes("Gestor regional"),"Complex old menu returned");
  assert.ok(menu.includes("Demandas"));
  assert.ok(menu.includes("Campanhas")&&menu.includes("Eventos"),"Menu must show catalogs");
+ const campaignTab=[...w.document.querySelectorAll(".po-nav")].find(b=>b.textContent.includes("Campanhas"));
+ campaignTab.click();
+ await waitFor(w,()=>w.document.querySelector(".po-catalog-card"));
+ assert.ok(w.document.body.textContent.includes("Sem campanha"),"Missing unlinked campaign group");
+ const eventTab=[...w.document.querySelectorAll(".po-nav")].find(b=>b.textContent.includes("Eventos"));
+ eventTab.click();
+ await waitFor(w,()=>w.document.body.textContent.includes("Sem evento"));
+ assert.ok(w.document.querySelector(".po-catalog-card"),"Missing event cards");
+ const newTab=[...w.document.querySelectorAll(".po-nav")].find(b=>b.textContent.includes("Nova solicitação"));
+ newTab.click();
+ await waitFor(w,()=>w.document.body.textContent.includes("ORGANIZAÇÃO DA DEMANDA"));
+ const selects=[...w.document.querySelectorAll(".po-relationships select")];
+ assert.equal(selects.length,2,"Campaign and event selects required");
+ for(const select of selects) {
+   assert.equal(select.value,"","Do not silently choose no campaign/event");
+   assert.ok([...select.options].some(o=>o.value==="none"),"Missing explicit Sem campanha / Sem evento");
+ }
+ const quick=[...w.document.querySelectorAll(".po-inline-quick button")].find(b=>b.textContent.includes("Nova campanha"));
+ quick.click();
+ await waitFor(w,()=>w.document.getElementById("campanha-rapida"));
+ assert.ok(w.document.body.textContent.includes("Somente o nome."),"Quick campaign creation should be obvious");
+
  const body=w.document.body.textContent;
  for(const r of requests.filter(r=>!c.esperados.includes(r.id)))assert.ok(!body.includes(r.titulo),c.key+" saw "+r.titulo);
  if(c.papel==="admin_institucional") {
