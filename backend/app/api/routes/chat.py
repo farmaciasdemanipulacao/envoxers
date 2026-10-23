@@ -28,7 +28,7 @@ from app.models.cliente import Cliente
 from app.models.envoxer import Envoxer
 from app.models.alerta_config import AlertaConfig
 from app.schemas.chat import (
-    ChatCanalResponse, ChatMensagemCreate, ChatMensagemEdit, ChatMensagemResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
+    ChatCanalResponse, ChatMensagemCreate, ChatMensagemEdit, ChatMensagemResponse, ChatCitacaoResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
 )
 from app.services.chat_ws_manager import chat_ws_manager
 
@@ -68,7 +68,8 @@ def _pode_excluir_mensagem(mensagem: ChatMensagem, envoxer_id: int) -> bool:
 
 
 def _mensagem_response(
-    mensagem: ChatMensagem, autor_nome: str, autor_foto: Optional[str], viewer_id: Optional[int] = None
+    mensagem: ChatMensagem, autor_nome: str, autor_foto: Optional[str],
+    viewer_id: Optional[int] = None, citacao: Optional[ChatCitacaoResponse] = None,
 ) -> ChatMensagemResponse:
     prazo_edicao = _prazo_edicao_mensagem(mensagem.created_at)
     prazo_exclusao = _prazo_um_dia_util(mensagem.created_at)
@@ -76,6 +77,7 @@ def _mensagem_response(
     pode_excluir = viewer_id is not None and _pode_excluir_mensagem(mensagem, viewer_id)
     return ChatMensagemResponse(
         id=mensagem.id, canal_id=mensagem.canal_id, autor_envoxer_id=mensagem.autor_envoxer_id,
+        resposta_a_id=mensagem.resposta_a_id, resposta_a=citacao,
         autor_nome=autor_nome, autor_foto=autor_foto, texto=mensagem.texto, anexo_url=mensagem.anexo_url,
         anexo_nome=mensagem.anexo_nome, anexo_mime_type=mensagem.anexo_mime_type,
         anexo_tamanho_kb=mensagem.anexo_tamanho_kb,
@@ -84,6 +86,27 @@ def _mensagem_response(
         prazo_edicao=prazo_edicao, prazo_exclusao=prazo_exclusao,
         pode_editar=pode_editar, pode_excluir=pode_excluir,
     )
+
+
+async def _carregar_citacoes(db: AsyncSession, mensagens: list[ChatMensagem]) -> dict[int, ChatCitacaoResponse]:
+    """Carrega em lote as mensagens citadas, sempre no canal da mensagem que responde."""
+    ids = {m.resposta_a_id for m in mensagens if m.resposta_a_id is not None}
+    if not ids:
+        return {}
+    result = await db.execute(
+        select(ChatMensagem, Envoxer.nome)
+        .join(Envoxer, Envoxer.id == ChatMensagem.autor_envoxer_id)
+        .where(ChatMensagem.id.in_(ids))
+    )
+    return {
+        msg.id: ChatCitacaoResponse(
+            id=msg.id, autor_nome=nome,
+            texto=None if msg.excluida_para_todos_em else msg.texto,
+            anexo_nome=None if msg.excluida_para_todos_em else msg.anexo_nome,
+            excluida=msg.excluida_para_todos_em is not None,
+        )
+        for msg, nome in result.all()
+    }
 
 
 async def _broadcast_evento_mensagem(db: AsyncSession, canal: ChatCanal, payload_ws: dict) -> None:
@@ -166,7 +189,8 @@ async def _ultima_mensagem(db: AsyncSession, canal_id: int) -> Optional[ChatMens
     if row is None:
         return None
     msg, autor_nome, autor_foto = row
-    return _mensagem_response(msg, autor_nome, autor_foto)
+    citacoes = await _carregar_citacoes(db, [msg])
+    return _mensagem_response(msg, autor_nome, autor_foto, citacao=citacoes.get(msg.resposta_a_id))
 
 
 async def _montar_resposta(
@@ -327,9 +351,11 @@ async def listar_mensagens(
     stmt = stmt.order_by(ChatMensagem.id.desc()).limit(limit)
 
     result = await db.execute(stmt)
+    rows = result.all()
+    citacoes = await _carregar_citacoes(db, [m for m, _, _ in rows])
     mensagens = [
-        _mensagem_response(m, nome, foto, envoxer.id)
-        for m, nome, foto in result.all()
+        _mensagem_response(m, nome, foto, envoxer.id, citacoes.get(m.resposta_a_id))
+        for m, nome, foto in rows
     ]
     mensagens.reverse()
     return mensagens
@@ -345,6 +371,7 @@ async def _enviar_mensagem_core(
     anexo_nome: Optional[str] = None,
     anexo_mime_type: Optional[str] = None,
     anexo_tamanho_kb: Optional[int] = None,
+    resposta_a_id: Optional[int] = None,
 ) -> ChatMensagemResponse:
     texto_limpo = (texto or "").strip() or None
     if not texto_limpo and not anexo_url:
@@ -355,9 +382,23 @@ async def _enviar_mensagem_core(
         raise HTTPException(status_code=404, detail="Canal não encontrado")
     _validar_acesso_dm(canal, envoxer)
 
+    citacao = None
+    if resposta_a_id is not None:
+        original = await db.get(ChatMensagem, resposta_a_id)
+        if original is None or original.canal_id != canal_id:
+            raise HTTPException(status_code=400, detail="A mensagem respondida não pertence a esta conversa")
+        if original.excluida_para_todos_em is not None:
+            raise HTTPException(status_code=400, detail="Não é possível responder a uma mensagem excluída")
+        autor_original = await db.get(Envoxer, original.autor_envoxer_id)
+        citacao = ChatCitacaoResponse(
+            id=original.id, autor_nome=autor_original.nome if autor_original else "Usuário",
+            texto=original.texto, anexo_nome=original.anexo_nome,
+        )
+
     mensagem = ChatMensagem(
         canal_id=canal_id,
         autor_envoxer_id=envoxer.id,
+        resposta_a_id=resposta_a_id,
         texto=texto_limpo,
         anexo_url=anexo_url,
         anexo_nome=anexo_nome,
@@ -368,7 +409,7 @@ async def _enviar_mensagem_core(
     await db.flush()
     await db.refresh(mensagem)
 
-    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id)
+    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id, citacao)
     payload_ws = {"tipo": "mensagem_nova", "canal_id": canal_id, "mensagem": resposta.model_dump(mode="json")}
 
     if canal.tipo == "dm":
@@ -422,6 +463,7 @@ async def enviar_mensagem(
         db,
         texto=payload.texto,
         anexo_url=payload.anexo_url,
+        resposta_a_id=payload.resposta_a_id,
     )
 
 
@@ -431,6 +473,7 @@ async def enviar_mensagem_com_anexo(
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
     db: Annotated[AsyncSession, Depends(get_db)],
     texto: str = Form(""),
+    resposta_a_id: Optional[int] = Form(None),
     arquivo: UploadFile = File(...),
 ):
     salvo = await salvar_upload(arquivo)
@@ -444,6 +487,7 @@ async def enviar_mensagem_com_anexo(
             anexo_nome=salvo["nome"],
             anexo_mime_type=salvo.get("mime_type"),
             anexo_tamanho_kb=salvo.get("tamanho_kb"),
+            resposta_a_id=resposta_a_id,
         )
     except Exception:
         excluir_upload_url(salvo.get("url"))
@@ -481,7 +525,8 @@ async def editar_mensagem(
     await db.flush()
     await db.refresh(mensagem)
 
-    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id)
+    citacoes = await _carregar_citacoes(db, [mensagem])
+    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id, citacoes.get(mensagem.resposta_a_id))
     await _broadcast_evento_mensagem(db, canal, {
         "tipo": "mensagem_editada", "canal_id": canal_id,
         "mensagem": resposta.model_dump(mode="json"),
