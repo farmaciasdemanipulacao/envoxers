@@ -53,6 +53,8 @@ for(const c of cenarios) {
    };
    if(path.endsWith("/dashboard"))return {total:visible.length,recebidas:visible.filter(r=>r.status==="Recebida").length,triagem:0,em_andamento:visible.filter(r=>r.status==="Em andamento").length};
    if(path.endsWith("/solicitacoes"))return visible;
+   if(path.endsWith("/campanhas"))return [{id:10,nome:"Campanha exemplo",unidade_id:1,frente_id:null,total_solicitacoes:1}].filter(r=>c.papel==="admin_institucional"||c.ids.includes(r.unidade_id));
+   if(path.endsWith("/eventos"))return [{id:20,nome:"Evento exemplo",unidade_id:null,frente_id:3,data:"2026-11-20",total_solicitacoes:1}].filter(r=>c.papel==="admin_institucional"||c.ids.includes(r.frente_id));
    if(path.endsWith("/pessoas")) {
      if(c.papel!=="admin_institucional")throw Error("Unauthorized roster");
      return {pessoas:[{nome:"Admin SECOVI",papel:"admin_institucional",areas:[],pode_aprovar:true}],regionais:["Maringá","Londrina"],frentes:["Secovimed"]};
@@ -74,6 +76,7 @@ for(const c of cenarios) {
  if(!c.podeAprovar)assert.ok(!menu.includes("Em validação"),"User without approval saw queue");
  assert.ok(!menu.includes("Visão regional")&&!menu.includes("Gestor regional"),"Complex old menu returned");
  assert.ok(menu.includes("Demandas"));
+ assert.ok(menu.includes("Campanhas")&&menu.includes("Eventos"),"Menu must show catalogs");
  const body=w.document.body.textContent;
  for(const r of requests.filter(r=>!c.esperados.includes(r.id)))assert.ok(!body.includes(r.titulo),c.key+" saw "+r.titulo);
  if(c.papel==="admin_institucional") {
