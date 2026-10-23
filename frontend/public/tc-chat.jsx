@@ -77,6 +77,8 @@ function ChatAccordionSection({ titulo, aberto, onToggle, children }) {
 
 // wsEvent: último evento {canal_id, mensagem} empurrado pelo WS da raiz (tc-app.jsx) —
 // a tela em si não abre conexão própria, pra badge global e badge da tela usarem a mesma fonte.
+const CHAT_REACTION_EMOJIS = ["👍","❤️","😂","😍","😮","😢","🙏","👏","🔥","🎉","🙌","✅","💙","👀","🤝","🚀","💪","😀","👎","💯"];
+
 const CHAT_EMOJIS = [
   "😀","😃","😄","😁","😂","🤣","😊","😍","🥰","😘","😎","🤩",
   "🤔","🙌","👏","👍","👎","👌","🙏","💪","🔥","✨","🎉","❤️",
@@ -95,16 +97,32 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const [anexoPendente, setAnexoPendente] = useStateChat(null);
   const [novoDmAberto, setNovoDmAberto] = useStateChat(false);
   const [emojiAberto, setEmojiAberto] = useStateChat(false);
+  const [reagindoId, setReagindoId] = useStateChat(null);
+  const [reacaoPendente, setReacaoPendente] = useStateChat(null);
   const [editandoId, setEditandoId] = useStateChat(null);
   const [textoEdicao, setTextoEdicao] = useStateChat("");
   const [diretasAberto, setDiretasAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_diretas", true));
   const [clientesAberto, setClientesAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_clientes", false));
   const mensagensRef = useRefChat(null);
+  const ultimaMensagemRef = useRefChat(null);
   const textareaRef = useRefChat(null);
   const canalAtivoRef = useRefChat(null);
   canalAtivoRef.current = canalAtivoId;
   const canaisRef = useRefChat([]);
   canaisRef.current = canais;
+
+  const aplicarReacaoChat = (evento) => {
+    if (!evento?.mensagem_id) return;
+    setMensagens((prev) => prev.map((m) => {
+      if (m.id !== evento.mensagem_id) return m;
+      const minhas = new Set(m.minhas_reacoes || []);
+      if (evento.alterado_por_id === meuEnvoxerIdChat()) {
+        if (evento.ativa) minhas.add(evento.emoji);
+        else minhas.delete(evento.emoji);
+      }
+      return { ...m, reacoes: evento.reacoes || [], minhas_reacoes: [...minhas] };
+    }));
+  };
 
   const toggleDiretas = () => setDiretasAberto((prev) => {
     const next = !prev;
@@ -128,7 +146,13 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   };
 
   useEffectChat(() => { carregarCanais(); }, []);
-  useEffectChat(() => { setRespondendo(null); setImagemAberta(null); }, [canalAtivoId]);
+  useEffectChat(() => { setRespondendo(null); setImagemAberta(null); setReagindoId(null); ultimaMensagemRef.current = null; }, [canalAtivoId]);
+  useEffectChat(() => {
+    if (reagindoId == null) return;
+    const onEscape = (e) => { if (e.key === "Escape") setReagindoId(null); };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [reagindoId]);
   useEffectChat(() => {
     if (!imagemAberta) return;
     const onEscape = (e) => { if (e.key === "Escape") setImagemAberta(null); };
@@ -165,6 +189,10 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   useEffectChat(() => {
     if (!wsEvent) return;
     const { tipo, canal_id, mensagem } = wsEvent;
+    if (tipo === "mensagem_reacoes") {
+      if (canal_id === canalAtivoRef.current) aplicarReacaoChat(wsEvent);
+      return;
+    }
     if (tipo === "mensagem_editada" || tipo === "mensagem_excluida") {
       if (canal_id === canalAtivoRef.current && mensagem) {
         setMensagens((prev) => prev.map((m) => (m.id === mensagem.id ? mensagem : m)));
@@ -208,7 +236,12 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   }, []);
 
   useEffectChat(() => {
-    if (mensagensRef.current) mensagensRef.current.scrollTop = mensagensRef.current.scrollHeight;
+    // Reagir a uma mensagem antiga não deve pular a conversa para o final.
+    const ultimaId = mensagens.length ? mensagens[mensagens.length - 1].id : null;
+    if (ultimaId !== ultimaMensagemRef.current) {
+      ultimaMensagemRef.current = ultimaId;
+      if (mensagensRef.current) mensagensRef.current.scrollTop = mensagensRef.current.scrollHeight;
+    }
   }, [mensagens]);
 
   const ajustarAlturaComposer = (el = textareaRef.current) => {
@@ -341,6 +374,23 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  const alternarReacaoChat = async (m, emoji) => {
+    if (reacaoPendente || m.excluida_para_todos_em) return;
+    setReacaoPendente(m.id + ":" + emoji);
+    try {
+      const resposta = await EnvoxersAPI.api(
+        `/chat/canais/${m.canal_id}/mensagens/${m.id}/reacoes`,
+        { method: "POST", body: JSON.stringify({ emoji }) }
+      );
+      aplicarReacaoChat(resposta);
+      setReagindoId(null);
+    } catch (err) {
+      toast(err.message || "Não foi possível reagir", "error");
+    } finally {
+      setReacaoPendente(null);
+    }
+  };
+
   const iniciarEdicao = (m) => {
     setEditandoId(m.id);
     setTextoEdicao(m.texto || "");
@@ -457,6 +507,25 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                     {!excluida && editandoId !== m.id && (
                       <span className="chat-msg-actions">
                         <button type="button" onClick={() => selecionarResposta(m)} title="Responder esta mensagem">Responder</button>
+                        <span className="chat-react-trigger">
+                          <button
+                            type="button"
+                            aria-label="Reagir à mensagem"
+                            aria-expanded={reagindoId === m.id}
+                            title="Reagir à mensagem"
+                            onClick={() => setReagindoId((anterior) => anterior === m.id ? null : m.id)}
+                          >😊 Reagir</button>
+                          {reagindoId === m.id && (
+                            <span className="chat-reaction-picker" role="group" aria-label="Escolher reação">
+                              {CHAT_REACTION_EMOJIS.map((emoji) => (
+                                <button type="button" key={emoji} title={"Reagir com " + emoji}
+                                  className={(m.minhas_reacoes || []).includes(emoji) ? "selected" : ""}
+                                  disabled={!!reacaoPendente}
+                                  onClick={() => alternarReacaoChat(m, emoji)}>{emoji}</button>
+                              ))}
+                            </span>
+                          )}
+                        </span>
                         {propria && podeEditar && <button type="button" title={m.prazo_edicao ? `Editar até ${new Date(m.prazo_edicao).toLocaleString("pt-BR")}` : "Editar"} onClick={() => iniciarEdicao(m)}>Editar</button>}
                         {propria && podeExcluir && <button type="button" className="danger" title={m.prazo_exclusao ? `Excluir para todos até ${new Date(m.prazo_exclusao).toLocaleString("pt-BR")}` : "Excluir para todos"} onClick={() => excluirParaTodos(m)}>Excluir</button>}
                       </span>
@@ -504,6 +573,20 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                             </span>
                           </a>
                         )
+                      )}
+                      {(m.reacoes || []).length > 0 && (
+                        <div className="chat-reactions" aria-label="Reações à mensagem">
+                          {m.reacoes.map(({ emoji, quantidade }) => (
+                            <button type="button" key={emoji}
+                              className={"chat-reaction-pill" + ((m.minhas_reacoes || []).includes(emoji) ? " mine" : "")}
+                              title={((m.minhas_reacoes || []).includes(emoji) ? "Retirar minha reação " : "Reagir com ") + emoji}
+                              aria-pressed={(m.minhas_reacoes || []).includes(emoji)}
+                              disabled={!!reacaoPendente}
+                              onClick={() => alternarReacaoChat(m, emoji)}>
+                              <span>{emoji}</span><span>{quantidade}</span>
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </>
                   )}
