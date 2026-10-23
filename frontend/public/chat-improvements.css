@@ -49,3 +49,43 @@
  .chat-msg{max-width:89%;}
  .chat-image-overlay{padding:8px;}
 }
+
+/* Reações por mensagem, compactas e independentes do compositor. */
+.chat-react-trigger { position: relative; display: inline-flex; }
+.chat-reaction-picker {
+  position: absolute; z-index: 100; top: calc(100% + 7px); left: 0;
+  width: 246px; padding: 8px;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px;
+  border-radius: 12px; background: var(--bg-elev);
+  border: 1px solid var(--line-2); box-shadow: var(--shadow-2);
+}
+.chat-msg.own .chat-reaction-picker { left: auto; right: 0; }
+.chat-msg-actions .chat-reaction-picker button {
+  font: inherit; font-size: 21px; padding: 6px 2px;
+  border-radius: 7px; opacity: 1;
+  line-height: 1.4; cursor: pointer; text-align: center;
+  border: 0; background: transparent; color: var(--ink);
+}
+.chat-msg-actions .chat-reaction-picker button:hover,
+.chat-msg-actions .chat-reaction-picker button.selected {
+  background: var(--envox-soft); color: var(--ink);
+}
+.chat-msg-actions .chat-reaction-picker button:disabled { opacity: .5; cursor: wait; }
+.chat-reactions { display: flex; flex-wrap: wrap; gap: 5px; margin: 5px 0 0; max-width: 100%; }
+.chat-msg.own .chat-reactions { justify-content: flex-end; }
+.chat-reaction-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--line-2); border-radius: 18px;
+  padding: 3px 9px; color: var(--ink-2); background: var(--bg-elev);
+  font: 500 12px/1.4 var(--font-ui); cursor: pointer;
+}
+.chat-reaction-pill span:first-child { font-size: 16px; line-height: 1.2; }
+.chat-reaction-pill.mine {
+  border-color: var(--envox); background: var(--envox-soft); color: var(--envox);
+}
+.chat-reaction-pill:hover { border-color: var(--envox); }
+.chat-reaction-pill:disabled { cursor: wait; opacity: .6; }
+@media(max-width:620px) {
+  .chat-reaction-picker { width: 215px; }
+  .chat-reaction-pill { font-size: 11px; }
+}
