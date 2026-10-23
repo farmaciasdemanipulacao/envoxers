@@ -12,7 +12,8 @@ from app.models.cliente_contato import ClienteContato
 from app.models.envoxer import Envoxer
 from app.models.solicitacao import Solicitacao, TIPO_SOLICITACAO_VALUES
 from app.models.tarefa import Tarefa
-from app.models.portal_operacao import PortalUnidade, PortalContatoUnidade, PortalSolicitacaoTarefa, PortalEvento, PortalComentario, PortalFormulario, PortalClienteConfig
+from app.models.evento import Evento
+from app.models.portal_operacao import PortalUnidade, PortalContatoUnidade, PortalSolicitacaoTarefa, PortalEvento, PortalComentario, PortalFormulario, PortalClienteConfig, PortalCampanha
 from app.services.portal_permissoes import capacidades, pode, pode_ver_solicitacao
 
 router = APIRouter(prefix="/portal/operacao", tags=["portal-operacao"])
@@ -38,6 +39,8 @@ TAREFA_STATUS = {
 class SolicitacaoNova(BaseModel):
     unidade_id: int | None = None
     frente_id: int | None = None
+    campanha_id: int | None = Field(..., description='Informe ID ou null para Sem campanha')
+    evento_id: int | None = Field(..., description='Informe ID ou null para Sem evento')
     tipo: str
     titulo: str = Field(min_length=3, max_length=200)
     descricao: str = Field(min_length=10, max_length=12000)
@@ -45,6 +48,17 @@ class SolicitacaoNova(BaseModel):
     apoio_envox: str = Field(min_length=2, max_length=4000)
     referencias: str = Field(default="", max_length=4000)
     campos_customizados: dict = Field(default_factory=dict)
+
+class CampanhaNova(BaseModel):
+    nome: str = Field(min_length=2, max_length=160)
+    unidade_id: int | None = None
+    frente_id: int | None = None
+
+class EventoNovo(BaseModel):
+    nome: str = Field(min_length=2, max_length=200)
+    data: date
+    unidade_id: int | None = None
+    frente_id: int | None = None
 
 class ComentarioNovo(BaseModel):
     texto: str = Field(min_length=1, max_length=4000)
@@ -103,6 +117,7 @@ def representacao(s: Solicitacao) -> dict:
         "titulo": s.titulo, "tipo": s.tipo, "descricao": s.descricao,
         "status": PUBLIC_STATUS.get(s.status, "Em acompanhamento"),
         "unidade_id": s.portal_unidade_id, "frente_id": s.portal_frente_id,
+        "campanha_id": s.portal_campanha_id, "evento_id": s.portal_evento_id,
         "prazo_solicitado": s.prazo_solicitado, "prazo_confirmado": s.prazo_confirmado,
         "criado_em": s.created_at, "solicitante": s.solicitante_nome,
         "briefing": briefing_publico(s.briefing_estruturado),

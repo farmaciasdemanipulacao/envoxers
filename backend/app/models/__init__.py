@@ -58,6 +58,6 @@ from app.models.sessao_web import SessaoWeb, PareamentoWeb  # noqa: F401
 
 from app.models.pdi_jornada import PdiJornada, PdiRegistro, PdiDiagnostico, PdiLembreteEnvio  # noqa: F401
 
-from app.models.portal_operacao import PortalUnidade, PortalContatoUnidade, PortalSolicitacaoTarefa, PortalEvento, PortalComentario, PortalFormulario  # noqa: F401
+from app.models.portal_operacao import PortalUnidade, PortalContatoUnidade, PortalSolicitacaoTarefa, PortalEvento, PortalComentario, PortalFormulario, PortalClienteConfig, PortalCampanha  # noqa: F401
 
 from app.models.portal_anexo import PortalAnexo  # noqa: F401

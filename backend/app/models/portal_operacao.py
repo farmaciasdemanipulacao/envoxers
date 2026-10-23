@@ -63,3 +63,16 @@ class PortalClienteConfig(Base):
     notificacoes: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     visibilidade: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+class PortalCampanha(Base):
+    """Catálogo comercial de campanhas do cliente. Execução segue em Solicitação/Tarefa."""
+    __tablename__ = "portal_campanha"
+    __table_args__ = (UniqueConstraint("cliente_id", "nome", name="uq_portal_campanha_nome"),)
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    cliente_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("cliente.id", ondelete="CASCADE"), nullable=False)
+    nome: Mapped[str] = mapped_column(String(160), nullable=False)
+    portal_unidade_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("portal_unidade.id", ondelete="SET NULL"))
+    portal_frente_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("portal_unidade.id", ondelete="SET NULL"))
+    criado_por_contato_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("cliente_contato.id", ondelete="SET NULL"))
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

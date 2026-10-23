@@ -48,6 +48,8 @@ class Solicitacao(Base, TimestampMixin):
     portal_contato_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("cliente_contato.id", ondelete="SET NULL"))
     portal_unidade_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("portal_unidade.id", ondelete="SET NULL"))
     portal_frente_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("portal_unidade.id", ondelete="SET NULL"))
+    portal_campanha_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("portal_campanha.id", ondelete="SET NULL"))
+    portal_evento_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("evento.id", ondelete="SET NULL"))
     prazo_solicitado: Mapped[Optional[date]] = mapped_column(Date)
     prazo_confirmado: Mapped[Optional[date]] = mapped_column(Date)
     briefing_estruturado: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)

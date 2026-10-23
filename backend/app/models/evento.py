@@ -23,6 +23,8 @@ class Evento(Base, TimestampMixin):
     cliente_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("cliente.id", ondelete="SET NULL"), nullable=True
     )
+    portal_unidade_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("portal_unidade.id", ondelete="SET NULL"), nullable=True)
+    portal_frente_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("portal_unidade.id", ondelete="SET NULL"), nullable=True)
     data_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     data_fim: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     dia_inteiro: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
