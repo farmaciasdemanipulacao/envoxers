@@ -131,7 +131,8 @@ try {
   await aguardarCondicao(()=>logged.dom.window.document.querySelectorAll('.windows-file-tile').length===2);
   const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');
   assert.equal(tiles.length,2,'Miniaturas precisam aparecer também dentro do Drive');
-  assert.equal(tiles[0].querySelector('.windows-file-thumbnail img')?.alt,'Miniatura de capa-de-teste.png');
+  const imageTile=await aguardarCondicao(()=>Array.from(logged.dom.window.document.querySelectorAll('.windows-file-tile')).find(tile=>tile.querySelector('.windows-file-thumbnail img')?.alt==='Miniatura de capa-de-teste.png'));
+  assert.ok(imageTile,'Miniatura de capa-de-teste.png não apareceu');
   assert.ok(tiles[1].querySelector('.windows-file-thumbnail.video'),'Card de vídeo sem prévia/fallback');
   assert.ok(tiles[1].querySelector('.windows-file-thumbnail-play'),'Ícone de vídeo ausente');
   assert.ok(!logged.errors.length,logged.errors.join('; '));
