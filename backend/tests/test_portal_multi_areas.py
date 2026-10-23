@@ -76,7 +76,7 @@ class MultiAreasSECOVITest(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn(internal,str(private))
             def novo(**kw):
                 return SolicitacaoNova(
-                  unidade_id=kw.get("unidade_id"),frente_id=kw.get("frente_id"),
+                  unidade_id=kw.get("unidade_id"),frente_id=kw.get("frente_id"),campanha_id=None,evento_id=None,
                   tipo="evento",titulo="Novo pedido fictício",
                   descricao="Briefing inteiramente fictício para teste",
                   prazo_solicitado=date(2026,12,20),apoio_envox="Arte de teste")
