@@ -29,7 +29,7 @@ class TrackingResources extends ResourceLoader {
   urls=[];
   fetch(url,opts) {this.urls.push(url);return super.fetch(url,opts);}
 }
-async function open(authorized=false,desktop=false) {
+async function open(authorized=false,desktop=false,chatFixture=false) {
   const resources=new TrackingResources(),errors=[],nativeCalls=[],nativeEvents=new Map();
   const virtualConsole=new VirtualConsole();
   virtualConsole.on("jsdomError",e=>errors.push(e.message));
@@ -64,7 +64,7 @@ async function open(authorized=false,desktop=false) {
       win.localStorage.setItem("envoxers_permissao","envoxer");
       win.localStorage.setItem("envoxers_id","333");
       win.localStorage.setItem("envoxers_modo_acesso","web");
-      win.sessionStorage.setItem("envoxers_view_333","arquivos");
+      win.sessionStorage.setItem("envoxers_view_333",chatFixture?"chat":"arquivos");
       win.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
       win.__testSockets=[];
       win.WebSocket=class {constructor(){this.readyState=0;win.__testSockets.push(this)}close(){}send(){}};
@@ -72,6 +72,21 @@ async function open(authorized=false,desktop=false) {
         const path=String(url);
         if(path.includes("/assets-runtime/manifest.json")) return fetch(new URL(path,win.location.origin));
         let data=[];
+        if(chatFixture) {
+          const base={canal_id:77,autor_envoxer_id:444,autor_nome:"Colaboradora",autor_foto:null,
+            texto:"Teste de mensagem",created_at:"2026-10-20T10:00:00Z",anexo_url:null,
+            excluida_para_todos_em:null,resposta_a_id:null,resposta_a:null};
+          if(path.endsWith("/chat/canais")) data=[{id:77,tipo:"geral",nome:"Geral",nao_lidas:0}];
+          if(path.endsWith("/chat/canais/77/mensagens") && options.method==="POST") {
+            const body=JSON.parse(options.body);
+            data={...base,id:303,created_at:"2026-10-21T15:02:00Z",texto:body.texto,
+              resposta_a_id:body.resposta_a_id,resposta_a:{id:301,autor_nome:"Colaboradora",texto:"Primeiro dia"}};
+          } else if(path.endsWith("/chat/canais/77/mensagens")) data=[
+            {...base,id:301,texto:"Primeiro dia"},
+            {...base,id:302,created_at:"2026-10-21T10:00:00Z",texto:"Veja o print",
+              anexo_url:"/api/v1/uploads/print-teste.png",anexo_nome:"print-teste.png",anexo_mime_type:"image/png"}
+          ];
+        }
         if(path.includes("/auth/me")) data={id:333,nome:"Teste Envoxers",
           permissao:"envoxer",modulos:["operacao","chat","entregas"]};
         if(path.includes("/chat/bloqueio")) data={bloqueado:false,canais:[]};
@@ -138,6 +153,35 @@ try {
   assert.ok(!logged.errors.length,logged.errors.join('; '));
   console.log('DRIVE_THUMBNAILS_OK:',tiles.length,'file cards');
   logged.dom.window.close();
+  // Regressões de Chat: datas, resposta persistente, prévia e foco após Enter.
+  const chat=await open(true,false,true);
+  const chatDoc=chat.dom.window.document;
+  const separators=await aguardarCondicao(()=>chatDoc.querySelectorAll('.chat-day-divider').length===2);
+  assert.ok(separators,'Separadores de data ausentes');
+  assert.equal(chatDoc.querySelectorAll('.chat-msg').length,2);
+  const viewButton=chatDoc.querySelector('.chat-msg-image');
+  assert.ok(viewButton,'Prévia de imagem não encontrada');
+  assert.ok(chatDoc.querySelector('.chat-image-download'),'Opção de download não encontrada');
+  viewButton.click();
+  assert.ok(chatDoc.querySelector('.chat-image-overlay'),'Imagem não abriu dentro do sistema');
+  chatDoc.querySelector('.chat-image-dialog-header button').click();
+  const replyBtn=chatDoc.querySelector('.chat-msg-actions button');
+  replyBtn.click();
+  assert.ok(chatDoc.querySelector('.chat-reply-draft'),'Citação da resposta ausente');
+  const textarea=chatDoc.querySelector('.chat-input-bar textarea');
+  textarea.focus();
+  const setter=Object.getOwnPropertyDescriptor(chat.dom.window.HTMLTextAreaElement.prototype,'value').set;
+  setter.call(textarea,'Resposta de teste');
+  textarea.dispatchEvent(new chat.dom.window.Event('input',{bubbles:true}));
+  await aguardarCondicao(()=>chatDoc.querySelector('.chat-send-btn')?.disabled===false);
+  textarea.dispatchEvent(new chat.dom.window.KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true}));
+  const replySaved=await aguardarCondicao(()=>chatDoc.querySelector('[data-chat-mensagem-id="303"]'));
+  assert.ok(replySaved,'Resposta enviada não apareceu');
+  assert.ok(replySaved.querySelector('.chat-quoted-msg'),'Vínculo da resposta não foi renderizado');
+  assert.equal(chatDoc.activeElement,textarea,'Enter retirou o foco do campo');
+  assert.ok(!chat.errors.length,chat.errors.join('; '));
+  console.log('CHAT_UX_OK:',separators,'date separators; reply + preview + focus');
+  chat.dom.window.close();
   const native=await open(true,true);
   assert.equal(native.dom.window.envoxersDesktop?.active,true);
   assert.ok(native.dom.window.document.querySelector('.app'));
