@@ -52,7 +52,7 @@ class CampanhasEventosTest(unittest.IsolatedAsyncioTestCase):
                     descricao="Conteúdo completamente fictício de homologação",
                     prazo_solicitado=date(2026,12,15),apoio_envox="Design",
                 )
-            solicit=await criar(novo(campanha_id=camp["id"],evento_id=evt["id"]),marli,db)
+            solic=await criar(novo(campanha_id=camp["id"],evento_id=evt["id"]),marli,db)
             self.assertEqual((await detalhar(solic["id"],marli,db))["campanha_id"],camp["id"])
             self.assertEqual((await detalhar(solic["id"],marli,db))["evento_id"],evt["id"])
             self.assertEqual((await listar_campanhas(marli,db))[0]["total_solicitacoes"],1)
