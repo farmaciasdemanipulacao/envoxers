@@ -98,6 +98,7 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const [novoDmAberto, setNovoDmAberto] = useStateChat(false);
   const [emojiAberto, setEmojiAberto] = useStateChat(false);
   const [reagindoId, setReagindoId] = useStateChat(null);
+  const [posPickerReacao, setPosPickerReacao] = useStateChat({ top: 0, left: 0 });
   const [reacaoPendente, setReacaoPendente] = useStateChat(null);
   const [editandoId, setEditandoId] = useStateChat(null);
   const [textoEdicao, setTextoEdicao] = useStateChat("");
@@ -374,6 +375,18 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  const abrirPickerReacao = (evento, id) => {
+    if (reagindoId === id) { setReagindoId(null); return; }
+    const bounds = evento.currentTarget.getBoundingClientRect();
+    const altura = 198; // 4 linhas de emojis + espaçamento
+    const topo = bounds.bottom + altura + 12 < window.innerHeight
+      ? bounds.bottom + 8
+      : Math.max(8, bounds.top - altura - 8);
+    const esquerda = Math.max(8, Math.min(bounds.left, window.innerWidth - 254));
+    setPosPickerReacao({ top: topo, left: esquerda });
+    setReagindoId(id);
+  };
+
   const alternarReacaoChat = async (m, emoji) => {
     if (reacaoPendente || m.excluida_para_todos_em) return;
     setReacaoPendente(m.id + ":" + emoji);
@@ -513,10 +526,10 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                             aria-label="Reagir à mensagem"
                             aria-expanded={reagindoId === m.id}
                             title="Reagir à mensagem"
-                            onClick={() => setReagindoId((anterior) => anterior === m.id ? null : m.id)}
+                            onClick={(e) => abrirPickerReacao(e, m.id)}
                           >😊 Reagir</button>
                           {reagindoId === m.id && (
-                            <span className="chat-reaction-picker" role="group" aria-label="Escolher reação">
+                            <span className="chat-reaction-picker" style={{ position: "fixed", top: posPickerReacao.top, left: posPickerReacao.left, right: "auto" }} role="group" aria-label="Escolher reação">
                               {CHAT_REACTION_EMOJIS.map((emoji) => (
                                 <button type="button" key={emoji} title={"Reagir com " + emoji}
                                   className={(m.minhas_reacoes || []).includes(emoji) ? "selected" : ""}
