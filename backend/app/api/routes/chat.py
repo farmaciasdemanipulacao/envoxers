@@ -452,6 +452,9 @@ async def _enviar_mensagem_core(
     db.add(mensagem)
     await db.flush()
     await db.refresh(mensagem)
+    # Recebedores podem confirmar leitura assim que o WebSocket chegar.
+    # A mensagem precisa estar comprometida no banco ANTES de avisá-los.
+    await db.commit()
 
     resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id, citacao)
     payload_ws = {"tipo": "mensagem_nova", "canal_id": canal_id, "mensagem": resposta.model_dump(mode="json")}
@@ -760,6 +763,8 @@ async def marcar_lido(
         )
     )
     leitura_ate = result.scalar_one()
+    # Também confirma o cursor antes de notificar os demais participantes.
+    await db.commit()
     await _broadcast_evento_mensagem(db, canal, {
         "tipo": "chat_leitura_atualizada",
         "canal_id": canal_id,
