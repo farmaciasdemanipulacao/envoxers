@@ -311,6 +311,120 @@ async def configuracao(
         "formulario": {"versao": formulario.versao if formulario else 0, "campos": formulario.campos if formulario else CAMPOS_PADRAO},
     }
 
+
+async def validar_areas_catalogo(db: AsyncSession, contato: ClienteContato, unidade_id: int | None, frente_id: int | None):
+    if unidade_id is None and frente_id is None and not pode(contato.portal_papel,"ver_todas",contato.portal_capacidades):
+        raise HTTPException(422, "Selecione uma regional ou frente antes de criar")
+    ids = await unidades_do_contato(db, contato)
+    for ident, tipo in ((unidade_id,"regional"),(frente_id,"frente")):
+        if ident is None:
+            continue
+        u=await db.get(PortalUnidade,ident)
+        if not u or u.cliente_id != contato.cliente_id or u.tipo != tipo or not u.ativo:
+            raise HTTPException(422, "Regional ou frente inválida")
+        if not pode(contato.portal_papel,"ver_todas",contato.portal_capacidades) and ident not in ids:
+            raise HTTPException(403, "Área não autorizada")
+
+def escopo_catalogo(stmt, model, ids: set[int], todas: bool):
+    if todas: return stmt
+    return stmt.where(or_(model.portal_unidade_id.in_(ids), model.portal_frente_id.in_(ids)))
+
+async def campanhas_visiveis(db: AsyncSession, contato: ClienteContato):
+    ids=await unidades_do_contato(db,contato)
+    stmt=select(PortalCampanha).where(
+        PortalCampanha.cliente_id==contato.cliente_id,PortalCampanha.ativo.is_(True)
+    )
+    stmt=escopo_catalogo(stmt,PortalCampanha,ids,pode(contato.portal_papel,"ver_todas",contato.portal_capacidades))
+    return (await db.execute(stmt.order_by(PortalCampanha.criado_em.desc(),PortalCampanha.id.desc()).limit(300))).scalars().all()
+
+async def eventos_visiveis(db: AsyncSession, contato: ClienteContato):
+    ids=await unidades_do_contato(db,contato)
+    stmt=select(Evento).where(
+        Evento.cliente_id==contato.cliente_id,
+        Evento.deleted_at.is_(None), Evento.tipo=="evento_externo",
+    )
+    stmt=escopo_catalogo(stmt,Evento,ids,pode(contato.portal_papel,"ver_todas",contato.portal_capacidades))
+    return (await db.execute(stmt.order_by(Evento.data_inicio.desc(),Evento.id.desc()).limit(300))).scalars().all()
+
+@router.get("/campanhas")
+async def listar_campanhas(
+    contato: Annotated[ClienteContato,Depends(contato_habilitado)],
+    db: Annotated[AsyncSession,Depends(get_db)],
+):
+    campanhas=await campanhas_visiveis(db,contato)
+    # Contagens vêm da solicitação canônica e respeitam escopo do usuário.
+    base=await escopo_stmt(db,contato)
+    pedidos=(await db.execute(base.where(Solicitacao.portal_campanha_id.in_([c.id for c in campanhas])))).scalars().all() if campanhas else []
+    totais={}
+    for pedido in pedidos:
+        totais[pedido.portal_campanha_id]=totais.get(pedido.portal_campanha_id,0)+1
+    return [{"id":c.id,"nome":c.nome,"unidade_id":c.portal_unidade_id,
+             "frente_id":c.portal_frente_id,"total_solicitacoes":totais.get(c.id,0)}
+            for c in campanhas]
+
+@router.post("/campanhas",status_code=201)
+async def criar_campanha(
+    payload: CampanhaNova,
+    contato: Annotated[ClienteContato,Depends(contato_habilitado)],
+    db: Annotated[AsyncSession,Depends(get_db)],
+):
+    if not pode(contato.portal_papel,"solicitar",contato.portal_capacidades):
+        raise HTTPException(403,"Sem permissão para cadastrar campanha")
+    await validar_areas_catalogo(db,contato,payload.unidade_id,payload.frente_id)
+    nome=payload.nome.strip()
+    if len(nome)<2: raise HTTPException(422,"Informe o nome da campanha")
+    encontrado=(await db.execute(select(PortalCampanha).where(
+        PortalCampanha.cliente_id==contato.cliente_id,
+        func.lower(PortalCampanha.nome)==nome.lower(),
+    ))).scalar_one_or_none()
+    if encontrado:
+        # Não vazar catálogo de outra regional só porque o nome coincide.
+        visiveis=await campanhas_visiveis(db,contato)
+        if encontrado.id not in {c.id for c in visiveis}:
+            raise HTTPException(409,"Nome já utilizado. Solicite à Envox o acesso à campanha")
+        return {"id":encontrado.id,"nome":encontrado.nome,"unidade_id":encontrado.portal_unidade_id,
+                "frente_id":encontrado.portal_frente_id,"ja_existia":True}
+    c=PortalCampanha(cliente_id=contato.cliente_id,nome=nome,
+        portal_unidade_id=payload.unidade_id,portal_frente_id=payload.frente_id,
+        criado_por_contato_id=contato.id)
+    db.add(c);await db.flush()
+    return {"id":c.id,"nome":c.nome,"unidade_id":c.portal_unidade_id,"frente_id":c.portal_frente_id,
+            "total_solicitacoes":0,"ja_existia":False}
+
+@router.get("/eventos")
+async def listar_eventos_portal(
+    contato: Annotated[ClienteContato,Depends(contato_habilitado)],
+    db: Annotated[AsyncSession,Depends(get_db)],
+):
+    eventos=await eventos_visiveis(db,contato)
+    base=await escopo_stmt(db,contato)
+    pedidos=(await db.execute(base.where(Solicitacao.portal_evento_id.in_([e.id for e in eventos])))).scalars().all() if eventos else []
+    totais={}
+    for pedido in pedidos:
+        totais[pedido.portal_evento_id]=totais.get(pedido.portal_evento_id,0)+1
+    return [{"id":e.id,"nome":e.titulo,"data":e.data_inicio.date().isoformat(),
+             "unidade_id":e.portal_unidade_id,"frente_id":e.portal_frente_id,
+             "total_solicitacoes":totais.get(e.id,0)}
+            for e in eventos]
+
+@router.post("/eventos",status_code=201)
+async def criar_evento_portal(
+    payload: EventoNovo,
+    contato: Annotated[ClienteContato,Depends(contato_habilitado)],
+    db: Annotated[AsyncSession,Depends(get_db)],
+):
+    if not pode(contato.portal_papel,"solicitar",contato.portal_capacidades):
+        raise HTTPException(403,"Sem permissão para cadastrar evento")
+    await validar_areas_catalogo(db,contato,payload.unidade_id,payload.frente_id)
+    nome=payload.nome.strip()
+    if len(nome)<2: raise HTTPException(422,"Informe o nome do evento")
+    e=Evento(cliente_id=contato.cliente_id,titulo=nome,tipo="evento_externo",
+        data_inicio=datetime.combine(payload.data,datetime.min.time(),tzinfo=timezone.utc),
+        dia_inteiro=True,portal_unidade_id=payload.unidade_id,portal_frente_id=payload.frente_id)
+    db.add(e);await db.flush()
+    return {"id":e.id,"nome":e.titulo,"data":payload.data.isoformat(),
+            "unidade_id":e.portal_unidade_id,"frente_id":e.portal_frente_id,"total_solicitacoes":0}
+
 @router.get("/solicitacoes")
 async def listar(
     contato: Annotated[ClienteContato, Depends(contato_habilitado)],
@@ -345,6 +459,24 @@ async def criar(
             raise HTTPException(422, "Frente inválida")
         if not pode(contato.portal_papel, "ver_todas", contato.portal_capacidades) and frente.id not in ids:
             raise HTTPException(403, "Frente não autorizada")
+    # Vínculos opcionais, com escolha explícita ("Sem campanha"/"Sem evento").
+    # Ids estrangeiros, de outra regional ou de outro cliente são rejeitados.
+    if payload.campanha_id is not None:
+        c=await db.get(PortalCampanha,payload.campanha_id)
+        if not c or not c.ativo or c.cliente_id!=contato.cliente_id:
+            raise HTTPException(422,"Campanha inválida")
+        if c.portal_unidade_id!=payload.unidade_id or c.portal_frente_id!=payload.frente_id:
+            # Admin pode criar campanhas globais; elas só podem ser usadas com
+            # escopos já autorizados e sem misturar áreas distintas.
+            if c.portal_unidade_id is not None or c.portal_frente_id is not None:
+                raise HTTPException(422,"A campanha pertence a outra área")
+    if payload.evento_id is not None:
+        ev=await db.get(Evento,payload.evento_id)
+        if not ev or ev.deleted_at is not None or ev.cliente_id!=contato.cliente_id or ev.tipo!="evento_externo":
+            raise HTTPException(422,"Evento inválido")
+        if ev.portal_unidade_id!=payload.unidade_id or ev.portal_frente_id!=payload.frente_id:
+            if ev.portal_unidade_id is not None or ev.portal_frente_id is not None:
+                raise HTTPException(422,"O evento pertence a outra área")
     # O frontend não é a autoridade de validação: exigir campos extras ativos no servidor.
     formulario_ativo = (await db.execute(select(PortalFormulario).where(
         PortalFormulario.cliente_id == contato.cliente_id, PortalFormulario.ativo.is_(True)
@@ -369,6 +501,7 @@ async def criar(
     s = Solicitacao(
         cliente_id=contato.cliente_id, portal_contato_id=contato.id,
         portal_unidade_id=payload.unidade_id, portal_frente_id=payload.frente_id,
+        portal_campanha_id=payload.campanha_id,portal_evento_id=payload.evento_id,
         tipo=payload.tipo, titulo=payload.titulo.strip(), descricao=payload.descricao.strip(),
         prazo_solicitado=payload.prazo_solicitado, solicitante_nome=contato.nome,
         status="nova", briefing_estruturado={
