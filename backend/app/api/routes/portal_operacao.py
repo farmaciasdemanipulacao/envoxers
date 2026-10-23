@@ -465,6 +465,8 @@ async def criar(
         c=await db.get(PortalCampanha,payload.campanha_id)
         if not c or not c.ativo or c.cliente_id!=contato.cliente_id:
             raise HTTPException(422,"Campanha inválida")
+        if c.id not in {x.id for x in await campanhas_visiveis(db,contato)}:
+            raise HTTPException(403,"Campanha fora das áreas autorizadas")
         if c.portal_unidade_id!=payload.unidade_id or c.portal_frente_id!=payload.frente_id:
             # Admin pode criar campanhas globais; elas só podem ser usadas com
             # escopos já autorizados e sem misturar áreas distintas.
@@ -474,6 +476,8 @@ async def criar(
         ev=await db.get(Evento,payload.evento_id)
         if not ev or ev.deleted_at is not None or ev.cliente_id!=contato.cliente_id or ev.tipo!="evento_externo":
             raise HTTPException(422,"Evento inválido")
+        if ev.id not in {x.id for x in await eventos_visiveis(db,contato)}:
+            raise HTTPException(403,"Evento fora das áreas autorizadas")
         if ev.portal_unidade_id!=payload.unidade_id or ev.portal_frente_id!=payload.frente_id:
             if ev.portal_unidade_id is not None or ev.portal_frente_id is not None:
                 raise HTTPException(422,"O evento pertence a outra área")
