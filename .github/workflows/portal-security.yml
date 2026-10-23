@@ -6,6 +6,7 @@ on:
       - 'backend/**'
       - 'frontend/public/portal/**'
       - 'frontend/tests/portal-compile.mjs'
+      - 'frontend/tests/portal-role-ui.mjs'
       - '.github/workflows/portal-security.yml'
   workflow_dispatch:
 
@@ -60,3 +61,5 @@ jobs:
       - run: npm ci
       - name: Portal JSX syntax
         run: node tests/portal-compile.mjs
+      - name: Role-specific UI navigation
+        run: node tests/portal-role-ui.mjs
