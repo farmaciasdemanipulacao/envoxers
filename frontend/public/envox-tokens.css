@@ -265,20 +265,37 @@ a:hover { text-decoration: underline; }
 .avatar.sm { width: 22px; height: 22px; font-size: 10px; }
 .avatar.lg { width: 64px; height: 64px; font-size: 20px; }
 
-/* Bolinha de presença (ativo/ausente/offline) sobre o Avatar — ver
-   EnvoxersShared.Avatar/usePresenca. .avatar-wrap só existe quando o Avatar
-   recebe `envoxerId`; sem isso, o <img>/<div> do avatar renderiza sozinho,
-   sem wrapper nenhum (layout idêntico ao de antes da presença existir). */
-.avatar-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
+/* Avatares de colaboradores, em todos os módulos, preservam o tamanho
+   intrínseco do retrato: containers flex não podem esticar o wrapper até
+   a altura do balão de mensagem (isso soltava a bolinha de presença). */
+.avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: max-content;
+  height: max-content;
+  align-self: center;
+  line-height: 0;
+  vertical-align: middle;
+}
+.avatar-wrap > img.avatar { display: block; }
+.avatar-wrap > .avatar { flex: 0 0 auto; }
+.avatar-wrap:not(.sm):not(.md):not(.lg) > .avatar { width: 40px; height: 40px; font-size: 14px; }
+.avatar-wrap.sm > .avatar { width: 30px; height: 30px; font-size: 11px; }
+.avatar-wrap.md > .avatar { width: 36px; height: 36px; font-size: 13px; }
+.avatar-wrap.lg > .avatar { width: 76px; height: 76px; font-size: 23px; }
 .avatar-status {
   position: absolute;
-  right: -1px; bottom: -1px;
-  width: 8px; height: 8px;
+  right: 0; bottom: 0;
+  width: 13px; height: 13px;
   border-radius: 50%;
-  border: 1.5px solid var(--bg-elev);
+  border: 2px solid var(--bg-elev);
+  box-sizing: border-box;
+  pointer-events: none;
 }
-.avatar-wrap.sm .avatar-status { width: 7px; height: 7px; }
-.avatar-wrap.lg .avatar-status { width: 13px; height: 13px; border-width: 2px; }
+.avatar-wrap.sm .avatar-status { width: 11px; height: 11px; }
+.avatar-wrap.md .avatar-status { width: 12px; height: 12px; }
+.avatar-wrap.lg .avatar-status { width: 18px; height: 18px; border-width: 2.5px; }
 .avatar-status-ativo { background: var(--farol-verde); }
 .avatar-status-ausente { background: var(--farol-amarelo); }
 .avatar-status-offline { background: var(--ink-4); }
@@ -3307,6 +3324,8 @@ tbody tr.danger:hover { background: rgba(178, 59, 46, 0.09); }
   align-self: flex-start;
 }
 .chat-msg.own { align-self: flex-end; }
+/* Foto + status permanecem juntos no topo mesmo com prints/anexos altos. */
+.chat-msg > .avatar-wrap { align-self: flex-start; }
 .chat-msg-body { min-width: 0; }
 .chat-msg-meta {
   display: flex;
