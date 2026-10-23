@@ -192,6 +192,15 @@ const PortalOperacao = (() => {
     );
     const nome = localStorage.getItem("portal_nome") || "Olá";
     const organizacao = localStorage.getItem("portal_cliente_nome") || "Portal do Cliente";
+    const primeiroNome = nome.trim().split(/\s+/)[0];
+    const tituloPagina = aba==="inicio" ? "Visão geral" :
+      aba==="solicitacoes" ? "Demandas" :
+      aba==="campanhas" ? "Campanhas" :
+      aba==="eventos" ? "Eventos" :
+      aba==="nova" ? "Nova solicitação" :
+      aba==="equipe" ? "Pessoas e acessos" :
+      aba==="pendencias" ? "Em validação" :
+      aba==="detalhe" ? "Acompanhar solicitação" : "Documentos";
     useEffect(() => {
       if (aba !== "equipe" || !caps.has("gerenciar_usuarios")) return;
       let ativo = true;
@@ -239,43 +248,37 @@ const PortalOperacao = (() => {
       <div className="po-layout">
         <aside className="po-sidebar">
           <div className="po-brand"><span className="po-logo"><i aria-hidden="true"/> ENVOX</span><small>PORTAL DO CLIENTE</small></div>
-          <div className="po-org"><small>ORGANIZAÇÃO</small><strong>{organizacao}</strong></div>
           <nav aria-label="Navegação principal">
             {principal.map(([key,txt]) =>
-              <button key={key} type="button" className={aba===key?"po-nav active":"po-nav"}
+              <button key={key} type="button" aria-current={aba===key?"page":undefined}
+                className={"po-nav"+(aba===key?" active":"")+(key==="nova"?" po-nav-new":"")}
                 onClick={()=>{setSelecionada(null);setFiltroCatalogo(null);setAba(key);}}>
                 <MenuIcon nome={key}/><span>{txt}</span>
               </button>
             )}
           </nav>
           <div className="po-sidebar-footer">
-            <span>{nome}</span><small>{perfil.nome} · {perfil.escopo}</small>
-            <button type="button" onClick={()=>{PortalAPI.clearSession();location.reload();}}>Sair da conta</button>
+            <span className="po-user-name">{nome}</span>
+            <small className="po-user-role" title={perfil.nome+" | "+escopoVisivel}>{perfil.nome}</small>
+            <button type="button" onClick={()=>{PortalAPI.clearSession();location.reload();}}>Sair</button>
           </div>
         </aside>
         <main className="po-main">
           <header className="po-top">
-            <div><small>ENVOX / {organizacao.toUpperCase()}</small><h1>{
-              aba==="inicio" ? perfil.titulo :
-              aba==="solicitacoes" ? "Demandas" : aba==="campanhas" ? "Campanhas" : aba==="eventos" ? "Eventos" :
-              aba==="nova" ? "Nova solicitação" :
-              aba==="equipe" ? "Pessoas e acessos" : aba==="pendencias" ? "Em validação" :
-              aba==="detalhe" ? "Acompanhar solicitação" : "Documentos"
-            }</h1></div>
-            <button className="po-refresh" onClick={()=>carregar()} aria-label="Atualizar dados">↻ Atualizar</button>
-          </header>
-          <div className="po-role-banner" aria-live="polite">
-            <div><span className="po-role-label">SEU PERFIL</span>
-              <strong>{perfil.nome}</strong><span className="po-role-divider" aria-hidden="true">•</span>
-              <span>{escopoVisivel}</span>
+            <div className="po-heading">
+              <small className="po-context">{organizacao}</small>
+              <h1>{tituloPagina}</h1>
             </div>
-            <small>{perfil.descricao}</small>
-          </div>
+            <div className="po-top-actions">
+              <small className="po-mobile-role">{perfil.nome}</small>
+              <button type="button" className="po-refresh" onClick={()=>carregar()} title="Atualizar dados"
+                aria-label="Atualizar dados">↻ <span>Atualizar</span></button>
+            </div>
+          </header>
           {carregando ? <Empty text="Carregando dados da operação…" /> :
            erro && !config ? <Empty text={erro} /> :
            <>
             {aba==="inicio" && <section className="po-content">
-              <p className="po-lead">{perfil.descricao}</p>
               <div className="po-metrics">
                 {[
                   ["Solicitações",dashboard?.total||0],["Recebidas",dashboard?.recebidas||0],
@@ -288,16 +291,15 @@ const PortalOperacao = (() => {
               {mostrarNova && <button className="po-primary po-home-cta" onClick={()=>setAba("nova")}>+ Abrir nova solicitação</button>}
             </section>}
             {aba==="solicitacoes" && <section className="po-content">
-              <p className="po-lead">{escopoVisivel}. Cada protocolo mostra apenas informações autorizadas para seu acesso.</p>
               {filtroCatalogo&&<div className="po-filter"><span>Exibindo demandas vinculadas a {filtroCatalogo.tipo==="campanhas"?"uma campanha":"um evento"}.</span><button type="button" onClick={()=>setFiltroCatalogo(null)}>Limpar filtro ×</button></div>}
               <input className="po-search" value={pesquisa} onChange={e=>setPesquisa(e.target.value)} placeholder="Buscar por título, protocolo ou status…" aria-label="Buscar solicitações"/>
               {!listaFiltrada.length && <Empty text="Nenhuma solicitação encontrada." />}
               {listaFiltrada.map(item=><CartaoSolicitacao key={item.id} item={item}/>)}
             </section>}
-            {aba==="campanhas" && <section className="po-content">
-              <p className="po-lead">Organize demandas por campanha. Os pedidos continuam no mesmo fluxo operacional, sem duplicar tarefas.</p>
-              <div className="po-section-head"><h2>Campanhas da sua organização</h2>
-                {mostrarNova&&<button onClick={()=>{setAba("nova");setCriarCampanhaAberto(true);}}>+ Criar campanha em uma solicitação</button>}</div>
+            {aba==="campanhas" && <section className="po-content po-catalog-content">
+              <div className="po-section-head po-catalog-toolbar">
+                <p className="po-catalog-count">{campanhas.length} {campanhas.length===1?"campanha":"campanhas"} <span>·</span> {solicitacoes.length} demandas visíveis</p>
+                {mostrarNova&&<button onClick={()=>{setAba("nova");setCriarCampanhaAberto(true);}}>+ Criar com solicitação</button>}</div>
               <div className="po-catalog-grid">
                 {campanhas.map(c=><button type="button" className="po-catalog-card" key={c.id} onClick={()=>abrirCatalogo("campanhas",c.id)}>
                   <span className="po-catalog-icon campaign"><MenuIcon nome="campanhas"/></span>
@@ -312,10 +314,10 @@ const PortalOperacao = (() => {
                 </button>
               </div>
             </section>}
-            {aba==="eventos" && <section className="po-content">
-              <p className="po-lead">Acompanhe as demandas associadas a cada evento. As datas vêm do calendário existente do Envoxers.</p>
-              <div className="po-section-head"><h2>Eventos da sua organização</h2>
-                {mostrarNova&&<button onClick={()=>{setAba("nova");setCriarEventoAberto(true);}}>+ Criar evento em uma solicitação</button>}</div>
+            {aba==="eventos" && <section className="po-content po-catalog-content">
+              <div className="po-section-head po-catalog-toolbar">
+                <p className="po-catalog-count">{eventosCatalogo.length} {eventosCatalogo.length===1?"evento":"eventos"} <span>·</span> {solicitacoes.length} demandas visíveis</p>
+                {mostrarNova&&<button onClick={()=>{setAba("nova");setCriarEventoAberto(true);}}>+ Criar com solicitação</button>}</div>
               <div className="po-catalog-grid">
                 {eventosCatalogo.map(e=><button type="button" className="po-catalog-card" key={e.id} onClick={()=>abrirCatalogo("eventos",e.id)}>
                   <span className="po-catalog-icon event"><MenuIcon nome="eventos"/></span>
