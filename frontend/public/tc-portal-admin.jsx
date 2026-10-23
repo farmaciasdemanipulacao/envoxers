@@ -1,5 +1,5 @@
-/* Admin interno do Portal do Cliente: administra flags persistidas e cadastros existentes.
- * Não replica serviços, solicitações nem tarefas. Somente admin Envox.
+/* Configuração interna: perfil simples e múltiplas áreas por pessoa.
+ * Não replica serviços, solicitações nem tarefas. Envox admin/gestor.
  */
 function PortalClientesAdminScreen() {
   const toast = EnvoxersShared.useToast();
@@ -54,7 +54,8 @@ function PortalClientesAdminScreen() {
     if(!contatoEdit)return;setSalvando(true);
     try{
       await portalAdminApi("/clientes/"+clienteId+"/contatos/"+contatoEdit.id+"/acesso",{method:"PATCH",body:JSON.stringify({
-        papel:contatoEdit.papel,unidade_ids:contatoEdit.unidade_ids,capacidades:{}
+        papel:contatoEdit.papel,unidade_ids:contatoEdit.papel==="admin_institucional"?[]:contatoEdit.unidade_ids,
+        capacidades:{aprovar:contatoEdit.pode_aprovar===true}
       })});
       setContatoEdit(null);await carregar(clienteId);toast("Permissões atualizadas.","success");
     }catch(e){falha(e)}finally{setSalvando(false)}
@@ -80,7 +81,7 @@ function PortalClientesAdminScreen() {
   const inputStyle={border:"1px solid var(--line)",borderRadius:8,padding:"9px 11px",background:"#fff",minWidth:0};
   return <div className="page" style={{maxWidth:1200,margin:"0 auto",paddingBottom:45}}>
     <div className="page-header"><div className="page-title-block"><h1>Portal do Cliente</h1>
-      <div className="page-sub">Ativação por empresa, regionais, contatos, permissões e formulários. Usa a operação real do Envoxers.</div>
+      <div className="page-sub">Dois perfis para o cliente: Administrador/Gestor e Solicitante. Cada solicitante pode acessar várias regionais e frentes e também aprovar.</div>
     </div></div>
     {section("Cliente a configurar","Clientes são os mesmos cadastros já existentes no Envoxers. Não cria uma segunda base.",<>
       <select style={{...inputStyle,width:"100%",maxWidth:530}} value={clienteId} onChange={e=>setClienteId(e.target.value)}>
@@ -112,20 +113,28 @@ function PortalClientesAdminScreen() {
           <button className="btn btn-envox" type="submit" disabled={salvando||!novoNome.trim()}>Adicionar unidade</button>
         </form>
       </>)}
-      {section("Usuários e permissões","Contatos existentes do cliente. O cadastro de novos contatos permanece na ficha do cliente.",<>
+      {section("Pessoas e acessos","Selecione Administrador/Gestor SECOVI ou Solicitante. Associe quantas regionais e frentes precisar. Aprovação é uma opção independente.",<>
         {dados.contatos.length===0&&<p style={{fontSize:13}}>Nenhum contato cadastrado nesta organização.</p>}
         {dados.contatos.map(c=><div key={c.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 0",borderBottom:"1px solid var(--line)",flexWrap:"wrap"}}>
-          <div><strong style={{fontSize:13}}>{c.nome}</strong><div style={{fontSize:12,color:"var(--ink-3)"}}>{c.email} · {c.papel?.replaceAll("_"," ")} {c.ativo?"":"· inativo"}</div></div>
+          <div><strong style={{fontSize:13}}>{c.nome}</strong><div style={{fontSize:12,color:"var(--ink-3)"}}>{c.email} · {c.papel==="admin_institucional"?"Administrador/Gestor SECOVI":c.papel==="solicitante"?"Solicitante":"Perfil antigo: "+(c.papel||"não definido")} {c.pode_aprovar?" · Pode aprovar":""} {c.ativo?"":"· inativo"}</div></div>
           <button className="btn btn-sm" onClick={()=>setContatoEdit({...c,unidade_ids:[...c.unidade_ids]})}>Definir acesso</button>
         </div>)}
         {contatoEdit&&<div style={{background:"var(--bg-inset)",padding:18,marginTop:14,borderRadius:12}}>
           <strong>{contatoEdit.nome}</strong>
           <div style={{margin:"12px 0"}}><label style={{display:"block",fontSize:12,marginBottom:6}}>Perfil</label>
             <select style={{...inputStyle,width:"100%"}} value={contatoEdit.papel} onChange={e=>setContatoEdit({...contatoEdit,papel:e.target.value})}>
-              {["consulta","solicitante","aprovador","gestor_regional","gestor_geral","admin_institucional"].map(p=><option value={p} key={p}>{p.replaceAll("_"," ")}</option>)}
+              {["admin_institucional","solicitante"].map(p=><option value={p} key={p}>{p==="admin_institucional"?"Administrador / Gestor SECOVI":"Solicitante"}</option>)}
             </select></div>
-          <div style={{fontSize:12}}>Unidades autorizadas (gestor regional, solicitante e aprovador)</div>
-          {dados.unidades.map(u=><div key={u.id}>{check(u.nome,contatoEdit.unidade_ids.includes(u.id),v=>setContatoEdit({...contatoEdit,unidade_ids:v?[...contatoEdit.unidade_ids,u.id]:contatoEdit.unidade_ids.filter(id=>id!==u.id)}) )}</div>)}
+          <div style={{fontSize:12,marginBottom:9}}>Vínculos de acesso: um usuário pode acompanhar várias regionais e frentes.</div>
+          {check("Também pode aprovar materiais",contatoEdit.pode_aprovar,v=>setContatoEdit({...contatoEdit,pode_aprovar:v}),false,
+            "A permissão é independente do perfil. Ações reais de aprovação seguem desativadas até homologação.")}
+          {contatoEdit.papel==="admin_institucional"&&<p style={{fontSize:12,color:"var(--ink-3)"}}>O administrador SECOVI visualiza todas as áreas da organização. Não precisa selecionar vínculos.</p>}
+          <div style={{fontSize:12,fontWeight:650,marginTop:12}}>Regionais</div>
+          {contatoEdit.papel!=="admin_institucional"&&<>
+            {dados.unidades.filter(u=>u.tipo==="regional").map(u=><div key={u.id}>{check(u.nome,contatoEdit.unidade_ids.includes(u.id),v=>setContatoEdit({...contatoEdit,unidade_ids:v?[...contatoEdit.unidade_ids,u.id]:contatoEdit.unidade_ids.filter(id=>id!==u.id)}) )}</div>)}
+            <div style={{fontSize:12,fontWeight:650,marginTop:12}}>Frentes / departamentos</div>
+            {dados.unidades.filter(u=>u.tipo==="frente").map(u=><div key={u.id}>{check(u.nome,contatoEdit.unidade_ids.includes(u.id),v=>setContatoEdit({...contatoEdit,unidade_ids:v?[...contatoEdit.unidade_ids,u.id]:contatoEdit.unidade_ids.filter(id=>id!==u.id)}) )}</div>)}
+          </>}
           <div style={{display:"flex",gap:8,marginTop:14}}><button className="btn btn-envox" onClick={salvarPapel} disabled={salvando}>Salvar acesso</button><button className="btn" onClick={()=>setContatoEdit(null)}>Cancelar</button></div>
         </div>}
       </>)}
