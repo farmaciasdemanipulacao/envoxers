@@ -703,6 +703,10 @@ function AppShell() {
           } else if (data.tipo === "mensagem_editada" || data.tipo === "mensagem_excluida") {
             setChatWsEvent(data);
             carregarChatBadge();
+          } else if (data.tipo === "mensagem_reacoes") {
+            // Reações são alterações da mensagem, não mensagens novas:
+            // entregamos ao Chat sem incrementar não lidas ou notificar.
+            setChatWsEvent(data);
           } else if (data.tipo === "presenca") {
             window.EnvoxersPresence.set(data.envoxer_id, data.status);
           } else if (data.tipo === "tarefa_atualizada") {
