@@ -254,16 +254,16 @@ a:hover { text-decoration: underline; }
 }
 .sidebar.collapsed .sidebar-user { justify-content: center; padding-left: 0; padding-right: 0; }
 .avatar {
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 48px; height: 48px; border-radius: 50%;
   background: var(--envox); color: var(--bg-elev);
   display: flex; align-items: center; justify-content: center;
-  font-weight: 600; font-size: 12px;
+  font-weight: 600; font-size: 16px;
   flex-shrink: 0;
 }
 .avatar.gray { background: var(--ink-3); }
-.avatar.md { width: 28px; height: 28px; font-size: 11px; }
-.avatar.sm { width: 22px; height: 22px; font-size: 10px; }
-.avatar.lg { width: 64px; height: 64px; font-size: 20px; }
+.avatar.md { width: 46px; height: 46px; font-size: 15px; }
+.avatar.sm { width: 38px; height: 38px; font-size: 13px; }
+.avatar.lg { width: 96px; height: 96px; font-size: 27px; }
 
 /* Avatares de colaboradores, em todos os módulos, preservam o tamanho
    intrínseco do retrato: containers flex não podem esticar o wrapper até
@@ -280,22 +280,22 @@ a:hover { text-decoration: underline; }
 }
 .avatar-wrap > img.avatar { display: block; }
 .avatar-wrap > .avatar { flex: 0 0 auto; }
-.avatar-wrap:not(.sm):not(.md):not(.lg) > .avatar { width: 40px; height: 40px; font-size: 14px; }
-.avatar-wrap.sm > .avatar { width: 30px; height: 30px; font-size: 11px; }
-.avatar-wrap.md > .avatar { width: 36px; height: 36px; font-size: 13px; }
-.avatar-wrap.lg > .avatar { width: 76px; height: 76px; font-size: 23px; }
+.avatar-wrap:not(.sm):not(.md):not(.lg) > .avatar { width: 48px; height: 48px; font-size: 16px; }
+.avatar-wrap.sm > .avatar { width: 38px; height: 38px; font-size: 13px; }
+.avatar-wrap.md > .avatar { width: 46px; height: 46px; font-size: 15px; }
+.avatar-wrap.lg > .avatar { width: 96px; height: 96px; font-size: 27px; }
 .avatar-status {
   position: absolute;
   right: 0; bottom: 0;
-  width: 13px; height: 13px;
+  width: 16px; height: 16px;
   border-radius: 50%;
-  border: 2px solid var(--bg-elev);
+  border: 2.5px solid var(--bg-elev);
   box-sizing: border-box;
   pointer-events: none;
 }
-.avatar-wrap.sm .avatar-status { width: 11px; height: 11px; }
-.avatar-wrap.md .avatar-status { width: 12px; height: 12px; }
-.avatar-wrap.lg .avatar-status { width: 18px; height: 18px; border-width: 2.5px; }
+.avatar-wrap.sm .avatar-status { width: 14px; height: 14px; }
+.avatar-wrap.md .avatar-status { width: 15px; height: 15px; }
+.avatar-wrap.lg .avatar-status { width: 22px; height: 22px; border-width: 3px; }
 .avatar-status-ativo { background: var(--farol-verde); }
 .avatar-status-ausente { background: var(--farol-amarelo); }
 .avatar-status-offline { background: var(--ink-4); }
@@ -6366,7 +6366,7 @@ body.kanban-fullscreen-active .main {
 .foco-report-tabs button.active{color:var(--envox);border-bottom-color:var(--envox)}
 
 .foco-person{display:flex;align-items:center;gap:8px;min-width:150px}
-.foco-person .avatar{width:28px;height:28px;flex:0 0 28px}
+.foco-person .avatar{width:38px;height:38px;flex:0 0 38px}
 .foco-person strong{display:block;font-size:9.5px}
 .foco-person span{display:block;font-size:7.5px;color:var(--ink-4);margin-top:2px}
 .foco-origin-chip,.foco-adjusted-chip{display:inline-flex;align-items:center;border-radius:99px;padding:3px 6px;font-size:7px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;background:var(--bg-inset);color:var(--ink-3)}

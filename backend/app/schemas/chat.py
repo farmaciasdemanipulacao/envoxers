@@ -22,6 +22,23 @@ class ChatCitacaoResponse(BaseModel):
     excluida: bool = False
 
 
+class ChatReacaoCreate(BaseModel):
+    emoji: str
+
+
+class ChatReacaoCount(BaseModel):
+    emoji: str
+    quantidade: int
+
+
+class ChatReacaoToggleResponse(BaseModel):
+    mensagem_id: int
+    emoji: str
+    ativa: bool
+    alterado_por_id: int
+    reacoes: list[ChatReacaoCount]
+
+
 class ChatMensagemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,6 +61,8 @@ class ChatMensagemResponse(BaseModel):
     prazo_exclusao: Optional[datetime] = None
     pode_editar: bool = False
     pode_excluir: bool = False
+    reacoes: list[ChatReacaoCount] = []
+    minhas_reacoes: list[str] = []
 
 
 class ChatCanalResponse(BaseModel):

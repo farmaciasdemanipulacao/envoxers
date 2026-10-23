@@ -59,7 +59,7 @@ async function open(authorized=false,desktop=false,chatFixture=false) {
         }
       }},event:{listen:async (event,callback)=>{nativeEvents.set(event,callback);return ()=>nativeEvents.delete(event);}}};
       if(!authorized) return;
-      win.localStorage.setItem("envoxers_token","DUMMY_TEST_TOKEN");
+      win.localStorage.setItem("envoxers_token",chatFixture?"e30.eyJzdWIiOiIzMzMifQ.sig":"DUMMY_TEST_TOKEN");
       win.localStorage.setItem("envoxers_nome","Teste Envoxers");
       win.localStorage.setItem("envoxers_permissao","envoxer");
       win.localStorage.setItem("envoxers_id","333");
@@ -77,6 +77,12 @@ async function open(authorized=false,desktop=false,chatFixture=false) {
             texto:"Teste de mensagem",created_at:"2026-10-20T10:00:00Z",anexo_url:null,
             excluida_para_todos_em:null,resposta_a_id:null,resposta_a:null};
           if(path.endsWith("/chat/canais")) data=[{id:77,tipo:"geral",nome:"Geral",nao_lidas:0}];
+          if(path.endsWith("/chat/canais/77/mensagens/301/reacoes") && options.method==="POST") {
+            const emoji=JSON.parse(options.body).emoji;
+            win.__testReacted=!win.__testReacted;
+            data={mensagem_id:301,emoji,ativa:win.__testReacted,alterado_por_id:333,
+              reacoes:win.__testReacted?[{emoji,quantidade:1}]:[]};
+          }
           if(path.endsWith("/chat/canais/77/mensagens") && options.method==="POST") {
             const body=JSON.parse(options.body);
             data={...base,id:303,created_at:"2026-10-21T15:02:00Z",texto:body.texto,
@@ -167,8 +173,31 @@ try {
   const win=chat.dom.window;
   assert.equal(win.getComputedStyle(messageAvatar).height, 'max-content', 'Wrapper de foto está esticando com a mensagem');
   assert.equal(win.getComputedStyle(messageAvatar).alignSelf, 'flex-start', 'Avatar de mensagem deve iniciar junto ao autor');
-  assert.equal(win.getComputedStyle(messageAvatar.querySelector('.avatar')).width, '30px', 'Foto pequena não foi ampliada');
-  assert.equal(win.getComputedStyle(bubble).width, '11px', 'Bolinha do status não foi ampliada');
+  assert.equal(win.getComputedStyle(messageAvatar.querySelector('.avatar')).width, '38px', 'Foto pequena não foi ampliada');
+  assert.equal(win.getComputedStyle(bubble).width, '14px', 'Bolinha do status não foi ampliada');
+  const reactButton=chatDoc.querySelector('[data-chat-mensagem-id="301"] button[aria-label="Reagir à mensagem"]');
+  assert.ok(reactButton,'Reação por mensagem não existe');
+  reactButton.click();
+  const picker=await aguardarElemento(chatDoc,'.chat-reaction-picker');
+  assert.equal(picker.querySelectorAll('button').length,20,'Seletor de emoji incompleto');
+  picker.querySelector('button').click();
+  const reacted=await aguardarElemento(chatDoc,'[data-chat-mensagem-id="301"] .chat-reaction-pill.mine');
+  assert.ok(reacted,'Reação do próprio usuário não foi destacada');
+  assert.match(reacted.textContent,/1/,'Contagem de reações incorreta');
+  reacted.click();
+  await aguardarCondicao(()=>!chatDoc.querySelector('[data-chat-mensagem-id="301"] .chat-reaction-pill'));
+  assert.ok(!chatDoc.querySelector('[data-chat-mensagem-id="301"] .chat-reaction-pill'),'Reação não foi removida');
+  // Reação de outra pessoa deve chegar via WebSocket, sem criar outra mensagem.
+  const chatSocket=chat.dom.window.__testSockets[0];
+  assert.ok(chatSocket?.onmessage,'WebSocket do Chat não conectado');
+  chatSocket.onmessage({data:JSON.stringify({
+    tipo:'mensagem_reacoes',canal_id:77,mensagem_id:301,emoji:'👏',ativa:true,
+    alterado_por_id:444,reacoes:[{emoji:'👏',quantidade:2}]
+  })});
+  const remoteReaction=await aguardarElemento(chatDoc,'[data-chat-mensagem-id="301"] .chat-reaction-pill');
+  assert.equal(remoteReaction.textContent,'👏2','Atualização em tempo real das reações não chegou');
+  assert.equal(remoteReaction.getAttribute('aria-pressed'),'false','Reação de outro usuário não pode ser minha');
+  assert.equal(chatDoc.querySelectorAll('.chat-msg').length,2,'Reação gerou mensagem duplicada');
   const viewButton=chatDoc.querySelector('.chat-msg-image');
   assert.ok(viewButton,'Prévia de imagem não encontrada');
   assert.ok(chatDoc.querySelector('.chat-image-download'),'Opção de download não encontrada');

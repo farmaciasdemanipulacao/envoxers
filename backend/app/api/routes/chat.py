@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect, status
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 
@@ -24,17 +24,25 @@ from app.services.sessoes_web import valida_sessao
 from app.models.chat_canal import ChatCanal
 from app.models.chat_leitura import ChatLeitura
 from app.models.chat_mensagem import ChatMensagem
+from app.models.chat_mensagem_reacao import ChatMensagemReacao
 from app.models.cliente import Cliente
 from app.models.envoxer import Envoxer
 from app.models.alerta_config import AlertaConfig
 from app.schemas.chat import (
     ChatCanalResponse, ChatMensagemCreate, ChatMensagemEdit, ChatMensagemResponse, ChatCitacaoResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
+    ChatReacaoCreate, ChatReacaoCount, ChatReacaoToggleResponse,
 )
 from app.services.chat_ws_manager import chat_ws_manager
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+# Paleta moderada: somente emojis exibidos no próprio seletor são aceitos pela API.
+CHAT_REACTION_EMOJIS = frozenset((
+    "👍", "❤️", "😂", "😍", "😮", "😢", "🙏", "👏", "🔥", "🎉",
+    "🙌", "✅", "💙", "👀", "🤝", "🚀", "💪", "😀", "👎", "💯",
+))
 
 
 def _prazo_um_dia_util(criado_em: datetime) -> datetime:
@@ -70,6 +78,8 @@ def _pode_excluir_mensagem(mensagem: ChatMensagem, envoxer_id: int) -> bool:
 def _mensagem_response(
     mensagem: ChatMensagem, autor_nome: str, autor_foto: Optional[str],
     viewer_id: Optional[int] = None, citacao: Optional[ChatCitacaoResponse] = None,
+    reacoes: Optional[list[ChatReacaoCount]] = None,
+    minhas_reacoes: Optional[list[str]] = None,
 ) -> ChatMensagemResponse:
     prazo_edicao = _prazo_edicao_mensagem(mensagem.created_at)
     prazo_exclusao = _prazo_um_dia_util(mensagem.created_at)
@@ -85,7 +95,35 @@ def _mensagem_response(
         excluida_para_todos_em=mensagem.excluida_para_todos_em,
         prazo_edicao=prazo_edicao, prazo_exclusao=prazo_exclusao,
         pode_editar=pode_editar, pode_excluir=pode_excluir,
+        reacoes=reacoes or [], minhas_reacoes=minhas_reacoes or [],
     )
+
+
+async def _carregar_reacoes(
+    db: AsyncSession, mensagens: list[ChatMensagem], viewer_id: Optional[int]
+) -> dict[int, tuple[list[ChatReacaoCount], list[str]]]:
+    """Reações de todo o conjunto em uma consulta, sem N+1."""
+    ids = [m.id for m in mensagens if m.excluida_para_todos_em is None]
+    if not ids:
+        return {}
+    result = await db.execute(
+        select(ChatMensagemReacao.mensagem_id, ChatMensagemReacao.envoxer_id, ChatMensagemReacao.emoji)
+        .where(ChatMensagemReacao.mensagem_id.in_(ids))
+    )
+    grupos: dict[int, dict[str, int]] = {}
+    minhas: dict[int, list[str]] = {}
+    for mensagem_id, autor_id, emoji in result.all():
+        contagens = grupos.setdefault(mensagem_id, {})
+        contagens[emoji] = contagens.get(emoji, 0) + 1
+        if viewer_id == autor_id:
+            minhas.setdefault(mensagem_id, []).append(emoji)
+    return {
+        mid: (
+            [ChatReacaoCount(emoji=e, quantidade=q) for e, q in sorted(counts.items())],
+            minhas.get(mid, []),
+        )
+        for mid, counts in grupos.items()
+    }
 
 
 async def _carregar_citacoes(db: AsyncSession, mensagens: list[ChatMensagem]) -> dict[int, ChatCitacaoResponse]:
@@ -352,9 +390,14 @@ async def listar_mensagens(
 
     result = await db.execute(stmt)
     rows = result.all()
-    citacoes = await _carregar_citacoes(db, [m for m, _, _ in rows])
+    encontrados = [m for m, _, _ in rows]
+    citacoes = await _carregar_citacoes(db, encontrados)
+    reacoes = await _carregar_reacoes(db, encontrados, envoxer.id)
     mensagens = [
-        _mensagem_response(m, nome, foto, envoxer.id, citacoes.get(m.resposta_a_id))
+        _mensagem_response(
+            m, nome, foto, envoxer.id, citacoes.get(m.resposta_a_id),
+            *reacoes.get(m.id, ([], [])),
+        )
         for m, nome, foto in rows
     ]
     mensagens.reverse()
@@ -494,6 +537,64 @@ async def enviar_mensagem_com_anexo(
         raise
 
 
+
+@router.post("/canais/{canal_id}/mensagens/{mensagem_id}/reacoes", response_model=ChatReacaoToggleResponse)
+async def alternar_reacao_mensagem(
+    canal_id: int,
+    mensagem_id: int,
+    payload: ChatReacaoCreate,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Clicar novamente no mesmo emoji remove a reação apenas deste usuário."""
+    if payload.emoji not in CHAT_REACTION_EMOJIS:
+        raise HTTPException(status_code=400, detail="Emoji de reação não permitido")
+
+    canal = await db.get(ChatCanal, canal_id)
+    if canal is None:
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
+    _validar_acesso_dm(canal, envoxer)
+
+    # Serializa alterações de uma mesma mensagem, evitando conflito entre cliques
+    # simultâneos e mantendo as contagens consistentes.
+    result = await db.execute(
+        select(ChatMensagem).where(
+            ChatMensagem.id == mensagem_id, ChatMensagem.canal_id == canal_id
+        ).with_for_update()
+    )
+    mensagem = result.scalar_one_or_none()
+    if mensagem is None:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if mensagem.excluida_para_todos_em is not None:
+        raise HTTPException(status_code=409, detail="Não é possível reagir a uma mensagem excluída")
+
+    atual = await db.execute(
+        select(ChatMensagemReacao).where(
+            ChatMensagemReacao.mensagem_id == mensagem_id,
+            ChatMensagemReacao.envoxer_id == envoxer.id,
+            ChatMensagemReacao.emoji == payload.emoji,
+        )
+    )
+    reacao = atual.scalar_one_or_none()
+    ativa = reacao is None
+    if reacao is None:
+        db.add(ChatMensagemReacao(mensagem_id=mensagem_id, envoxer_id=envoxer.id, emoji=payload.emoji))
+    else:
+        await db.delete(reacao)
+    await db.flush()
+    agrupadas = await _carregar_reacoes(db, [mensagem], envoxer.id)
+    contagens, _ = agrupadas.get(mensagem_id, ([], []))
+    resposta = ChatReacaoToggleResponse(
+        mensagem_id=mensagem_id, emoji=payload.emoji, ativa=ativa,
+        alterado_por_id=envoxer.id, reacoes=contagens,
+    )
+    await _broadcast_evento_mensagem(db, canal, {
+        "tipo": "mensagem_reacoes", "canal_id": canal_id,
+        **resposta.model_dump(mode="json"),
+    })
+    return resposta
+
+
 @router.patch("/canais/{canal_id}/mensagens/{mensagem_id}", response_model=ChatMensagemResponse)
 async def editar_mensagem(
     canal_id: int,
@@ -526,7 +627,11 @@ async def editar_mensagem(
     await db.refresh(mensagem)
 
     citacoes = await _carregar_citacoes(db, [mensagem])
-    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id, citacoes.get(mensagem.resposta_a_id))
+    reacoes = await _carregar_reacoes(db, [mensagem], envoxer.id)
+    resposta = _mensagem_response(
+        mensagem, envoxer.nome, envoxer.foto_url, envoxer.id,
+        citacoes.get(mensagem.resposta_a_id), *reacoes.get(mensagem.id, ([], [])),
+    )
     await _broadcast_evento_mensagem(db, canal, {
         "tipo": "mensagem_editada", "canal_id": canal_id,
         "mensagem": resposta.model_dump(mode="json"),
@@ -564,6 +669,7 @@ async def excluir_mensagem_para_todos(
     mensagem.anexo_mime_type = None
     mensagem.anexo_tamanho_kb = None
     mensagem.excluida_para_todos_em = datetime.now(timezone.utc)
+    await db.execute(delete(ChatMensagemReacao).where(ChatMensagemReacao.mensagem_id == mensagem.id))
     await db.flush()
     await db.refresh(mensagem)
 
