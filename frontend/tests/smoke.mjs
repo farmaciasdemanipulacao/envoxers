@@ -187,6 +187,17 @@ try {
   reacted.click();
   await aguardarCondicao(()=>!chatDoc.querySelector('[data-chat-mensagem-id="301"] .chat-reaction-pill'));
   assert.ok(!chatDoc.querySelector('[data-chat-mensagem-id="301"] .chat-reaction-pill'),'Reação não foi removida');
+  // Reação de outra pessoa deve chegar via WebSocket, sem criar outra mensagem.
+  const chatSocket=chat.dom.window.__testSockets[0];
+  assert.ok(chatSocket?.onmessage,'WebSocket do Chat não conectado');
+  chatSocket.onmessage({data:JSON.stringify({
+    tipo:'mensagem_reacoes',canal_id:77,mensagem_id:301,emoji:'👏',ativa:true,
+    alterado_por_id:444,reacoes:[{emoji:'👏',quantidade:2}]
+  })});
+  const remoteReaction=await aguardarElemento(chatDoc,'[data-chat-mensagem-id="301"] .chat-reaction-pill');
+  assert.equal(remoteReaction.textContent,'👏2','Atualização em tempo real das reações não chegou');
+  assert.equal(remoteReaction.getAttribute('aria-pressed'),'false','Reação de outro usuário não pode ser minha');
+  assert.equal(chatDoc.querySelectorAll('.chat-msg').length,2,'Reação gerou mensagem duplicada');
   const viewButton=chatDoc.querySelector('.chat-msg-image');
   assert.ok(viewButton,'Prévia de imagem não encontrada');
   assert.ok(chatDoc.querySelector('.chat-image-download'),'Opção de download não encontrada');
