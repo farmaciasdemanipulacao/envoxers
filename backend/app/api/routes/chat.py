@@ -737,6 +737,15 @@ async def marcar_lido(
     # O cursor persistido no banco é monotônico: duas abas não conseguem
     # retroceder a leitura uma da outra, mesmo em chamadas concorrentes.
     novo_cursor = ultima.created_at
+    existente = await db.execute(
+        select(ChatLeitura.last_read_at).where(
+            ChatLeitura.canal_id == canal_id, ChatLeitura.envoxer_id == envoxer.id
+        )
+    )
+    atual = existente.scalar_one_or_none()
+    if atual is not None and atual >= novo_cursor:
+        return
+
     stmt = pg_insert(ChatLeitura).values(
         envoxer_id=envoxer.id, canal_id=canal_id, last_read_at=novo_cursor,
     )
