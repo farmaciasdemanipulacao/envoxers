@@ -96,6 +96,15 @@ async function open(authorized=false,desktop=false) {
   }
   return {dom,resources,errors,nativeCalls,nativeEvents};
 }
+async function aguardarElemento(document, seletor, tentativas=50) {
+  for(let i=0;i<tentativas;i++) {
+    const el=document.querySelector(seletor);
+    if(el) return el;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  return null;
+}
+
 try {
   const first=await open(false);
   assert.equal(first.dom.window.document.querySelector(".access-headline")?.textContent,
@@ -112,11 +121,10 @@ try {
   assert.ok(logged.dom.window.document.querySelector(".app"),"AppShell não montou");
   assert.ok(!logged.errors.length,logged.errors.join("; "));
   console.log("AUTHENTICATED_APP_OK:",logged.dom.window.document.querySelector(".main")?.textContent.slice(0,65));
-  const folder=logged.dom.window.document.querySelector('.windows-folder-tile');
+  const folder=await aguardarElemento(logged.dom.window.document,'.windows-folder-tile');
   assert.ok(folder,'Pasta de cliente não foi renderizada');
   folder.click();
-  await new Promise(resolve=>setTimeout(resolve,25));
-  const card=logged.dom.window.document.querySelector('.windows-folder-tile');
+  const card=await aguardarElemento(logged.dom.window.document,'.windows-folder-tile');
   assert.ok(card,'Pasta de card não foi renderizada');
   card.click();
   await new Promise(resolve=>setTimeout(resolve,40));
