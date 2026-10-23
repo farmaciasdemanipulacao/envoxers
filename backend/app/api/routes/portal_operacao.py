@@ -6,20 +6,19 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_cliente_contato, get_current_gestor_ou_admin, get_current_admin
+from app.api.deps import get_current_cliente_contato, get_current_gestor_ou_admin
 from app.db.session import get_db
 from app.models.cliente_contato import ClienteContato
 from app.models.envoxer import Envoxer
 from app.models.solicitacao import Solicitacao, TIPO_SOLICITACAO_VALUES
 from app.models.tarefa import Tarefa
-from app.models.registro_foco import RegistroFoco
 from app.models.portal_operacao import PortalUnidade, PortalContatoUnidade, PortalSolicitacaoTarefa, PortalEvento, PortalComentario, PortalFormulario, PortalClienteConfig
 from app.services.portal_permissoes import capacidades, pode, pode_ver_solicitacao
 
 router = APIRouter(prefix="/portal/operacao", tags=["portal-operacao"])
 
 CAMPOS_PADRAO = [
-    {"chave": "regional", "rotulo": "Regional solicitante", "tipo": "unidade", "obrigatorio": True},
+    {"chave": "regional", "rotulo": "Regional (opcional se houver frente)", "tipo": "unidade", "obrigatorio": False},
     {"chave": "tipo", "rotulo": "Tipo da demanda", "tipo": "select", "obrigatorio": True},
     {"chave": "titulo", "rotulo": "Nome da demanda", "tipo": "texto", "obrigatorio": True},
     {"chave": "descricao", "rotulo": "Briefing da demanda", "tipo": "texto_longo", "obrigatorio": True},
@@ -37,7 +36,7 @@ TAREFA_STATUS = {
 }
 
 class SolicitacaoNova(BaseModel):
-    unidade_id: int
+    unidade_id: int | None = None
     frente_id: int | None = None
     tipo: str
     titulo: str = Field(min_length=3, max_length=200)
@@ -78,7 +77,7 @@ async def solicitar_acesso(db: AsyncSession, contato: ClienteContato, solicitaca
     if not solicitacao or solicitacao.cliente_id != contato.cliente_id:
         raise HTTPException(404, "Solicitação não encontrada")
     unidades = await unidades_do_contato(db, contato)
-    if not pode_ver_solicitacao(contato.portal_papel, contato.id, solicitacao.portal_contato_id, solicitacao.portal_unidade_id, unidades, contato.portal_capacidades):
+    if not pode_ver_solicitacao(contato.portal_papel, contato.id, solicitacao.portal_contato_id, solicitacao.portal_unidade_id, unidades, contato.portal_capacidades, frente_id=solicitacao.portal_frente_id):
         raise HTTPException(404, "Solicitação não encontrada")
     return solicitacao
 
@@ -100,7 +99,7 @@ async def escopo_stmt(db: AsyncSession, contato: ClienteContato):
     if "ver_todas" not in caps:
         if "ver_unidades" in caps:
             # Filtro restritivo: jamais unir "meus pedidos" a unidades não autorizadas.
-            stmt = stmt.where(Solicitacao.portal_unidade_id.in_(unidades))
+            stmt = stmt.where(or_(Solicitacao.portal_unidade_id.in_(unidades), Solicitacao.portal_frente_id.in_(unidades)))
         else:
             stmt = stmt.where(Solicitacao.portal_contato_id == contato.id)
     return stmt
@@ -143,7 +142,7 @@ async def contato_habilitado(
 
 @router.get("/admin/clientes")
 async def listar_clientes_portal(
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     from app.models.cliente import Cliente
@@ -161,7 +160,7 @@ async def listar_clientes_portal(
 @router.get("/admin/clientes/{cliente_id}/gargalos")
 async def indicadores_gargalos_portal(
     cliente_id: int,
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Painel interno da Envox com dados canônicos do Kanban, sem contagem duplicada."""
@@ -196,7 +195,7 @@ async def indicadores_gargalos_portal(
 @router.get("/admin/clientes/{cliente_id}/configuracao")
 async def obter_config_portal(
     cliente_id: int,
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     from app.models.cliente import Cliente
@@ -219,7 +218,7 @@ async def obter_config_portal(
         "cliente": {"id": cliente.id, "nome": cliente.nome},
         "config": serializar_config(cliente_id, config),
         "unidades": [{"id": u.id, "nome": u.nome, "tipo": u.tipo, "ativo": u.ativo} for u in unidades],
-        "contatos": [{"id": c.id, "nome": c.nome, "email": c.email, "papel": c.portal_papel, "ativo": c.ativo, "unidade_ids": ids_por_contato.get(c.id, [])} for c in contatos],
+        "contatos": [{"id": c.id, "nome": c.nome, "email": c.email, "papel": c.portal_papel, "ativo": c.ativo, "unidade_ids": ids_por_contato.get(c.id, []), "pode_aprovar": pode(c.portal_papel, "aprovar", c.portal_capacidades)} for c in contatos],
         "formulario": {"versao": formulario.versao, "campos": formulario.campos} if formulario else {"versao": 0, "campos": CAMPOS_PADRAO},
         "modulos_habilitaveis": sorted(MODULOS_PRONTOS_PARA_HABILITAR),
     }
@@ -228,7 +227,7 @@ async def obter_config_portal(
 async def salvar_config_portal(
     cliente_id: int,
     payload: ConfigClientePatch,
-    _: Annotated[Envoxer, Depends(get_current_admin)],
+    _: Annotated[Envoxer, Depends(get_current_gestor_ou_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     from app.models.cliente import Cliente
@@ -300,12 +299,15 @@ async def criar(
         raise HTTPException(403, "Sem permissão para solicitar")
     if payload.tipo not in TIPO_SOLICITACAO_VALUES:
         raise HTTPException(422, "Tipo inválido")
-    unidade = await db.get(PortalUnidade, payload.unidade_id)
-    if not unidade or unidade.cliente_id != contato.cliente_id or unidade.tipo != "regional" or not unidade.ativo:
-        raise HTTPException(422, "Regional inválida")
+    if payload.unidade_id is None and payload.frente_id is None:
+        raise HTTPException(422, "Informe uma regional, uma frente ou ambas")
     ids = await unidades_do_contato(db, contato)
-    if not pode(contato.portal_papel, "ver_todas", contato.portal_capacidades) and unidade.id not in ids:
-        raise HTTPException(403, "Regional não autorizada")
+    if payload.unidade_id is not None:
+        unidade = await db.get(PortalUnidade, payload.unidade_id)
+        if not unidade or unidade.cliente_id != contato.cliente_id or unidade.tipo != "regional" or not unidade.ativo:
+            raise HTTPException(422, "Regional inválida")
+        if not pode(contato.portal_papel, "ver_todas", contato.portal_capacidades) and unidade.id not in ids:
+            raise HTTPException(403, "Regional não autorizada")
     if payload.frente_id is not None:
         frente = await db.get(PortalUnidade, payload.frente_id)
         if not frente or frente.cliente_id != contato.cliente_id or frente.tipo != "frente" or not frente.ativo:
@@ -378,13 +380,8 @@ async def detalhar(
     resposta["eventos"] = [{"tipo": e.tipo, "descricao": e.descricao, "criado_em": e.criado_em} for e in eventos]
     resposta["comentarios"] = [{"id": c.id, "autor": c.autor_nome, "texto": c.texto, "criado_em": c.criado_em} for c in comentarios]
     resposta["tarefas"] = [{"id": t.id, "titulo": t.titulo, "status": TAREFA_STATUS.get(t.status, "Em andamento"), "prazo": t.prazo} for t in vinculos]
-    # Horas nunca são créditos. Por padrão não há exposição. Requer habilitação expressa.
-    if (contato.portal_capacidades or {}).get("ver_horas") is True:
-        ids = [t.id for t in vinculos]
-        total = (await db.execute(select(func.coalesce(func.sum(RegistroFoco.duracao_segundos), 0)).where(
-            RegistroFoco.tarefa_id.in_(ids), RegistroFoco.fim.is_not(None), RegistroFoco.descartado.is_(False)
-        ))).scalar_one() if ids else 0
-        resposta["segundos_produtivos_autorizados"] = int(total or 0)
+    # Horas, valores e executor interno não são campos da API externa, mesmo
+    # quando há configuração antiga tentando habilitá-los.
     return resposta
 
 @router.post("/solicitacoes/{solicitacao_id}/comentarios", status_code=201)
@@ -465,10 +462,12 @@ async def pessoas_da_instituicao(
     return {
         "pessoas": [
             {"nome": c.nome, "papel": c.portal_papel,
-             "regionais": [u.nome for u in unidades if u.id in escopos.get(c.id, []) and u.tipo == "regional"]}
+             "pode_aprovar": pode(c.portal_papel, "aprovar", c.portal_capacidades),
+             "areas": [{"nome": u.nome, "tipo": u.tipo} for u in unidades if u.id in escopos.get(c.id, [])]}
             for c in usuarios
         ],
         "regionais": [u.nome for u in unidades if u.tipo == "regional"],
+        "frentes": [u.nome for u in unidades if u.tipo == "frente"],
     }
 
 
@@ -529,9 +528,13 @@ async def configurar_acesso(
     ))).scalars().all()
     if len(validas) != len(set(payload.unidade_ids)):
         raise HTTPException(422, "Unidade não pertence ao cliente")
-    if set(payload.capacidades) - set(PAPEIS[payload.papel]) - {"ver_horas"}:
-        raise HTTPException(422, "Capacidade não autorizada para o papel")
-    # Capacidade ver_horas é opt-in explícito; nenhum papel a recebe automaticamente.
+    if payload.papel not in ("admin_institucional", "solicitante"):
+        raise HTTPException(422, "Escolha Administrador/Gestor SECOVI ou Solicitante")
+    permitidas = set(PAPEIS[payload.papel]) | ({"aprovar"} if payload.papel == "solicitante" else set())
+    if set(payload.capacidades) - permitidas:
+        raise HTTPException(422, "Capacidade não autorizada para o perfil")
+    if any(type(v) is not bool for v in payload.capacidades.values()):
+        raise HTTPException(422, "Valores de capacidades devem ser booleanos")
     contato.portal_papel = payload.papel
     contato.portal_capacidades = payload.capacidades
     antigos = (await db.execute(select(PortalContatoUnidade).where(PortalContatoUnidade.contato_id == contato.id))).scalars().all()
