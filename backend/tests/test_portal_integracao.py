@@ -35,7 +35,7 @@ class PortalDatabaseTest(unittest.IsolatedAsyncioTestCase):
             db.add(PortalContatoUnidade(contato_id=solicitante.id, unidade_id=reg_a.id))
             await db.flush()
 
-            dados = dict(unidade_id=reg_a.id, tipo="evento", titulo="Evento de teste",
+            dados = dict(unidade_id=reg_a.id, campanha_id=None, evento_id=None, tipo="evento", titulo="Evento de teste",
                 descricao="Solicitação completamente fictícia para verificação do isolamento.",
                 prazo_solicitado=date(2026,11,15), apoio_envox="Arte e edição")
             solic = await criar(SolicitacaoNova(**dados), solicitante, db)
