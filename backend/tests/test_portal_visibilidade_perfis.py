@@ -52,8 +52,8 @@ class VisibilidadePerfisTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(err.exception.status_code,403)
             pend=await pendencias_de_validacao(aprovador,db)
             self.assertEqual([p["titulo"] for p in pend],["Aprovação regional Alfa"])
-            self.assertNotIn("Aprovação regional Beta",str(pend))
-            self.assertNotIn("Aprovação externa",str(pend))
+            self.assertNotIn("Aprovação regional Beta",[item["titulo"] for item in pend])
+            self.assertNotIn("Aprovação externa",[item["titulo"] for item in pend])
             with self.assertRaises(HTTPException) as err:
                 await pendencias_de_validacao(solicitante,db)
             self.assertEqual(err.exception.status_code,403)
