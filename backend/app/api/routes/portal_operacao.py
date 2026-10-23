@@ -401,6 +401,50 @@ async def comentar(
     await db.flush()
     return {"id": comentario.id, "ok": True}
 
+@router.get("/pessoas")
+async def pessoas_da_instituicao(
+    contato: Annotated[ClienteContato, Depends(contato_habilitado)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Visão institucional de acesso, nunca do cadastro interno Envoxers.
+
+    Retorna apenas pessoas e regionais da organização do token. Não inclui
+    senha, email, telefone, capacidades internas ou dados de outros clientes.
+    """
+    if not pode(contato.portal_papel, "gerenciar_usuarios", contato.portal_capacidades):
+        raise HTTPException(403, "Acesso restrito à administração institucional")
+    usuarios = (await db.execute(
+        select(ClienteContato).where(
+            ClienteContato.cliente_id == contato.cliente_id,
+            ClienteContato.ativo.is_(True),
+        ).order_by(ClienteContato.nome, ClienteContato.id)
+    )).scalars().all()
+    unidades = (await db.execute(
+        select(PortalUnidade).where(
+            PortalUnidade.cliente_id == contato.cliente_id,
+            PortalUnidade.ativo.is_(True),
+        ).order_by(PortalUnidade.nome)
+    )).scalars().all()
+    ids = [u.id for u in unidades]
+    relacionamentos = (await db.execute(
+        select(PortalContatoUnidade).where(
+            PortalContatoUnidade.contato_id.in_([c.id for c in usuarios]),
+            PortalContatoUnidade.unidade_id.in_(ids),
+        )
+    )).scalars().all() if usuarios and ids else []
+    escopos: dict[int, list[int]] = {}
+    for vinc in relacionamentos:
+        escopos.setdefault(vinc.contato_id, []).append(vinc.unidade_id)
+    return {
+        "pessoas": [
+            {"nome": c.nome, "papel": c.portal_papel,
+             "regionais": [u.nome for u in unidades if u.id in escopos.get(c.id, []) and u.tipo == "regional"]}
+            for c in usuarios
+        ],
+        "regionais": [u.nome for u in unidades if u.tipo == "regional"],
+    }
+
+
 @router.get("/dashboard")
 async def dashboard(
     contato: Annotated[ClienteContato, Depends(contato_habilitado)],
