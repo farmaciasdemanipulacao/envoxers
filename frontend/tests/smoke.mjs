@@ -159,6 +159,16 @@ try {
   const separators=await aguardarCondicao(()=>chatDoc.querySelectorAll('.chat-day-divider').length===2);
   assert.ok(separators,'Separadores de data ausentes');
   assert.equal(chatDoc.querySelectorAll('.chat-msg').length,2);
+  // Status acompanha a FOTO, nunca o final de uma mensagem/anexo alto.
+  const messageAvatar=chatDoc.querySelector('.chat-msg > .avatar-wrap');
+  assert.ok(messageAvatar, 'Avatar com status ausente no Chat');
+  const bubble=messageAvatar.querySelector('.avatar-status');
+  assert.ok(bubble && bubble.parentElement===messageAvatar, 'Status não está junto da foto');
+  const win=chat.dom.window;
+  assert.equal(win.getComputedStyle(messageAvatar).height, 'max-content', 'Wrapper de foto está esticando com a mensagem');
+  assert.equal(win.getComputedStyle(messageAvatar).alignSelf, 'flex-start', 'Avatar de mensagem deve iniciar junto ao autor');
+  assert.equal(win.getComputedStyle(messageAvatar.querySelector('.avatar')).width, '30px', 'Foto pequena não foi ampliada');
+  assert.equal(win.getComputedStyle(bubble).width, '11px', 'Bolinha do status não foi ampliada');
   const viewButton=chatDoc.querySelector('.chat-msg-image');
   assert.ok(viewButton,'Prévia de imagem não encontrada');
   assert.ok(chatDoc.querySelector('.chat-image-download'),'Opção de download não encontrada');
