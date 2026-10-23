@@ -81,6 +81,22 @@ async def solicitar_acesso(db: AsyncSession, contato: ClienteContato, solicitaca
         raise HTTPException(404, "Solicitação não encontrada")
     return solicitacao
 
+# Dados externos são uma projeção explícita: não transmitir JSON operacional bruto.
+CHAVES_INTERNAS = ("valor", "preco", "preço", "custo", "honorario", "honorário", "hora", "tempo", "executor", "responsavel_envoxer", "responsável_envoxer", "faturamento")
+
+def briefing_publico(briefing: dict | None) -> dict:
+    base = briefing if isinstance(briefing, dict) else {}
+    resposta = {chave: base[chave] for chave in ("apoio_envox", "referencias")
+                if isinstance(base.get(chave), str)}
+    extras = base.get("campos_customizados")
+    if isinstance(extras, dict):
+        resposta["campos_customizados"] = {
+            chave: valor for chave, valor in extras.items()
+            if isinstance(chave, str) and isinstance(valor, str)
+            and not any(reservada in chave.lower() for reservada in CHAVES_INTERNAS)
+        }
+    return resposta
+
 def representacao(s: Solicitacao) -> dict:
     return {
         "id": s.id, "protocolo": s.protocolo or f"LEGADO-{s.id:06d}",
@@ -89,7 +105,7 @@ def representacao(s: Solicitacao) -> dict:
         "unidade_id": s.portal_unidade_id, "frente_id": s.portal_frente_id,
         "prazo_solicitado": s.prazo_solicitado, "prazo_confirmado": s.prazo_confirmado,
         "criado_em": s.created_at, "solicitante": s.solicitante_nome,
-        "briefing": s.briefing_estruturado or {},
+        "briefing": briefing_publico(s.briefing_estruturado),
     }
 
 async def escopo_stmt(db: AsyncSession, contato: ClienteContato):
