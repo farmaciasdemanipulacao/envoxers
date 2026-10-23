@@ -74,3 +74,19 @@ body{background:var(--portal-paper);color:#252934}
 @media(max-width:720px){.portal-login{grid-template-columns:1fr}.portal-login-brand{padding:28px 22px;gap:24px}.portal-login-copy h1{font-size:38px}.portal-login-footer{display:none}.portal-login-panel{padding:22px;min-height:52vh}.portal-login-box{max-width:470px}.po-layout{display:block}.po-sidebar{position:static;height:auto;padding:12px}.po-brand{margin:0;padding:8px 8px 15px}.po-sidebar nav{display:flex;overflow-x:auto;padding:9px 0;gap:4px}.po-nav{white-space:nowrap;padding:10px}.po-top{padding:24px 18px}}
 @media(max-width:400px){.portal-login-panel{padding:12px}.portal-login-box{padding:24px 19px}.portal-login-brand{padding:24px 20px}.portal-login-copy h1{font-size:33px}}
 @media(prefers-reduced-motion:reduce){.po-nav,.po-solicitacao{transition:none}}
+
+/* O perfil deve ficar evidente mesmo em telas pequenas. Sem alterar a identidade da Envox. */
+.po-role-banner{padding:14px max(4vw,24px);background:#F0F3F9;border-bottom:1px solid #DDE3ED;color:#253755;display:grid;gap:5px;font-size:12px}
+.po-role-banner>div{display:flex;align-items:center;flex-wrap:wrap;gap:8px;line-height:1.5}
+.po-role-label{font-size:9px;letter-spacing:.12em;font-weight:800;color:#687B9B}
+.po-role-banner strong{font-size:13px;color:#152746}
+.po-role-banner small{font-size:11px;color:#61708A;line-height:1.6}
+.po-role-divider{color:#96A4BA}
+.po-scope-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:27px}
+.po-scope-hint{font-size:11px;color:#8E969F}
+.po-person-row{display:grid;grid-template-columns:minmax(120px,1fr) minmax(120px,auto);gap:8px 14px;padding:15px 2px;border-bottom:1px solid var(--portal-line)}
+.po-person-row strong{font-size:13px}
+.po-person-row span{font-size:12px;text-transform:capitalize;color:#536079}
+.po-person-row small{grid-column:1/-1;color:#818B99;font-size:11px}
+.po-single-metric{max-width:260px;margin-bottom:25px}
+@media(max-width:720px){.po-role-banner{padding:12px 18px}.po-person-row{grid-template-columns:1fr}.po-person-row small{grid-column:auto}}
