@@ -4,6 +4,20 @@ function fmtHoraChat(iso) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function chaveDiaChat(iso) {
+  return new Date(iso).toLocaleDateString("en-CA");
+}
+
+function tituloDiaChat(iso) {
+  const data = new Date(iso);
+  const hoje = new Date();
+  const ontem = new Date(hoje);
+  ontem.setDate(hoje.getDate() - 1);
+  if (chaveDiaChat(iso) === chaveDiaChat(hoje)) return "Hoje";
+  if (chaveDiaChat(iso) === chaveDiaChat(ontem)) return "Ontem";
+  return data.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
 // Sem endpoint dedicado pra "quem sou eu" no fluxo de chat — o id já está no JWT (claim "sub"),
 // decodifica o payload localmente em vez de bater na API só pra isso.
 function meuEnvoxerIdChat() {
@@ -75,6 +89,8 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const [canalAtivoId, setCanalAtivoId] = useStateChat(null);
   const [mensagens, setMensagens] = useStateChat([]);
   const [texto, setTexto] = useStateChat("");
+  const [respondendo, setRespondendo] = useStateChat(null);
+  const [imagemAberta, setImagemAberta] = useStateChat(null);
   const [enviando, setEnviando] = useStateChat(false);
   const [anexoPendente, setAnexoPendente] = useStateChat(null);
   const [novoDmAberto, setNovoDmAberto] = useStateChat(false);
@@ -112,6 +128,13 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   };
 
   useEffectChat(() => { carregarCanais(); }, []);
+  useEffectChat(() => { setRespondendo(null); setImagemAberta(null); }, [canalAtivoId]);
+  useEffectChat(() => {
+    if (!imagemAberta) return;
+    const onEscape = (e) => { if (e.key === "Escape") setImagemAberta(null); };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [imagemAberta]);
   useEffectChat(() => {
     window.__envoxersCanalAtivo = canalAtivoId;
     window.dispatchEvent(new Event('envoxers:canal-em-foco'));
@@ -241,14 +264,18 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const enviar = async () => {
     const t = texto.trim();
     const anexoEnvio = anexoPendente;
+    const respostaEnvio = respondendo;
     if ((!t && !anexoEnvio) || !canalAtivoId || enviando) return;
 
     // Limpa imediatamente para dar resposta visual instantânea. Em caso de erro,
     // restaura exatamente o que a pessoa tentou enviar.
     setTexto("");
     setAnexoPendente(null);
+    setRespondendo(null);
     setEmojiAberto(false);
     setEnviando(true);
+    // O textarea permanece habilitado, logo o Enter não remove o foco.
+    textareaRef.current?.focus();
     requestAnimationFrame(() => ajustarAlturaComposer());
 
     try {
@@ -258,19 +285,20 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
           `/chat/canais/${canalAtivoId}/mensagens-com-anexo`,
           anexoEnvio.file,
           anexoEnvio.file.name || "arquivo",
-          { texto: t }
+          { texto: t, resposta_a_id: respostaEnvio?.id }
         );
       } else {
         resposta = await EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/mensagens`, {
           method: "POST",
-          body: JSON.stringify({ texto: t }),
+          body: JSON.stringify({ texto: t, resposta_a_id: respostaEnvio?.id || null }),
         });
       }
       setMensagens((prev) => prev.some((m) => m.id === resposta.id) ? prev : [...prev, resposta]);
       revogarPreviewChat(anexoEnvio);
     } catch (err) {
-      setTexto(t);
+      setTexto((atual) => atual ? t + "\n" + atual : t);
       setAnexoPendente(anexoEnvio);
+      setRespondendo((atual) => atual || respostaEnvio);
       toast(err.message, "error");
       requestAnimationFrame(() => ajustarAlturaComposer());
     } finally {
@@ -279,9 +307,10 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   };
 
   const onKeyDownChat = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !e.nativeEvent?.isComposing) {
       e.preventDefault();
       enviar();
+      textareaRef.current?.focus();
     }
   };
 
@@ -298,6 +327,18 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
       textareaRef.current.setSelectionRange(pos, pos);
       ajustarAlturaComposer(textareaRef.current);
     });
+  };
+
+  const selecionarResposta = (m) => {
+    if (m.excluida_para_todos_em) return;
+    setRespondendo({ id: m.id, autor_nome: m.autor_nome, texto: m.texto, anexo_nome: m.anexo_nome });
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const irParaMensagem = (id) => {
+    if (!mensagens.some((msg) => msg.id === id)) return;
+    const el = mensagensRef.current?.querySelector('[data-chat-mensagem-id="' + Number(id) + '"]');
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   const iniciarEdicao = (m) => {
@@ -390,7 +431,14 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
           <span>{canalAtivo ? nomeCanalExibicao(canalAtivo) : "Selecione um canal"}</span>
         </div>
         <div className="chat-messages" ref={mensagensRef}>
-          {mensagens.map((m) => {
+          {mensagens.map((m, indice) => {
+            const separadorDia = indice === 0 || chaveDiaChat(m.created_at) !== chaveDiaChat(mensagens[indice - 1].created_at);
+            const original = m.resposta_a_id ? mensagens.find((item) => item.id === m.resposta_a_id) : null;
+            const citacao = original ? {
+              id: original.id, autor_nome: original.autor_nome,
+              texto: original.texto, anexo_nome: original.anexo_nome,
+              excluida: !!original.excluida_para_todos_em,
+            } : m.resposta_a;
             const propria = m.autor_envoxer_id === meuId;
             const excluida = !!m.excluida_para_todos_em;
             const dentroPrazoEdicao = !m.prazo_edicao || Date.now() <= new Date(m.prazo_edicao).getTime();
@@ -398,16 +446,19 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
             const podeEditar = propria && !excluida && !!m.pode_editar && dentroPrazoEdicao;
             const podeExcluir = propria && !excluida && !!m.pode_excluir && dentroPrazoExclusao;
             return (
-              <div className={"chat-msg" + (propria ? " own" : "") + (excluida ? " deleted" : "")} key={m.id}>
+              <React.Fragment key={m.id}>
+              {separadorDia && <div className="chat-day-divider" role="separator" aria-label={tituloDiaChat(m.created_at)}><span>{tituloDiaChat(m.created_at)}</span></div>}
+              <div data-chat-mensagem-id={m.id} className={"chat-msg" + (propria ? " own" : "") + (excluida ? " deleted" : "")}>
                 {!propria && <EnvoxersShared.Avatar nome={m.autor_nome} fotoUrl={m.autor_foto} size="sm" envoxerId={m.autor_envoxer_id} />}
                 <div className="chat-msg-body">
                   <div className="chat-msg-meta">
                     {!propria && <span className="chat-msg-autor">{m.autor_nome}</span>}
                     <span className="chat-msg-hora">{fmtHoraChat(m.created_at)}{m.editado_em && !excluida ? " · editada" : ""}</span>
-                    {propria && (podeEditar || podeExcluir) && editandoId !== m.id && (
+                    {!excluida && editandoId !== m.id && (
                       <span className="chat-msg-actions">
-                        {podeEditar && <button type="button" title={m.prazo_edicao ? `Editar até ${new Date(m.prazo_edicao).toLocaleString("pt-BR")}` : "Editar"} onClick={() => iniciarEdicao(m)}>Editar</button>}
-                        {podeExcluir && <button type="button" className="danger" title={m.prazo_exclusao ? `Excluir para todos até ${new Date(m.prazo_exclusao).toLocaleString("pt-BR")}` : "Excluir para todos"} onClick={() => excluirParaTodos(m)}>Excluir</button>}
+                        <button type="button" onClick={() => selecionarResposta(m)} title="Responder esta mensagem">Responder</button>
+                        {propria && podeEditar && <button type="button" title={m.prazo_edicao ? `Editar até ${new Date(m.prazo_edicao).toLocaleString("pt-BR")}` : "Editar"} onClick={() => iniciarEdicao(m)}>Editar</button>}
+                        {propria && podeExcluir && <button type="button" className="danger" title={m.prazo_exclusao ? `Excluir para todos até ${new Date(m.prazo_exclusao).toLocaleString("pt-BR")}` : "Excluir para todos"} onClick={() => excluirParaTodos(m)}>Excluir</button>}
                       </span>
                     )}
                   </div>
@@ -423,13 +474,27 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                     <div className="chat-msg-texto chat-msg-deleted">Mensagem excluída para todos</div>
                   ) : (
                     <>
+                      {m.resposta_a_id && (
+                        <button
+                          type="button"
+                          className="chat-quoted-msg"
+                          onClick={() => irParaMensagem(m.resposta_a_id)}
+                          title="Mensagem respondida"
+                        >
+                          <strong>↪ {citacao?.autor_nome || "Mensagem anterior"}</strong>
+                          <span>{citacao?.excluida ? "Mensagem excluída" : (citacao?.texto || (citacao?.anexo_nome ? "📎 " + citacao.anexo_nome : "Mensagem original"))}</span>
+                        </button>
+                      )}
                       {m.texto && <div className="chat-msg-texto">{m.texto}</div>}
                       {m.anexo_url && (
-                        (m.anexo_mime_type || "").startsWith("image/") ? (
-                          <a className="chat-msg-image" href={m.anexo_url} target="_blank" rel="noreferrer" title={m.anexo_nome || "Abrir imagem"}>
-                            <img src={m.anexo_url} alt={m.anexo_nome || "Imagem anexada"} />
-                            {m.anexo_nome && <span>{m.anexo_nome}</span>}
-                          </a>
+                        ((m.anexo_mime_type || "").startsWith("image/") || /\.(png|jpe?g|webp|gif|avif)$/i.test(m.anexo_nome || "")) ? (
+                          <div className="chat-image-attachment">
+                            <button type="button" className="chat-msg-image" onClick={() => setImagemAberta({ url: m.anexo_url, nome: m.anexo_nome || "Imagem" })} title="Ampliar imagem">
+                              <img loading="lazy" src={m.anexo_url} alt={m.anexo_nome || "Imagem anexada"} />
+                              {m.anexo_nome && <span>{m.anexo_nome}</span>}
+                            </button>
+                            <a className="chat-image-download" href={m.anexo_url} download={m.anexo_nome || "imagem"}>↓ Baixar imagem</a>
+                          </div>
                         ) : (
                           <a className="chat-msg-file" href={m.anexo_url} target="_blank" rel="noreferrer">
                             <span className="chat-msg-file-icon">📎</span>
@@ -444,12 +509,19 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                   )}
                 </div>
               </div>
+              </React.Fragment>
             );
           })}
           {mensagens.length === 0 && <div className="empty">Nenhuma mensagem ainda. Diga oi!</div>}
         </div>
         {canalAtivoId && (
           <div className="chat-composer-wrap">
+            {respondendo && (
+              <div className="chat-reply-draft">
+                <div><strong>↪ Respondendo a {respondendo.autor_nome}</strong><span>{respondendo.texto || (respondendo.anexo_nome ? "📎 " + respondendo.anexo_nome : "Mensagem")}</span></div>
+                <button type="button" aria-label="Cancelar resposta" title="Cancelar resposta" onClick={() => { setRespondendo(null); textareaRef.current?.focus(); }}>×</button>
+              </div>
+            )}
             {anexoPendente && (
               <div className="chat-attachment-draft">
                 {anexoPendente.previewUrl ? (
@@ -482,7 +554,6 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                 rows={1}
                 placeholder="Escreva uma mensagem… ou cole um print"
                 value={texto}
-                disabled={enviando}
                 onPaste={onPasteChat}
                 onChange={(e) => { setTexto(e.target.value); ajustarAlturaComposer(e.target); }}
                 onKeyDown={onKeyDownChat}
@@ -493,6 +564,18 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
         )}
       </section>
 
+      {imagemAberta && (
+        <div className="chat-image-overlay" role="dialog" aria-modal="true" aria-label={"Visualizar " + imagemAberta.nome} onClick={(e) => { if (e.target === e.currentTarget) setImagemAberta(null); }}>
+          <div className="chat-image-dialog">
+            <div className="chat-image-dialog-header">
+              <strong title={imagemAberta.nome}>{imagemAberta.nome}</strong>
+              <a href={imagemAberta.url} download={imagemAberta.nome}>↓ Baixar</a>
+              <button type="button" onClick={() => setImagemAberta(null)} aria-label="Fechar imagem">×</button>
+            </div>
+            <img src={imagemAberta.url} alt={imagemAberta.nome} />
+          </div>
+        </div>
+      )}
       {novoDmAberto && (
         <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) setNovoDmAberto(false); }}>
           <div className="modal" style={{ maxWidth: 420 }}>
