@@ -90,3 +90,44 @@ body{background:var(--portal-paper);color:#252934}
 .po-person-row small{grid-column:1/-1;color:#818B99;font-size:11px}
 .po-single-metric{max-width:260px;margin-bottom:25px}
 @media(max-width:720px){.po-role-banner{padding:12px 18px}.po-person-row{grid-template-columns:1fr}.po-person-row small{grid-column:auto}}
+
+/* Componentes de Campanhas/Eventos seguem a identidade do cliente-dev:
+   navy #16284D, vermelho Envox #C10230, superfícies creme, ícones lineares. */
+.po-nav{display:flex;align-items:center;gap:12px}
+.po-menu-icon{height:17px;width:17px;flex-shrink:0}
+.po-catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:15px}
+.po-catalog-card{text-align:left;display:flex;flex-direction:column;min-height:225px;gap:13px;background:#fff;border:1px solid var(--portal-line);border-radius:13px;padding:22px;cursor:pointer;color:#273044;transition:border-color .16s,transform .16s,box-shadow .16s}
+.po-catalog-card:hover,.po-catalog-card:focus-visible{border-color:#8e9dbb;transform:translateY(-2px);box-shadow:0 12px 28px #16284D12;outline:0}
+.po-catalog-card strong{font-size:15px;line-height:1.35;letter-spacing:-.025em}
+.po-catalog-card small{font-size:11px;color:#828B9A;line-height:1.65}
+.po-catalog-icon{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:#EDF1F7;color:var(--portal-navy)}
+.po-catalog-icon.campaign{color:#C10230;background:#FCF0F2}
+.po-catalog-icon.event{color:#1E3462;background:#EAF0FB}
+.po-catalog-icon .po-menu-icon{width:21px;height:21px}
+.po-catalog-footer{display:flex;justify-content:space-between;gap:10px;margin-top:auto;border-top:1px solid var(--portal-line);padding-top:16px;font-size:11px;font-weight:700;color:var(--portal-navy)}
+.po-catalog-footer span:first-child{color:#8A8E95;font-weight:600}
+.po-no-catalog{border-style:dashed}
+.po-relationships{background:#FAFBFD;border:1px solid #E2E6ED;border-radius:13px;padding:20px;display:grid;gap:13px}
+.po-rel-head{display:grid;gap:5px}
+.po-rel-head strong{color:#213150;font-size:16px;letter-spacing:-.02em}
+.po-rel-head small{font-size:11px;color:#788396}
+.po-form-kicker{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--portal-red)}
+.po-rel-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.po-inline-quick{display:flex;flex-wrap:wrap;gap:12px}
+.po-inline-quick button{font-size:12px;font-weight:700;border:0;background:transparent;color:var(--portal-red);padding:5px 0;cursor:pointer}
+.po-inline-quick button:hover{text-decoration:underline}
+.po-quick-form{padding:15px 17px;background:#fff;border:1px solid var(--portal-line);border-radius:10px;display:grid;gap:9px}
+.po-quick-form label{color:#4A5362;font-weight:700;font-size:12px}
+.po-quick-form small{color:#90949A;font-size:11px}
+.po-quick-row{display:flex;gap:9px;flex-wrap:wrap}
+.po-quick-row input{background:#FBFBF9;border:1px solid #DCE0E5;border-radius:8px;padding:11px;min-width:0;flex:1 1 155px;color:#1F2838;font-size:13px}
+.po-quick-row input:focus{outline:2px solid #16284D55}
+.po-quick-row .po-primary{white-space:nowrap}
+.po-detail-rel{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:22px}
+.po-detail-rel span{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #E4E7EB;background:#fff;border-radius:9px;color:#394C6F;font-size:12px;font-weight:600}
+.po-detail-rel .po-menu-icon{width:15px;height:15px}
+.po-request-tags{color:#465A7E!important;font-size:11px}
+.po-filter{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#F1F4FA;border:1px solid #DEE5F0;border-radius:9px;padding:12px 15px;margin-bottom:19px;color:#405574;font-size:12px}
+.po-filter button{border:0;background:transparent;color:var(--portal-red);font-size:12px;cursor:pointer;font-weight:700}
+@media(max-width:680px){.po-catalog-grid{grid-template-columns:1fr}.po-catalog-card{min-height:185px}.po-rel-grid{grid-template-columns:1fr}.po-relationships{padding:15px}.po-quick-row .po-primary{width:100%}}
+@media(prefers-reduced-motion:reduce){.po-catalog-card{transition:none}.po-catalog-card:hover{transform:none}}
