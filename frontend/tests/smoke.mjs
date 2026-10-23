@@ -96,14 +96,15 @@ async function open(authorized=false,desktop=false) {
   }
   return {dom,resources,errors,nativeCalls,nativeEvents};
 }
-async function aguardarElemento(document, seletor, tentativas=50) {
+async function aguardarCondicao(fn, tentativas=50) {
   for(let i=0;i<tentativas;i++) {
-    const el=document.querySelector(seletor);
-    if(el) return el;
+    const resultado=fn();
+    if(resultado) return resultado;
     await new Promise(resolve=>setTimeout(resolve,50));
   }
   return null;
 }
+const aguardarElemento=(document,seletor)=>aguardarCondicao(()=>document.querySelector(seletor));
 
 try {
   const first=await open(false);
@@ -124,10 +125,10 @@ try {
   const folder=await aguardarElemento(logged.dom.window.document,'.windows-folder-tile');
   assert.ok(folder,'Pasta de cliente não foi renderizada');
   folder.click();
-  const card=await aguardarElemento(logged.dom.window.document,'.windows-folder-tile');
+  const card=await aguardarCondicao(()=>Array.from(logged.dom.window.document.querySelectorAll('.windows-folder-tile')).find(el=>el.textContent.includes('Social Media')));
   assert.ok(card,'Pasta de card não foi renderizada');
   card.click();
-  await new Promise(resolve=>setTimeout(resolve,40));
+  await aguardarCondicao(()=>logged.dom.window.document.querySelectorAll('.windows-file-tile').length===2);
   const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');
   assert.equal(tiles.length,2,'Miniaturas precisam aparecer também dentro do Drive');
   assert.equal(tiles[0].querySelector('.windows-file-thumbnail img')?.alt,'Miniatura de capa-de-teste.png');
