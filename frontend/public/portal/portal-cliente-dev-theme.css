@@ -131,3 +131,85 @@ body{background:var(--portal-paper);color:#252934}
 .po-filter button{border:0;background:transparent;color:var(--portal-red);font-size:12px;cursor:pointer;font-weight:700}
 @media(max-width:680px){.po-catalog-grid{grid-template-columns:1fr}.po-catalog-card{min-height:185px}.po-rel-grid{grid-template-columns:1fr}.po-relationships{padding:15px}.po-quick-row .po-primary{width:100%}}
 @media(prefers-reduced-motion:reduce){.po-catalog-card{transition:none}.po-catalog-card:hover{transform:none}}
+
+/* 23/10: information hierarchy cleanup. Only content deserves vertical real estate.
+   Organization appears once in header. Profile appears once at bottom of navigation,
+   and once on mobile when that footer is hidden. */
+.po-layout{grid-template-columns:208px minmax(0,1fr)}
+.po-sidebar{padding:17px 11px 12px}
+.po-brand{padding:5px 11px 19px;margin:0 0 17px;border-bottom:1px solid rgba(255,255,255,.10)}
+.po-logo{font-size:13px;letter-spacing:.13em}
+.po-logo i{width:17px;height:17px;border-radius:4px}
+.po-brand small{font-size:9px;letter-spacing:.09em;margin-top:7px}
+.po-sidebar nav{display:grid;gap:3px}
+.po-nav{min-height:37px;padding:8px 11px;border-radius:7px;font-size:12px;gap:11px;line-height:1.35}
+.po-nav .po-menu-icon{width:16px;height:16px}
+.po-nav.active{background:rgba(255,255,255,.12)}
+.po-nav-new{color:#F1F3F9}
+.po-nav-new .po-menu-icon{color:#FF506A}
+.po-sidebar-footer{padding:15px 11px 8px;gap:4px;border-top:1px solid rgba(255,255,255,.10)}
+.po-sidebar-footer .po-user-name{font-size:12px;font-weight:700;line-height:1.25}
+.po-sidebar-footer .po-user-role{font-size:10px;letter-spacing:0;text-transform:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#B4C0D6}
+.po-sidebar-footer button{margin-top:8px;font-size:11px}
+.po-top{padding:18px 30px 16px;min-height:86px;gap:16px}
+.po-heading{min-width:0}
+.po-top .po-context{display:block;font-size:10px;font-weight:600;color:#76849A;letter-spacing:.025em;text-transform:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(500px,60vw)}
+.po-top h1{font-size:clamp(24px,2.3vw,29px);line-height:1.15;letter-spacing:-.04em;margin:6px 0 0}
+.po-top-actions{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.po-mobile-role{display:none}
+.po-refresh{padding:9px 12px;font-size:11px;white-space:nowrap;border-radius:7px}
+.po-content{padding:23px 30px 64px;max-width:1360px}
+.po-catalog-content{padding-top:20px}
+.po-catalog-toolbar{margin:0 0 14px;min-height:38px}
+.po-catalog-toolbar button{font-size:11px;padding:9px 12px;border-radius:7px}
+.po-catalog-count{font-size:12px;font-weight:650;color:#68758D;margin:0;letter-spacing:0}
+.po-catalog-count span{color:#A6B0BC;padding:0 5px}
+.po-catalog-grid{grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px}
+.po-catalog-card{min-height:180px;gap:8px;padding:18px;border-radius:11px}
+.po-catalog-card strong{font-size:14px;line-height:1.34;margin-top:1px}
+.po-catalog-card small{font-size:11px;line-height:1.45}
+.po-catalog-icon{height:34px;width:34px;border-radius:9px}
+.po-catalog-icon .po-menu-icon{height:19px;width:19px}
+.po-catalog-footer{padding-top:11px;font-size:10.5px;margin-top:auto}
+.po-catalog-footer span:last-child{white-space:nowrap}
+.po-role-banner{display:none}
+.po-section-head{margin-bottom:14px}
+.po-metrics{margin-bottom:24px}
+.po-lead{margin-bottom:19px}
+@media(max-width:1000px) and (min-width:721px){
+  .po-layout{grid-template-columns:185px minmax(0,1fr)}
+  .po-sidebar{padding:14px 9px}
+  .po-content{padding:20px 22px 55px}
+  .po-top{padding:15px 22px;min-height:78px}
+  .po-catalog-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+}
+@media(max-width:720px){
+  .po-layout{display:block}
+  .po-sidebar{height:auto;position:static;padding:10px 14px 5px}
+  .po-brand{padding:3px 1px 9px;margin:0;border:0}
+  .po-logo{font-size:13px}
+  .po-brand small{font-size:8px;margin-top:5px}
+  .po-sidebar nav{display:flex;gap:3px;overflow-x:auto;padding:8px 0;scrollbar-width:thin}
+  .po-nav{min-height:37px;padding:8px 10px;white-space:nowrap;font-size:11px;flex-shrink:0}
+  .po-sidebar-footer{display:none}
+  .po-top{padding:17px 18px;min-height:76px;align-items:center;gap:9px}
+  .po-top h1{font-size:23px}
+  .po-top .po-context{max-width:220px}
+  .po-top-actions{gap:8px}
+  .po-mobile-role{display:none}
+  .po-refresh{padding:7px 9px;font-size:18px;line-height:1}
+  .po-refresh span{display:none}
+  .po-content{padding:17px 18px 50px}
+  .po-catalog-toolbar{margin-bottom:12px}
+  .po-catalog-toolbar button{padding:8px 10px;font-size:10px}
+  .po-catalog-count{font-size:11px}
+  .po-catalog-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,235px),1fr));gap:10px}
+  .po-catalog-card{min-height:165px;padding:15px}
+}
+@media(max-width:470px){
+  .po-top{align-items:flex-start}
+  .po-catalog-toolbar{align-items:flex-start;gap:7px}
+  .po-catalog-count{line-height:1.7}
+  .po-catalog-grid{grid-template-columns:1fr}
+  .po-catalog-card{min-height:145px}
+}
