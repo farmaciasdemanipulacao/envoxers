@@ -703,9 +703,8 @@ function AppShell() {
           } else if (data.tipo === "mensagem_editada" || data.tipo === "mensagem_excluida") {
             setChatWsEvent(data);
             carregarChatBadge();
-          } else if (data.tipo === "mensagem_reacoes") {
-            // Reações são alterações da mensagem, não mensagens novas:
-            // entregamos ao Chat sem incrementar não lidas ou notificar.
+          } else if (data.tipo === "mensagem_reacoes" || data.tipo === "chat_leitura_atualizada") {
+            // Leitura e reação não são novas mensagens: não geram push/badge.
             setChatWsEvent(data);
           } else if (data.tipo === "presenca") {
             window.EnvoxersPresence.set(data.envoxer_id, data.status);
