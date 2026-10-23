@@ -96,6 +96,7 @@ const PortalOperacao = (() => {
     };
 
     const caps = new Set(config?.capacidades || []);
+    const papel = config?.papel || "solicitante";
     const adminSecovi = caps.has("gerenciar_usuarios");
     const perfil = adminSecovi
       ? {nome:"Administrador / Gestor SECOVI",titulo:"Visão do SECOVI",
