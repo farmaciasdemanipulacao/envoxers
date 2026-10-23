@@ -68,7 +68,11 @@ for(const c of cenarios) {
  w.eval(code+"\nwindow.__Portal=PortalOperacao;");
  const root=w.ReactDOM.createRoot(w.document.getElementById("root"));
  root.render(w.React.createElement(w.__Portal.Shell));
- await waitFor(w,()=>w.document.querySelector(".po-role-banner strong")?.textContent);
+ await waitFor(w,()=>w.document.querySelector(".po-top h1")?.textContent);
+ assert.equal(w.document.querySelectorAll(".po-org").length,0,"Organization must not repeat in sidebar");
+ assert.equal(w.document.querySelectorAll(".po-role-banner").length,0,"Old full-width role banner must be removed");
+ assert.ok(w.document.querySelector(".po-sidebar-footer .po-user-role")?.textContent,"Role preserved in compact footer");
+ assert.equal(w.document.querySelectorAll(".po-context").length,1,"Organization should appear exactly once");
  await waitFor(w,()=>w.document.querySelectorAll(".po-solicitacao").length===Math.min(visible.length,6));
  const menu=[...w.document.querySelectorAll(".po-nav")].map(n=>n.textContent);
  for(const m of c.menus)assert.ok(menu.includes(m),c.key+" missing "+m);
@@ -85,6 +89,8 @@ for(const c of cenarios) {
  eventTab.click();
  await waitFor(w,()=>w.document.body.textContent.includes("Sem evento"));
  assert.ok(w.document.querySelector(".po-catalog-card"),"Missing event cards");
+ assert.ok(!w.document.body.textContent.includes("Eventos da sua organização"),"Catalog title repeated");
+ assert.ok(w.document.querySelector(".po-catalog-count"),"Compact catalog toolbar missing");
  const newTab=[...w.document.querySelectorAll(".po-nav")].find(b=>b.textContent.includes("Nova solicitação"));
  newTab.click();
  await waitFor(w,()=>w.document.body.textContent.includes("ORGANIZAÇÃO DA DEMANDA"));
