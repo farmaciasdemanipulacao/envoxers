@@ -7,7 +7,6 @@ const PortalOperacao = (() => {
   };
   const data = (valor) => valor ? new Date(String(valor).slice(0, 10) + "T12:00:00").toLocaleDateString("pt-BR") : "A definir";
   const dateTime = (valor) => valor ? new Date(valor).toLocaleString("pt-BR") : "";
-  const dias = (n) => String(n).padStart(2, "0");
   function Status({ children }) { return <span className="po-status">{children}</span>; }
   function Empty({ text }) { return <div className="po-empty">{text}</div>; }
   function Shell() {
@@ -61,7 +60,7 @@ const PortalOperacao = (() => {
 
     const enviar = async (e) => {
       e.preventDefault();
-      if (!form.unidade_id) return toast("Selecione uma regional autorizada.", "error");
+      if (!form.unidade_id && !form.frente_id) return toast("Escolha uma regional, uma frente ou ambas.", "error");
       const extras = (config?.formulario?.campos || []).filter(c => !["regional", "tipo", "titulo", "descricao", "prazo_solicitado", "apoio_envox", "referencias"].includes(c.chave));
       for (const campo of extras) {
         if (campo.obrigatorio && !String(camposExtras[campo.chave] || "").trim()) {
@@ -71,7 +70,7 @@ const PortalOperacao = (() => {
       setEnviando(true);
       try {
         const payload = {
-          ...form, unidade_id: Number(form.unidade_id), frente_id: form.frente_id ? Number(form.frente_id) : null,
+          ...form, unidade_id: form.unidade_id ? Number(form.unidade_id) : null, frente_id: form.frente_id ? Number(form.frente_id) : null,
           campos_customizados: camposExtras
         };
         const item = await PortalAPI.api("/portal/operacao/solicitacoes", {method:"POST", body:JSON.stringify(payload)});
@@ -97,47 +96,19 @@ const PortalOperacao = (() => {
     };
 
     const caps = new Set(config?.capacidades || []);
-    const papel = config?.papel || "consulta";
-    const perfis = {
-      admin_institucional: {
-        nome:"Administrador institucional", escopo:"Toda a organização",
-        descricao:"Visão geral das regionais e pessoas autorizadas. Você administra a instituição, não o sistema interno da Envox.",
-        titulo:"Visão institucional",
-      },
-      gestor_geral: {
-        nome:"Gestor geral", escopo:"Todas as regionais",
-        descricao:"Acompanhe as solicitações da organização e identifique o que precisa de atenção.",
-        titulo:"Panorama da organização",
-      },
-      gestor_regional: {
-        nome:"Gestor regional", escopo:"Somente regionais autorizadas",
-        descricao:"Acompanhe as solicitações da sua equipe, mesmo quando foram enviadas por outras pessoas da regional.",
-        titulo:"Visão da regional",
-      },
-      solicitante: {
-        nome:"Solicitante", escopo:"Somente pedidos próprios",
-        descricao:"Aqui você acompanha exclusivamente os pedidos que enviou à Envox.",
-        titulo:"Meus pedidos",
-      },
-      aprovador: {
-        nome:"Aprovador", escopo:"Regionais autorizadas",
-        descricao:"Identifique demandas em validação. A aprovação externa ainda será habilitada após os testes de segurança.",
-        titulo:"Acompanhamento de aprovações",
-      },
-      consulta: {
-        nome:"Consulta", escopo:"Somente pedidos próprios",
-        descricao:"Consulte o andamento dos pedidos disponíveis para seu acesso.",
-        titulo:"Minhas solicitações",
-      },
-    };
-    const perfil = perfis[papel] || perfis.consulta;
-    const menu = [["inicio", "Início"], ["solicitacoes",
-      caps.has("ver_todas") ? "Todas as solicitações" : caps.has("ver_unidades") ? "Pedidos das regionais" : "Meus pedidos"]];
-    if (caps.has("ver_unidades")) menu.push(["regional", "Visão regional"]);
-    if (caps.has("gerenciar_usuarios")) menu.push(["equipe", "Pessoas e acessos"]);
-    if (caps.has("aprovar")) menu.push(["pendencias", "Em validação"]);
-    if (caps.has("solicitar")) menu.push(["nova", "Nova solicitação"]);
-    if (config?.produto?.modulos?.documentos !== false) menu.push(["documentos", "Documentos"]);
+    const adminSecovi = caps.has("gerenciar_usuarios");
+    const perfil = adminSecovi
+      ? {nome:"Administrador / Gestor SECOVI",titulo:"Visão do SECOVI",
+         escopo:"Toda a organização",
+         descricao:"Consulte demandas de todas as regionais e frentes, pessoas e acessos."}
+      : {nome:"Solicitante",titulo:"Minhas áreas",
+         escopo:"Regionais e frentes autorizadas",
+         descricao:"Acompanhe demandas das regionais e frentes às quais você tem acesso, mesmo quando enviadas por outra pessoa."};
+    const menu = [["inicio","Início"],["solicitacoes","Demandas"]];
+    if (caps.has("solicitar")) menu.push(["nova","Nova solicitação"]);
+    if (caps.has("aprovar")) menu.push(["pendencias","Em validação"]);
+    if (adminSecovi) menu.push(["equipe","Pessoas e acessos"]);
+    if (config?.produto?.modulos?.documentos !== false) menu.push(["documentos","Documentos"]);
     const principal = menu;
     const regionais = (config?.unidades || []).filter(u => u.tipo === "regional");
     const frentes = (config?.unidades || []).filter(u => u.tipo === "frente");
@@ -165,9 +136,10 @@ const PortalOperacao = (() => {
       return () => { ativo = false; };
     }, [aba, papel]);
 
-    const totaisRegionais = regionais.map(u => ({
-      nome:u.nome, quantidade:solicitacoes.filter(s => s.unidade_id === u.id).length
-    }));
+    const minhasAreas = [...regionais, ...frentes];
+    const escopoVisivel = adminSecovi ? "Todas as regionais e frentes" :
+      (minhasAreas.length ? minhasAreas.map(u=>u.nome).join(" · ") : "Nenhuma área vinculada");
+
 
 
     const campo = (id,label,tipo="text",required=true,placeholder="") =>
@@ -206,8 +178,8 @@ const PortalOperacao = (() => {
           <header className="po-top">
             <div><small>ENVOX / {organizacao.toUpperCase()}</small><h1>{
               aba==="inicio" ? perfil.titulo :
-              aba==="solicitacoes" ? (caps.has("ver_todas") ? "Todas as solicitações" : caps.has("ver_unidades") ? "Pedidos das regionais" : "Meus pedidos") :
-              aba==="nova" ? "Nova solicitação" : aba==="regional" ? "Visão regional" :
+              aba==="solicitacoes" ? "Demandas" :
+              aba==="nova" ? "Nova solicitação" :
               aba==="equipe" ? "Pessoas e acessos" : aba==="pendencias" ? "Em validação" :
               aba==="detalhe" ? "Acompanhar solicitação" : "Documentos"
             }</h1></div>
@@ -216,7 +188,7 @@ const PortalOperacao = (() => {
           <div className="po-role-banner" aria-live="polite">
             <div><span className="po-role-label">SEU PERFIL</span>
               <strong>{perfil.nome}</strong><span className="po-role-divider" aria-hidden="true">•</span>
-              <span>{perfil.escopo}</span>
+              <span>{escopoVisivel}</span>
             </div>
             <small>{perfil.descricao}</small>
           </div>
@@ -231,41 +203,30 @@ const PortalOperacao = (() => {
                   ["Em triagem",dashboard?.triagem||0],["Em andamento",dashboard?.em_andamento||0]
                 ].map(([label,valor])=><div className="po-metric" key={label}><small>{label}</small><strong>{valor}</strong></div>)}
               </div>
-              <div className="po-section-head"><h2>{caps.has("ver_todas")?"Pedidos de toda a instituição":caps.has("ver_unidades")?"Pedidos da sua regional":"Seus pedidos recentes"}</h2><button onClick={()=>setAba("solicitacoes")}>Ver todas →</button></div>
+              <div className="po-section-head"><h2>{adminSecovi?"Pedidos da organização":"Demandas das suas áreas"}</h2><button onClick={()=>setAba("solicitacoes")}>Ver todas →</button></div>
               {!solicitacoes.length && <Empty text="Ainda não há solicitações disponíveis para o seu acesso." />}
               {solicitacoes.slice(0,6).map(item=><CartaoSolicitacao key={item.id} item={item}/>)}
               {mostrarNova && <button className="po-primary po-home-cta" onClick={()=>setAba("nova")}>+ Abrir nova solicitação</button>}
             </section>}
             {aba==="solicitacoes" && <section className="po-content">
-              <p className="po-lead">{perfil.escopo}. Cada protocolo mostra apenas informações autorizadas para seu perfil.</p>
+              <p className="po-lead">{escopoVisivel}. Cada protocolo mostra apenas informações autorizadas para seu acesso.</p>
               <input className="po-search" value={pesquisa} onChange={e=>setPesquisa(e.target.value)} placeholder="Buscar por título, protocolo ou status…" aria-label="Buscar solicitações"/>
               {!listaFiltrada.length && <Empty text="Nenhuma solicitação encontrada." />}
               {listaFiltrada.map(item=><CartaoSolicitacao key={item.id} item={item}/>)}
             </section>}
-            {aba==="regional" && caps.has("ver_unidades") && <section className="po-content">
-              <p className="po-lead">Este resumo considera somente os pedidos das regionais atribuídas à sua conta. Não inclui outras organizações.</p>
-              <div className="po-scope-grid">
-                {totaisRegionais.map(u=><div className="po-metric" key={u.nome}>
-                  <small>{u.nome}</small><strong>{u.quantidade}</strong><span className="po-scope-hint">solicitações visíveis</span>
-                </div>)}
-              </div>
-              <div className="po-section-head"><h2>Pedidos das regionais</h2>
-                <button onClick={()=>setAba("solicitacoes")}>Ver solicitações →</button></div>
-              {solicitacoes.map(item=><CartaoSolicitacao key={item.id} item={item}/>)}
-              {!solicitacoes.length && <Empty text="Nenhum pedido nas suas regionais."/>}
-            </section>}
             {aba==="equipe" && caps.has("gerenciar_usuarios") && <section className="po-content">
-              <p className="po-lead">Visão institucional de pessoas e regionais. Gerencie os papéis e acessos pelo painel administrativo da Envox até a gestão externa ser homologada.</p>
+              <p className="po-lead">Pessoas e áreas vinculadas ao SECOVI. A edição de acessos permanece no painel interno da Envox até sua homologação.</p>
               {!pessoas && <Empty text="Consultando acessos da instituição…"/>}
               {pessoas && <>
                 <div className="po-metrics">
                   <div className="po-metric"><small>Pessoas ativas</small><strong>{pessoas.pessoas.length}</strong></div>
                   <div className="po-metric"><small>Regionais</small><strong>{pessoas.regionais.length}</strong></div>
+                  <div className="po-metric"><small>Frentes</small><strong>{(pessoas.frentes||[]).length}</strong></div>
                 </div>
                 <article className="po-panel"><h3>Pessoas autorizadas</h3>
                   {pessoas.pessoas.map((u,i)=><div className="po-person-row" key={i}>
                     <strong>{u.nome}</strong><span>{u.papel.replace(/_/g," ")}</span>
-                    <small>{u.regionais.join(", ") || "Visão institucional / sem regional atribuída"}</small>
+                    <small>{(u.areas||[]).map(a => (a.tipo==="frente"?"Frente: ":"Regional: ")+a.nome).join(" · ") || "Administração institucional / sem área específica"}{u.pode_aprovar?" · Pode aprovar":""}</small>
                   </div>)}
                   {!pessoas.pessoas.length && <Empty text="Nenhum contato ativo."/>}
                 </article>
@@ -283,15 +244,15 @@ const PortalOperacao = (() => {
             </section>}
             {aba==="nova" && <section className="po-content po-form-area">
               {!mostrarNova ? <Empty text="Seu perfil não está autorizado a enviar solicitações."/> :
-              regionais.length===0 ? <Empty text="Seu acesso ainda não possui regionais configuradas. Solicite à Envox a liberação da sua unidade."/> :
+              regionais.length===0 && frentes.length===0 ? <Empty text="Seu acesso ainda não possui regionais ou frentes autorizadas. Solicite à Envox uma vinculação."/> :
               <>
                 <p className="po-lead">Descreva o que precisa ser produzido. A data indicada é uma sugestão e será confirmada após a triagem.</p>
                 <form onSubmit={enviar} className="po-form">
-                  <label className="po-field"><span>Regional solicitante *</span><select required value={form.unidade_id} onChange={e=>setForm({...form,unidade_id:e.target.value})}>
-                    <option value="">Selecione a regional</option>{regionais.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
+                  <label className="po-field"><span>Regional (opcional)</span><select value={form.unidade_id} onChange={e=>setForm({...form,unidade_id:e.target.value})}>
+                    <option value="">Sem regional</option>{regionais.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
                   </select></label>
-                  <label className="po-field"><span>Frente / departamento</span><select value={form.frente_id} onChange={e=>setForm({...form,frente_id:e.target.value})}>
-                    <option value="">Não se aplica</option>{frentes.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
+                  <label className="po-field"><span>Frente / setor (opcional)</span><select value={form.frente_id} onChange={e=>setForm({...form,frente_id:e.target.value})}>
+                    <option value="">Sem frente</option>{frentes.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
                   </select></label>
                   <label className="po-field po-wide"><span>Tipo da demanda *</span><select required value={form.tipo} onChange={e=>setForm({...form,tipo:e.target.value})}>
                     {Object.entries(TIPOS).map(([id,nome])=><option value={id} key={id}>{nome}</option>)}
@@ -307,7 +268,7 @@ const PortalOperacao = (() => {
                       <input required={!!c.obrigatorio} type={c.tipo==="data"?"date":"text"} value={camposExtras[c.chave]||""} onChange={e=>setCamposExtras({...camposExtras,[c.chave]:e.target.value})}/>}
                     </label>
                   )}
-                  <div className="po-form-actions"><p>O envio não significa aprovação automática do prazo ou inclusão no escopo contratado.</p>
+                  <div className="po-form-actions"><p>Informe pelo menos uma regional ou frente. A data desejada ainda depende de confirmação.</p>
                     <button className="po-primary" type="submit" disabled={enviando}>{enviando?"Enviando…":"Enviar solicitação →"}</button>
                   </div>
                 </form>
@@ -340,9 +301,6 @@ const PortalOperacao = (() => {
                   <button className="po-primary" disabled={enviando || !comentario.trim()}>Enviar mensagem</button>
                 </form>}
               </article>
-              {selecionada.segundos_produtivos_autorizados!==undefined && <p className="po-footnote">
-                Tempo produtivo consolidado: {Math.floor(selecionada.segundos_produtivos_autorizados/3600)}h {dias(Math.floor((selecionada.segundos_produtivos_autorizados%3600)/60))}min. Não representa saldo ou franquia.
-              </p>}
             </section>}
             {aba==="documentos" && <section className="po-documents"><PortalShell /></section>}
            </>}
