@@ -43,7 +43,7 @@ class MultiAreasSECOVITest(unittest.IsolatedAsyncioTestCase):
             ])
             await db.flush()
             requests = [
-                Solicitacao(cliente_id=secovi.id,portal_contato_id=marli.id,portal_unidade_id=maringa.id,titulo="Maringá",tipo="evento",status="nova",descricao="Fictício",solicitante_nome="Marli"),
+                Solicitacao(cliente_id=secovi.id,portal_contato_id=marli.id,portal_unidade_id=maringa.id,titulo="Maringá",tipo="evento",status="nova",descricao="Fictício",solicitante_nome="Marli",briefing_estruturado={"apoio_envox":"Arte","valor_interno":1234,"responsavel_envoxer_id":12,"campos_customizados":{"tema":"evento","custo_interno":"R$ 100"}}),
                 Solicitacao(cliente_id=secovi.id,portal_contato_id=maria.id,portal_unidade_id=londrina.id,titulo="Londrina",tipo="evento",status="nova",descricao="Fictício",solicitante_nome="Maria"),
                 Solicitacao(cliente_id=secovi.id,portal_contato_id=joao.id,portal_frente_id=med.id,titulo="Secovimed",tipo="evento",status="nova",descricao="Fictício",solicitante_nome="João"),
                 Solicitacao(cliente_id=outro.id,portal_contato_id=estranho.id,portal_unidade_id=outsider.id,titulo="Outro cliente",tipo="evento",status="nova",descricao="Fictício",solicitante_nome="Externo"),
@@ -70,6 +70,10 @@ class MultiAreasSECOVITest(unittest.IsolatedAsyncioTestCase):
             private=await detalhar(requests[0].id,marli,db)
             for field in ("segundos_produtivos_autorizados","responsavel_envoxer_id","atendido_por_envoxer_id","valor","custo"):
                 self.assertNotIn(field,private)
+            self.assertEqual(private["briefing"]["apoio_envox"],"Arte")
+            self.assertEqual(private["briefing"]["campos_customizados"],{"tema":"evento"})
+            for internal in ("valor_interno","responsavel_envoxer_id","custo_interno"):
+                self.assertNotIn(internal,str(private))
             def novo(**kw):
                 return SolicitacaoNova(
                   unidade_id=kw.get("unidade_id"),frente_id=kw.get("frente_id"),
