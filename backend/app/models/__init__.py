@@ -26,6 +26,7 @@ from app.models.churn_snapshot import ChurnSnapshot  # noqa: F401
 from app.models.evento import Evento  # noqa: F401
 from app.models.chat_canal import ChatCanal  # noqa: F401
 from app.models.chat_mensagem import ChatMensagem  # noqa: F401
+from app.models.chat_mensagem_reacao import ChatMensagemReacao  # noqa: F401
 from app.models.chat_leitura import ChatLeitura  # noqa: F401
 from app.models.push_subscription import PushSubscription  # noqa: F401
 from app.models.alerta_config import AlertaConfig  # noqa: F401

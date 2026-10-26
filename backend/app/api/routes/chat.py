@@ -6,13 +6,15 @@ visibilidade da aba do cliente (usado pra decidir push de mensagem nova).
 """
 import json
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect, status
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.sql import func
 
 from app.api.deps import get_current_envoxer
@@ -24,17 +26,26 @@ from app.services.sessoes_web import valida_sessao
 from app.models.chat_canal import ChatCanal
 from app.models.chat_leitura import ChatLeitura
 from app.models.chat_mensagem import ChatMensagem
+from app.models.chat_mensagem_reacao import ChatMensagemReacao
 from app.models.cliente import Cliente
 from app.models.envoxer import Envoxer
 from app.models.alerta_config import AlertaConfig
 from app.schemas.chat import (
-    ChatCanalResponse, ChatMensagemCreate, ChatMensagemEdit, ChatMensagemResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
+    ChatCanalResponse, ChatMensagemCreate, ChatMensagemEdit, ChatMensagemResponse, ChatCitacaoResponse, ChatBloqueioResponse, ChatCanalPendenteItem,
+    ChatReacaoCreate, ChatReacaoCount, ChatReacaoToggleResponse, ChatLeituraResponse,
 )
 from app.services.chat_ws_manager import chat_ws_manager
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+# Paleta moderada: somente emojis exibidos no próprio seletor são aceitos pela API.
+CHAT_REACTION_EMOJIS = frozenset((
+    "👍", "❤️", "😂", "😍", "😮", "😢", "🙏", "👏", "🔥", "🎉",
+    "🙌", "✅", "💙", "👀", "🤝", "🚀", "💪", "😀", "👎", "💯",
+))
 
 
 def _prazo_um_dia_util(criado_em: datetime) -> datetime:
@@ -68,7 +79,10 @@ def _pode_excluir_mensagem(mensagem: ChatMensagem, envoxer_id: int) -> bool:
 
 
 def _mensagem_response(
-    mensagem: ChatMensagem, autor_nome: str, autor_foto: Optional[str], viewer_id: Optional[int] = None
+    mensagem: ChatMensagem, autor_nome: str, autor_foto: Optional[str],
+    viewer_id: Optional[int] = None, citacao: Optional[ChatCitacaoResponse] = None,
+    reacoes: Optional[list[ChatReacaoCount]] = None,
+    minhas_reacoes: Optional[list[str]] = None,
 ) -> ChatMensagemResponse:
     prazo_edicao = _prazo_edicao_mensagem(mensagem.created_at)
     prazo_exclusao = _prazo_um_dia_util(mensagem.created_at)
@@ -76,6 +90,7 @@ def _mensagem_response(
     pode_excluir = viewer_id is not None and _pode_excluir_mensagem(mensagem, viewer_id)
     return ChatMensagemResponse(
         id=mensagem.id, canal_id=mensagem.canal_id, autor_envoxer_id=mensagem.autor_envoxer_id,
+        resposta_a_id=mensagem.resposta_a_id, resposta_a=citacao,
         autor_nome=autor_nome, autor_foto=autor_foto, texto=mensagem.texto, anexo_url=mensagem.anexo_url,
         anexo_nome=mensagem.anexo_nome, anexo_mime_type=mensagem.anexo_mime_type,
         anexo_tamanho_kb=mensagem.anexo_tamanho_kb,
@@ -83,7 +98,56 @@ def _mensagem_response(
         excluida_para_todos_em=mensagem.excluida_para_todos_em,
         prazo_edicao=prazo_edicao, prazo_exclusao=prazo_exclusao,
         pode_editar=pode_editar, pode_excluir=pode_excluir,
+        reacoes=reacoes or [], minhas_reacoes=minhas_reacoes or [],
     )
+
+
+async def _carregar_reacoes(
+    db: AsyncSession, mensagens: list[ChatMensagem], viewer_id: Optional[int]
+) -> dict[int, tuple[list[ChatReacaoCount], list[str]]]:
+    """Reações de todo o conjunto em uma consulta, sem N+1."""
+    ids = [m.id for m in mensagens if m.excluida_para_todos_em is None]
+    if not ids:
+        return {}
+    result = await db.execute(
+        select(ChatMensagemReacao.mensagem_id, ChatMensagemReacao.envoxer_id, ChatMensagemReacao.emoji)
+        .where(ChatMensagemReacao.mensagem_id.in_(ids))
+    )
+    grupos: dict[int, dict[str, int]] = {}
+    minhas: dict[int, list[str]] = {}
+    for mensagem_id, autor_id, emoji in result.all():
+        contagens = grupos.setdefault(mensagem_id, {})
+        contagens[emoji] = contagens.get(emoji, 0) + 1
+        if viewer_id == autor_id:
+            minhas.setdefault(mensagem_id, []).append(emoji)
+    return {
+        mid: (
+            [ChatReacaoCount(emoji=e, quantidade=q) for e, q in sorted(counts.items())],
+            minhas.get(mid, []),
+        )
+        for mid, counts in grupos.items()
+    }
+
+
+async def _carregar_citacoes(db: AsyncSession, mensagens: list[ChatMensagem]) -> dict[int, ChatCitacaoResponse]:
+    """Carrega em lote as mensagens citadas, sempre no canal da mensagem que responde."""
+    ids = {m.resposta_a_id for m in mensagens if m.resposta_a_id is not None}
+    if not ids:
+        return {}
+    result = await db.execute(
+        select(ChatMensagem, Envoxer.nome)
+        .join(Envoxer, Envoxer.id == ChatMensagem.autor_envoxer_id)
+        .where(ChatMensagem.id.in_(ids))
+    )
+    return {
+        msg.id: ChatCitacaoResponse(
+            id=msg.id, autor_nome=nome,
+            texto=None if msg.excluida_para_todos_em else msg.texto,
+            anexo_nome=None if msg.excluida_para_todos_em else msg.anexo_nome,
+            excluida=msg.excluida_para_todos_em is not None,
+        )
+        for msg, nome in result.all()
+    }
 
 
 async def _broadcast_evento_mensagem(db: AsyncSession, canal: ChatCanal, payload_ws: dict) -> None:
@@ -166,7 +230,8 @@ async def _ultima_mensagem(db: AsyncSession, canal_id: int) -> Optional[ChatMens
     if row is None:
         return None
     msg, autor_nome, autor_foto = row
-    return _mensagem_response(msg, autor_nome, autor_foto)
+    citacoes = await _carregar_citacoes(db, [msg])
+    return _mensagem_response(msg, autor_nome, autor_foto, citacao=citacoes.get(msg.resposta_a_id))
 
 
 async def _montar_resposta(
@@ -327,9 +392,16 @@ async def listar_mensagens(
     stmt = stmt.order_by(ChatMensagem.id.desc()).limit(limit)
 
     result = await db.execute(stmt)
+    rows = result.all()
+    encontrados = [m for m, _, _ in rows]
+    citacoes = await _carregar_citacoes(db, encontrados)
+    reacoes = await _carregar_reacoes(db, encontrados, envoxer.id)
     mensagens = [
-        _mensagem_response(m, nome, foto, envoxer.id)
-        for m, nome, foto in result.all()
+        _mensagem_response(
+            m, nome, foto, envoxer.id, citacoes.get(m.resposta_a_id),
+            *reacoes.get(m.id, ([], [])),
+        )
+        for m, nome, foto in rows
     ]
     mensagens.reverse()
     return mensagens
@@ -345,6 +417,7 @@ async def _enviar_mensagem_core(
     anexo_nome: Optional[str] = None,
     anexo_mime_type: Optional[str] = None,
     anexo_tamanho_kb: Optional[int] = None,
+    resposta_a_id: Optional[int] = None,
 ) -> ChatMensagemResponse:
     texto_limpo = (texto or "").strip() or None
     if not texto_limpo and not anexo_url:
@@ -355,9 +428,23 @@ async def _enviar_mensagem_core(
         raise HTTPException(status_code=404, detail="Canal não encontrado")
     _validar_acesso_dm(canal, envoxer)
 
+    citacao = None
+    if resposta_a_id is not None:
+        original = await db.get(ChatMensagem, resposta_a_id)
+        if original is None or original.canal_id != canal_id:
+            raise HTTPException(status_code=400, detail="A mensagem respondida não pertence a esta conversa")
+        if original.excluida_para_todos_em is not None:
+            raise HTTPException(status_code=400, detail="Não é possível responder a uma mensagem excluída")
+        autor_original = await db.get(Envoxer, original.autor_envoxer_id)
+        citacao = ChatCitacaoResponse(
+            id=original.id, autor_nome=autor_original.nome if autor_original else "Usuário",
+            texto=original.texto, anexo_nome=original.anexo_nome,
+        )
+
     mensagem = ChatMensagem(
         canal_id=canal_id,
         autor_envoxer_id=envoxer.id,
+        resposta_a_id=resposta_a_id,
         texto=texto_limpo,
         anexo_url=anexo_url,
         anexo_nome=anexo_nome,
@@ -367,45 +454,52 @@ async def _enviar_mensagem_core(
     db.add(mensagem)
     await db.flush()
     await db.refresh(mensagem)
+    # Persistir antes do WS permite confirmar leitura sem corrida com o INSERT.
+    await db.commit()
 
-    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id)
+    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id, citacao)
     payload_ws = {"tipo": "mensagem_nova", "canal_id": canal_id, "mensagem": resposta.model_dump(mode="json")}
 
-    if canal.tipo == "dm":
-        await chat_ws_manager.broadcast_dm(canal.dm_envoxer_a_id, canal.dm_envoxer_b_id, payload_ws)
-        destinatario_id = canal.dm_envoxer_b_id if canal.dm_envoxer_a_id == envoxer.id else canal.dm_envoxer_a_id
-        if not chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
-            config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_dm"))
-            config_chat = config_result.scalar_one_or_none()
-            if config_chat is None or config_chat.ativo:
-                from app.services.push import broadcast_push
-                await broadcast_push(
-                    db,
-                    destinatario_id,
-                    title=envoxer.nome,
-                    body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
-                    tag="envoxers-chat",
-                )
-    else:
-        result = await db.execute(select(Envoxer.id).where(Envoxer.ativo == True))  # noqa: E712
-        ids_ativos = [row[0] for row in result.all()]
-        await chat_ws_manager.broadcast_geral_ou_cliente(ids_ativos, payload_ws)
+    # Notificação é efeito colateral; nunca duplicar um envio persistido.
+    try:
+        if canal.tipo == "dm":
+            await chat_ws_manager.broadcast_dm(canal.dm_envoxer_a_id, canal.dm_envoxer_b_id, payload_ws)
+            destinatario_id = canal.dm_envoxer_b_id if canal.dm_envoxer_a_id == envoxer.id else canal.dm_envoxer_a_id
+            if not chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
+                config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_dm"))
+                config_chat = config_result.scalar_one_or_none()
+                if config_chat is None or config_chat.ativo:
+                    from app.services.push import broadcast_push
+                    await broadcast_push(
+                        db,
+                        destinatario_id,
+                        title=envoxer.nome,
+                        body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
+                        tag="envoxers-chat",
+                    )
+        else:
+            result = await db.execute(select(Envoxer.id).where(Envoxer.ativo == True))  # noqa: E712
+            ids_ativos = [row[0] for row in result.all()]
+            await chat_ws_manager.broadcast_geral_ou_cliente(ids_ativos, payload_ws)
 
-        config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_geral"))
-        config_geral = config_result.scalar_one_or_none()
-        if config_geral is None or config_geral.ativo:
-            from app.services.push import broadcast_push
-            titulo = f"{envoxer.nome} · geral" if canal.tipo == "geral" else f"{envoxer.nome} · cliente"
-            for destinatario_id in ids_ativos:
-                if destinatario_id == envoxer.id or chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
-                    continue
-                await broadcast_push(
-                    db,
-                    destinatario_id,
-                    title=titulo,
-                    body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
-                    tag="envoxers-chat",
-                )
+            config_result = await db.execute(select(AlertaConfig).where(AlertaConfig.chave == "chat_geral"))
+            config_geral = config_result.scalar_one_or_none()
+            if config_geral is None or config_geral.ativo:
+                from app.services.push import broadcast_push
+                titulo = f"{envoxer.nome} · geral" if canal.tipo == "geral" else f"{envoxer.nome} · cliente"
+                for destinatario_id in ids_ativos:
+                    if destinatario_id == envoxer.id or chat_ws_manager.esta_acompanhando_canal(destinatario_id, canal_id):
+                        continue
+                    await broadcast_push(
+                        db,
+                        destinatario_id,
+                        title=titulo,
+                        body=(texto_limpo or f"Enviou {anexo_nome or 'um anexo'}")[:180],
+                        tag="envoxers-chat",
+                    )
+    except Exception:
+        await db.rollback()
+        logger.exception("Falha ao notificar mensagem persistida no canal %s, mensagem %s", canal_id, mensagem.id)
     return resposta
 
 
@@ -422,6 +516,7 @@ async def enviar_mensagem(
         db,
         texto=payload.texto,
         anexo_url=payload.anexo_url,
+        resposta_a_id=payload.resposta_a_id,
     )
 
 
@@ -431,6 +526,7 @@ async def enviar_mensagem_com_anexo(
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
     db: Annotated[AsyncSession, Depends(get_db)],
     texto: str = Form(""),
+    resposta_a_id: Optional[int] = Form(None),
     arquivo: UploadFile = File(...),
 ):
     salvo = await salvar_upload(arquivo)
@@ -444,10 +540,69 @@ async def enviar_mensagem_com_anexo(
             anexo_nome=salvo["nome"],
             anexo_mime_type=salvo.get("mime_type"),
             anexo_tamanho_kb=salvo.get("tamanho_kb"),
+            resposta_a_id=resposta_a_id,
         )
     except Exception:
         excluir_upload_url(salvo.get("url"))
         raise
+
+
+
+@router.post("/canais/{canal_id}/mensagens/{mensagem_id}/reacoes", response_model=ChatReacaoToggleResponse)
+async def alternar_reacao_mensagem(
+    canal_id: int,
+    mensagem_id: int,
+    payload: ChatReacaoCreate,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Clicar novamente no mesmo emoji remove a reação apenas deste usuário."""
+    if payload.emoji not in CHAT_REACTION_EMOJIS:
+        raise HTTPException(status_code=400, detail="Emoji de reação não permitido")
+
+    canal = await db.get(ChatCanal, canal_id)
+    if canal is None:
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
+    _validar_acesso_dm(canal, envoxer)
+
+    # Serializa alterações de uma mesma mensagem, evitando conflito entre cliques
+    # simultâneos e mantendo as contagens consistentes.
+    result = await db.execute(
+        select(ChatMensagem).where(
+            ChatMensagem.id == mensagem_id, ChatMensagem.canal_id == canal_id
+        ).with_for_update()
+    )
+    mensagem = result.scalar_one_or_none()
+    if mensagem is None:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if mensagem.excluida_para_todos_em is not None:
+        raise HTTPException(status_code=409, detail="Não é possível reagir a uma mensagem excluída")
+
+    atual = await db.execute(
+        select(ChatMensagemReacao).where(
+            ChatMensagemReacao.mensagem_id == mensagem_id,
+            ChatMensagemReacao.envoxer_id == envoxer.id,
+            ChatMensagemReacao.emoji == payload.emoji,
+        )
+    )
+    reacao = atual.scalar_one_or_none()
+    ativa = reacao is None
+    if reacao is None:
+        db.add(ChatMensagemReacao(mensagem_id=mensagem_id, envoxer_id=envoxer.id, emoji=payload.emoji))
+    else:
+        await db.delete(reacao)
+    await db.flush()
+    agrupadas = await _carregar_reacoes(db, [mensagem], envoxer.id)
+    contagens, _ = agrupadas.get(mensagem_id, ([], []))
+    resposta = ChatReacaoToggleResponse(
+        mensagem_id=mensagem_id, emoji=payload.emoji, ativa=ativa,
+        alterado_por_id=envoxer.id, reacoes=contagens,
+    )
+    await _broadcast_evento_mensagem(db, canal, {
+        "tipo": "mensagem_reacoes", "canal_id": canal_id,
+        **resposta.model_dump(mode="json"),
+    })
+    return resposta
 
 
 @router.patch("/canais/{canal_id}/mensagens/{mensagem_id}", response_model=ChatMensagemResponse)
@@ -481,7 +636,12 @@ async def editar_mensagem(
     await db.flush()
     await db.refresh(mensagem)
 
-    resposta = _mensagem_response(mensagem, envoxer.nome, envoxer.foto_url, envoxer.id)
+    citacoes = await _carregar_citacoes(db, [mensagem])
+    reacoes = await _carregar_reacoes(db, [mensagem], envoxer.id)
+    resposta = _mensagem_response(
+        mensagem, envoxer.nome, envoxer.foto_url, envoxer.id,
+        citacoes.get(mensagem.resposta_a_id), *reacoes.get(mensagem.id, ([], [])),
+    )
     await _broadcast_evento_mensagem(db, canal, {
         "tipo": "mensagem_editada", "canal_id": canal_id,
         "mensagem": resposta.model_dump(mode="json"),
@@ -519,6 +679,7 @@ async def excluir_mensagem_para_todos(
     mensagem.anexo_mime_type = None
     mensagem.anexo_tamanho_kb = None
     mensagem.excluida_para_todos_em = datetime.now(timezone.utc)
+    await db.execute(delete(ChatMensagemReacao).where(ChatMensagemReacao.mensagem_id == mensagem.id))
     await db.flush()
     await db.refresh(mensagem)
 
@@ -530,26 +691,86 @@ async def excluir_mensagem_para_todos(
     return resposta
 
 
+@router.get("/canais/{canal_id}/leituras", response_model=list[ChatLeituraResponse])
+async def listar_leituras(
+    canal_id: int,
+    envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Confirmações de leitura autorizadas por canal."""
+    canal = await db.get(ChatCanal, canal_id)
+    if canal is None:
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
+    _validar_acesso_dm(canal, envoxer)
+    resultado = await db.execute(
+        select(ChatLeitura.envoxer_id, Envoxer.nome, ChatLeitura.last_read_at)
+        .join(Envoxer, Envoxer.id == ChatLeitura.envoxer_id)
+        .where(ChatLeitura.canal_id == canal_id)
+    )
+    return [
+        ChatLeituraResponse(envoxer_id=user_id, nome=nome, last_read_at=leu_ate)
+        for user_id, nome, leu_ate in resultado.all()
+    ]
+
+
 @router.post("/canais/{canal_id}/ler", status_code=status.HTTP_204_NO_CONTENT)
 async def marcar_lido(
     canal_id: int,
     envoxer: Annotated[Envoxer, Depends(get_current_envoxer)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    ate_mensagem_id: Optional[int] = Query(None, gt=0),
 ):
+    """Marca leitura apenas até a mensagem apresentada ao usuário, sem antecipar."""
     canal = await db.get(ChatCanal, canal_id)
     if canal is None:
         raise HTTPException(status_code=404, detail="Canal não encontrado")
     _validar_acesso_dm(canal, envoxer)
 
-    agora = datetime.now(timezone.utc)
-    result = await db.execute(
-        select(ChatLeitura).where(ChatLeitura.canal_id == canal_id, ChatLeitura.envoxer_id == envoxer.id)
-    )
-    leitura = result.scalar_one_or_none()
-    if leitura is None:
-        db.add(ChatLeitura(envoxer_id=envoxer.id, canal_id=canal_id, last_read_at=agora))
+    if ate_mensagem_id is None:
+        result = await db.execute(
+            select(ChatMensagem).where(ChatMensagem.canal_id == canal_id)
+            .order_by(ChatMensagem.id.desc()).limit(1)
+        )
+        ultima = result.scalar_one_or_none()
     else:
-        leitura.last_read_at = agora
+        ultima = await db.get(ChatMensagem, ate_mensagem_id)
+        if ultima is None or ultima.canal_id != canal_id:
+            raise HTTPException(status_code=400, detail="Mensagem não pertence a esta conversa")
+    if ultima is None:
+        return
+
+    novo_cursor = ultima.created_at
+    existente = await db.execute(
+        select(ChatLeitura.last_read_at).where(
+            ChatLeitura.canal_id == canal_id, ChatLeitura.envoxer_id == envoxer.id
+        )
+    )
+    atual = existente.scalar_one_or_none()
+    if atual is not None and atual >= novo_cursor:
+        return
+
+    stmt = pg_insert(ChatLeitura).values(
+        envoxer_id=envoxer.id, canal_id=canal_id, last_read_at=novo_cursor,
+    )
+    await db.execute(stmt.on_conflict_do_update(
+        index_elements=[ChatLeitura.envoxer_id, ChatLeitura.canal_id],
+        set_={"last_read_at": func.greatest(ChatLeitura.last_read_at, stmt.excluded.last_read_at)},
+    ))
+    await db.flush()
+    result = await db.execute(
+        select(ChatLeitura.last_read_at).where(
+            ChatLeitura.canal_id == canal_id, ChatLeitura.envoxer_id == envoxer.id
+        )
+    )
+    leitura_ate = result.scalar_one()
+    await db.commit()
+    await _broadcast_evento_mensagem(db, canal, {
+        "tipo": "chat_leitura_atualizada",
+        "canal_id": canal_id,
+        "envoxer_id": envoxer.id,
+        "nome": envoxer.nome,
+        "last_read_at": leitura_ate.isoformat(),
+    })
 
 
 @router.websocket("/ws")

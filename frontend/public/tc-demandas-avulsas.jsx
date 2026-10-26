@@ -780,6 +780,7 @@ function DemandasAvulsasScreen({ permissao, envoxerId, focoAtivo, focoElapsed, o
   const toast = EnvoxersShared.useToast();
   const [itens, setItens] = useStateAv(null);
   const [pessoas, setPessoas] = useStateAv([]);
+  const [filtroResponsavel, setFiltroResponsavel] = useStateAv("todos");
   const [novaAberta, setNovaAberta] = useStateAv(false);
   const [aberta, setAberta] = useStateAv(null);
   const [dragId, setDragId] = useStateAv(null);
@@ -833,7 +834,27 @@ function DemandasAvulsasScreen({ permissao, envoxerId, focoAtivo, focoElapsed, o
 
   if (itens === null) return <div className="page"><div className="empty">Carregando demandas avulsas…</div></div>;
   const contextos = Array.from(new Set(itens.map((x) => x.contexto))).sort();
-  const comAlerta = itens.filter((x) => x.alerta_alteracoes && x.status !== "concluida");
+
+  // Preserva responsáveis inativos que ainda têm demandas no quadro.
+  const nomesResponsaveis = new Map(pessoas.map((p) => [String(p.id), p.nome]));
+  itens.forEach((item) => {
+    if (item.responsavel_envoxer_id == null) return;
+    const id = String(item.responsavel_envoxer_id);
+    if (!nomesResponsaveis.has(id)) {
+      nomesResponsaveis.set(id, item.responsavel_nome || "Usuário #" + id);
+    }
+  });
+  const responsaveis = Array.from(nomesResponsaveis, ([id, nome]) => ({ id, nome }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+
+  const itensVisiveis = itens.filter((item) => {
+    const id = item.responsavel_envoxer_id;
+    if (filtroResponsavel === "todos") return true;
+    if (filtroResponsavel === "meus") return id != null && String(id) === String(envoxerId);
+    if (filtroResponsavel === "sem") return id == null;
+    return id != null && filtroResponsavel === "usuario:" + String(id);
+  });
+  const comAlerta = itensVisiveis.filter((x) => x.alerta_alteracoes && x.status !== "concluida");
 
   return (
     <div className="page avulsa-page">
@@ -842,6 +863,22 @@ function DemandasAvulsasScreen({ permissao, envoxerId, focoAtivo, focoElapsed, o
         subtitle="Trabalho fora do escopo recorrente, com Foco, checklist e trilha completa de auditoria."
         actions={<button className="btn btn-envox" onClick={() => setNovaAberta(true)}>+ Nova demanda</button>}
       />
+
+      <div className="toolbar" aria-label="Filtrar demandas avulsas">
+        <div className="field">
+          <label htmlFor="avulsa-filtro-responsavel">Filtrar por responsável</label>
+          <select id="avulsa-filtro-responsavel" value={filtroResponsavel} onChange={(e) => setFiltroResponsavel(e.target.value)}>
+            <option value="todos">Todos os usuários</option>
+            <option value="meus">Minhas demandas</option>
+            <option value="sem">Sem responsável</option>
+            {responsaveis.map((p) => <option value={"usuario:" + p.id} key={p.id}>{p.nome}</option>)}
+          </select>
+        </div>
+        <span role="status">{itensVisiveis.length} de {itens.length} demandas</span>
+        {filtroResponsavel !== "todos" && (
+          <button className="btn btn-sm" onClick={() => setFiltroResponsavel("todos")}>Limpar filtro</button>
+        )}
+      </div>
 
       {comAlerta.length > 0 && (
         <div className="avulsa-page-alert">
@@ -855,7 +892,7 @@ function DemandasAvulsasScreen({ permissao, envoxerId, focoAtivo, focoElapsed, o
 
       <div className="avulsa-kanban">
         {AV_STATUS.map(([statusKey, label]) => {
-          const coluna = itens.filter((x) => x.status === statusKey);
+          const coluna = itensVisiveis.filter((x) => x.status === statusKey);
           return (
             <section className={"avulsa-column status-" + statusKey} key={statusKey} onDragOver={(e) => e.preventDefault()} onDrop={() => drop(statusKey)}>
               <div className="avulsa-column-head"><strong>{label}</strong><span>{coluna.length}</span></div>

@@ -38,8 +38,7 @@ class TrackingResources extends ResourceLoader {
   urls=[];
   fetch(url,opts) {this.urls.push(url);return super.fetch(url,opts);}
 }
-async function open(authorized=false,desktop=false,adminPortal=false) {
-  const resources=new TrackingResources(),errors=[],nativeCalls=[],nativeEvents=new Map();
+async function open(authorized=false,desktop=false,adminPortal=false,chatFixture=false) {  const resources=new TrackingResources(),errors=[],nativeCalls=[],nativeEvents=new Map();
   const virtualConsole=new VirtualConsole();
   virtualConsole.on("jsdomError",e=>errors.push(e.message));
   virtualConsole.on("error",e=>errors.push(String(e)));
@@ -68,19 +67,46 @@ async function open(authorized=false,desktop=false,adminPortal=false) {
         }
       }},event:{listen:async (event,callback)=>{nativeEvents.set(event,callback);return ()=>nativeEvents.delete(event);}}};
       if(!authorized) return;
-      win.localStorage.setItem("envoxers_token","DUMMY_TEST_TOKEN");
+      win.localStorage.setItem("envoxers_token",chatFixture?"e30.eyJzdWIiOiIzMzMifQ.sig":"DUMMY_TEST_TOKEN");
       win.localStorage.setItem("envoxers_nome","Teste Envoxers");
       win.localStorage.setItem("envoxers_permissao",adminPortal?"admin":"envoxer");
       win.localStorage.setItem("envoxers_id","333");
       win.localStorage.setItem("envoxers_modo_acesso","web");
-      win.sessionStorage.setItem("envoxers_view_333",adminPortal?"configuracoes":"arquivos");
-      win.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
+      win.sessionStorage.setItem("envoxers_view_333",adminPortal?"configuracoes":chatFixture?"chat":"arquivos");      win.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
       win.__testSockets=[];
+      win.__testReadAcks=[];
       win.WebSocket=class {constructor(){this.readyState=0;win.__testSockets.push(this)}close(){}send(){}};
       win.fetch=(url,options={})=>{
         const path=String(url);
         if(path.includes("/assets-runtime/manifest.json")) return fetch(new URL(path,win.location.origin));
         let data=[];
+        if(chatFixture) {
+          const base={canal_id:77,autor_envoxer_id:444,autor_nome:"Colaboradora",autor_foto:null,
+            texto:"Teste de mensagem",created_at:"2026-10-20T10:00:00Z",anexo_url:null,
+            excluida_para_todos_em:null,resposta_a_id:null,resposta_a:null};
+          if(path.endsWith("/chat/canais")) data=[{id:77,tipo:"geral",nome:"Geral",nao_lidas:0}];
+          if(path.endsWith("/chat/canais/77/leituras")) data=[
+            {envoxer_id:444,nome:"Colaboradora",last_read_at:"2026-10-21T10:04:00Z"}
+          ];
+          if(path.includes("/chat/canais/77/ler") && options.method==="POST") {
+            win.__testReadAcks.push(path);
+          }
+          if(path.endsWith("/chat/canais/77/mensagens/301/reacoes") && options.method==="POST") {
+            const emoji=JSON.parse(options.body).emoji;
+            win.__testReacted=!win.__testReacted;
+            data={mensagem_id:301,emoji,ativa:win.__testReacted,alterado_por_id:333,
+              reacoes:win.__testReacted?[{emoji,quantidade:1}]:[]};
+          }
+          if(path.endsWith("/chat/canais/77/mensagens") && options.method==="POST") {
+            const body=JSON.parse(options.body);
+            data={...base,id:303,created_at:"2026-10-21T15:02:00Z",texto:body.texto,
+              resposta_a_id:body.resposta_a_id,resposta_a:{id:301,autor_nome:"Colaboradora",texto:"Primeiro dia"}};
+          } else if(path.endsWith("/chat/canais/77/mensagens")) data=[
+            {...base,id:301,texto:"Primeiro dia"},
+            {...base,id:302,autor_envoxer_id:333,autor_nome:"Teste Envoxers",created_at:"2026-10-21T10:00:00Z",texto:"Veja o print",
+              anexo_url:"/api/v1/uploads/print-teste.png",anexo_nome:"print-teste.png",anexo_mime_type:"image/png"}
+          ];
+        }
         if(path.includes("/auth/me")) data={id:333,nome:"Teste Envoxers",
           permissao:adminPortal?"admin":"envoxer",modulos:["operacao","chat","entregas","configuracoes"]};
         if(path.includes("/chat/bloqueio")) data={bloqueado:false,canais:[]};
@@ -115,6 +141,16 @@ async function open(authorized=false,desktop=false,adminPortal=false) {
   }
   return {dom,resources,errors,nativeCalls,nativeEvents};
 }
+async function aguardarCondicao(fn, tentativas=50) {
+  for(let i=0;i<tentativas;i++) {
+    const resultado=fn();
+    if(resultado) return resultado;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  return null;
+}
+const aguardarElemento=(document,seletor)=>aguardarCondicao(()=>document.querySelector(seletor));
+
 try {
   const first=await open(false);
   assert.equal(first.dom.window.document.querySelector(".access-headline")?.textContent,
@@ -131,20 +167,16 @@ try {
   assert.ok(logged.dom.window.document.querySelector(".app"),"AppShell não montou");
   assert.ok(!logged.errors.length,logged.errors.join("; "));
   console.log("AUTHENTICATED_APP_OK:",logged.dom.window.document.querySelector(".main")?.textContent.slice(0,65));
-  const folder=await aguardarDOM(logged.dom, '.windows-folder-tile');
+  const folder=await aguardarElemento(logged.dom.window.document,'.windows-folder-tile');
   assert.ok(folder,'Pasta de cliente não foi renderizada');
   folder.click();
-  await new Promise(resolve=>setTimeout(resolve,25));
-  const card=await aguardarDOM(logged.dom, '.windows-folder-tile');
+  const card=await aguardarCondicao(()=>Array.from(logged.dom.window.document.querySelectorAll('.windows-folder-tile')).find(el=>el.textContent.includes('Social Media')));
   assert.ok(card,'Pasta de card não foi renderizada');
   card.click();
-  await new Promise(resolve=>setTimeout(resolve,40));
-  // A tile pode chegar antes da miniatura assíncrona, especialmente no CI.
-  await aguardarDOM(logged.dom, '.windows-file-thumbnail img[alt="Miniatura de capa-de-teste.png"]');
-  await aguardarDOM(logged.dom, '.windows-file-thumbnail.video');
-   const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');
-  assert.equal(tiles.length,2,'Miniaturas precisam aparecer também dentro do Drive');
-  assert.equal(tiles[0].querySelector('.windows-file-thumbnail img')?.alt,'Miniatura de capa-de-teste.png');
+  await aguardarCondicao(()=>logged.dom.window.document.querySelectorAll('.windows-file-tile').length===2);
+  const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');  assert.equal(tiles.length,2,'Miniaturas precisam aparecer também dentro do Drive');
+  const imageTile=await aguardarCondicao(()=>Array.from(logged.dom.window.document.querySelectorAll('.windows-file-tile')).find(tile=>tile.querySelector('.windows-file-thumbnail img')?.alt==='Miniatura de capa-de-teste.png'));
+  assert.ok(imageTile,'Miniatura de capa-de-teste.png não apareceu');
   assert.ok(tiles[1].querySelector('.windows-file-thumbnail.video'),'Card de vídeo sem prévia/fallback');
   assert.ok(tiles[1].querySelector('.windows-file-thumbnail-play'),'Ícone de vídeo ausente');
   assert.ok(!logged.errors.length,logged.errors.join('; '));
@@ -162,7 +194,88 @@ try {
   assert.ok(!admin.errors.length,'Erro JS na tela de admin do Portal: '+admin.errors.join('; '));
   console.log('PORTAL_ADMIN_UI_OK: cliente, permissões e módulos');
   admin.dom.window.close();
-  const native=await open(true,true);
+  // Regressões de Chat: datas, resposta persistente, prévia e foco após Enter.
+  const chat=await open(true,false,false,true);
+  const chatDoc=chat.dom.window.document;
+  const separators=await aguardarCondicao(()=>chatDoc.querySelectorAll('.chat-day-divider').length===2);
+  assert.ok(separators,'Separadores de data ausentes');
+  assert.equal(chatDoc.querySelectorAll('.chat-msg').length,2);
+  const readMark=chatDoc.querySelector('[data-chat-mensagem-id="302"] .chat-read-receipt.read');
+  assert.ok(readMark, 'Confirmação de leitura não aparece na mensagem enviada');
+  assert.match(readMark.textContent,/Lido por 1/, 'Grupo deve mostrar total de leitores');
+  readMark.click();
+  const readDetails=await aguardarElemento(chatDoc,'[data-chat-mensagem-id="302"] .chat-read-details');
+  assert.match(readDetails.textContent,/Colaboradora/, 'Detalhes de quem leu ausentes');
+  readMark.click();
+  const chatSocketReceipts=chat.dom.window.__testSockets[0];
+  assert.ok(chatSocketReceipts?.onmessage, 'WS não conectado para confirmação');
+  chatSocketReceipts.onmessage({data:JSON.stringify({
+    tipo:'chat_leitura_atualizada',canal_id:77,envoxer_id:555,nome:'Outra pessoa',
+    last_read_at:'2026-10-21T10:05:00Z'
+  })});
+  await aguardarCondicao(()=>chatDoc.querySelector('[data-chat-mensagem-id="302"] .chat-read-receipt')?.textContent.includes('Lido por 2'));
+  assert.match(chatDoc.querySelector('[data-chat-mensagem-id="302"] .chat-read-receipt').textContent,/Lido por 2/,
+    'Confirmação de leitura de outro usuário não chegou em tempo real');
+  // Status acompanha a FOTO, nunca o final de uma mensagem/anexo alto.
+  const messageAvatar=chatDoc.querySelector('.chat-msg > .avatar-wrap');
+  assert.ok(messageAvatar, 'Avatar com status ausente no Chat');
+  const bubble=messageAvatar.querySelector('.avatar-status');
+  assert.ok(bubble && bubble.parentElement===messageAvatar, 'Status não está junto da foto');
+  const win=chat.dom.window;
+  assert.equal(win.getComputedStyle(messageAvatar).height, 'max-content', 'Wrapper de foto está esticando com a mensagem');
+  assert.equal(win.getComputedStyle(messageAvatar).alignSelf, 'flex-start', 'Avatar de mensagem deve iniciar junto ao autor');
+  assert.equal(win.getComputedStyle(messageAvatar.querySelector('.avatar')).width, '38px', 'Foto pequena não foi ampliada');
+  assert.equal(win.getComputedStyle(bubble).width, '14px', 'Bolinha do status não foi ampliada');
+  const reactButton=chatDoc.querySelector('[data-chat-mensagem-id="301"] button[aria-label="Reagir à mensagem"]');
+  assert.ok(reactButton,'Reação por mensagem não existe');
+  reactButton.click();
+  const picker=await aguardarElemento(chatDoc,'.chat-reaction-picker');
+  assert.equal(picker.querySelectorAll('button').length,20,'Seletor de emoji incompleto');
+  picker.querySelector('button').click();
+  const reacted=await aguardarElemento(chatDoc,'[data-chat-mensagem-id="301"] .chat-reaction-pill.mine');
+  assert.ok(reacted,'Reação do próprio usuário não foi destacada');
+  assert.match(reacted.textContent,/1/,'Contagem de reações incorreta');
+  reacted.click();
+  await aguardarCondicao(()=>!chatDoc.querySelector('[data-chat-mensagem-id="301"] .chat-reaction-pill'));
+  assert.ok(!chatDoc.querySelector('[data-chat-mensagem-id="301"] .chat-reaction-pill'),'Reação não foi removida');
+  // Reação de outra pessoa deve chegar via WebSocket, sem criar outra mensagem.
+  const chatSocket=chat.dom.window.__testSockets[0];
+  assert.ok(chatSocket?.onmessage,'WebSocket do Chat não conectado');
+  chatSocket.onmessage({data:JSON.stringify({
+    tipo:'mensagem_reacoes',canal_id:77,mensagem_id:301,emoji:'👏',ativa:true,
+    alterado_por_id:444,reacoes:[{emoji:'👏',quantidade:2}]
+  })});
+  const remoteReaction=await aguardarElemento(chatDoc,'[data-chat-mensagem-id="301"] .chat-reaction-pill');
+  assert.equal(remoteReaction.textContent,'👏2','Atualização em tempo real das reações não chegou');
+  assert.equal(remoteReaction.getAttribute('aria-pressed'),'false','Reação de outro usuário não pode ser minha');
+  assert.equal(chatDoc.querySelectorAll('.chat-msg').length,2,'Reação gerou mensagem duplicada');
+  const viewButton=chatDoc.querySelector('.chat-msg-image');
+  assert.ok(viewButton,'Prévia de imagem não encontrada');
+  assert.ok(chatDoc.querySelector('.chat-image-download'),'Opção de download não encontrada');
+  viewButton.click();
+  assert.ok(await aguardarElemento(chatDoc,'.chat-image-overlay'),'Imagem não abriu dentro do sistema');
+  chatDoc.querySelector('.chat-image-dialog-header button').click();
+  const replyBtn=chatDoc.querySelector('.chat-msg-actions button');
+  replyBtn.click();
+  assert.ok(await aguardarElemento(chatDoc,'.chat-reply-draft'),'Citação da resposta ausente');
+  const textarea=chatDoc.querySelector('.chat-input-bar textarea');
+  textarea.focus();
+  const setter=Object.getOwnPropertyDescriptor(chat.dom.window.HTMLTextAreaElement.prototype,'value').set;
+  setter.call(textarea,'Resposta de teste');
+  textarea.dispatchEvent(new chat.dom.window.Event('input',{bubbles:true}));
+  await aguardarCondicao(()=>chatDoc.querySelector('.chat-send-btn')?.disabled===false);
+  textarea.dispatchEvent(new chat.dom.window.KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true}));
+  const replySaved=await aguardarCondicao(()=>chatDoc.querySelector('[data-chat-mensagem-id="303"]'));
+  assert.ok(replySaved,'Resposta enviada não apareceu');
+  assert.ok(replySaved.querySelector('.chat-quoted-msg'),'Vínculo da resposta não foi renderizado');
+  assert.equal(chatDoc.activeElement,textarea,'Enter retirou o foco do campo');
+  chat.dom.window.dispatchEvent(new chat.dom.window.Event('focus'));
+  await aguardarCondicao(()=>chat.dom.window.__testReadAcks.length>0);
+  assert.ok(chat.dom.window.__testReadAcks.every((p)=>p.includes('ate_mensagem_id=')),
+    'Confirmação de leitura deve se limitar às mensagens exibidas');
+  assert.ok(!chat.errors.length,chat.errors.join('; '));
+  console.log('CHAT_UX_OK:',separators,'date separators; reply + preview + focus');
+  chat.dom.window.close();  const native=await open(true,true);
   assert.equal(native.dom.window.envoxersDesktop?.active,true);
   assert.ok(native.dom.window.document.querySelector('.app'));
   for(let i=0;i<25&&!native.nativeCalls.some(call=>call.command==='native_badge');i++) await new Promise(resolve=>setTimeout(resolve,50));

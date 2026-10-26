@@ -15,6 +15,9 @@ class ChatMensagem(Base, TimestampMixin):
     canal_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("chat_canal.id", ondelete="CASCADE"), nullable=False)
     autor_envoxer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("envoxer.id", ondelete="CASCADE"), nullable=False)
     texto: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    resposta_a_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("chat_mensagem.id", ondelete="SET NULL"), nullable=True
+    )
     anexo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     anexo_nome: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     anexo_mime_type: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
