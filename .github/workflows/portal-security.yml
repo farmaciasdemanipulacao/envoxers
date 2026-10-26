@@ -7,6 +7,7 @@ on:
       - 'frontend/public/portal/**'
       - 'frontend/tests/portal-compile.mjs'
       - 'frontend/tests/portal-role-ui.mjs'
+      - 'frontend/tests/portal-status.mjs'
       - '.github/workflows/portal-security.yml'
   workflow_dispatch:
 
@@ -63,3 +64,5 @@ jobs:
         run: node tests/portal-compile.mjs
       - name: Role-specific UI navigation
         run: node tests/portal-role-ui.mjs
+      - name: Semantic status palette and accessible contrast
+        run: node tests/portal-status.mjs
