@@ -937,7 +937,7 @@ function AppShell() {
     setView("feedback-sistema");
   };
 
-  const configLabel = { clientes: "Cadastros / Clientes", envoxers: "Cadastros / Envoxers", servicos: "Cadastros / Serviços", "perfis-acesso": "Perfis de acesso", perfil: "Meu Perfil" }[configItem];
+  const configLabel = { clientes: "Cadastros / Clientes", envoxers: "Cadastros / Envoxers", servicos: "Cadastros / Serviços", "perfis-acesso": "Perfis de acesso", "portal-clientes": "Portal do Cliente", perfil: "Meu Perfil" }[configItem];
   const crumbs = {
     configuracoes: `Configurações / ${configLabel}`,
     "comercial-dashboard": "Comercial / Dashboard",

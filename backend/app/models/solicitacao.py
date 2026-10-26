@@ -1,8 +1,8 @@
 """Model: Solicitacao — inbox de pedidos do cliente, registrado pelo atendimento."""
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, String, Text, DateTime, Enum as SAEnum, ForeignKey
+from sqlalchemy import BigInteger, String, Text, Date, DateTime, Enum as SAEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,5 +43,15 @@ class Solicitacao(Base, TimestampMixin):
         BigInteger, ForeignKey("envoxer.id", ondelete="SET NULL"), nullable=True
     )
     respondido_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    protocolo: Mapped[Optional[str]] = mapped_column(String(32), unique=True)
+    portal_contato_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("cliente_contato.id", ondelete="SET NULL"))
+    portal_unidade_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("portal_unidade.id", ondelete="SET NULL"))
+    portal_frente_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("portal_unidade.id", ondelete="SET NULL"))
+    portal_campanha_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("portal_campanha.id", ondelete="SET NULL"))
+    portal_evento_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("evento.id", ondelete="SET NULL"))
+    prazo_solicitado: Mapped[Optional[date]] = mapped_column(Date)
+    prazo_confirmado: Mapped[Optional[date]] = mapped_column(Date)
+    briefing_estruturado: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     tenant_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=1)

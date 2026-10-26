@@ -14,6 +14,7 @@ from app.core.security import create_access_token, hash_password, verify_passwor
 from app.db.session import get_db
 from app.models.cliente import Cliente
 from app.models.cliente_contato import ClienteContato
+from app.models.portal_operacao import PortalClienteConfig
 from app.schemas.cliente_contato import PortalSetSenhaRequest, PortalLoginRequest, PortalToken, PortalContatoMe
 
 router = APIRouter(prefix="/portal/auth", tags=["portal-auth"])
@@ -27,6 +28,12 @@ async def definir_senha(payload: PortalSetSenhaRequest, db: Annotated[AsyncSessi
         raise HTTPException(status_code=400, detail="Link inválido")
     if contato.set_senha_token_expira is None or contato.set_senha_token_expira < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Link expirado — peça um novo link ao seu contato na Envox")
+    # Primeiro acesso também respeita o opt-in do cliente, evitando ativar
+    # credenciais externas enquanto o Portal está desativado.
+    cliente = await db.get(Cliente, contato.cliente_id)
+    config = await db.get(PortalClienteConfig, contato.cliente_id)
+    if not cliente or not cliente.ativo or cliente.deleted_at is not None or not config or not config.habilitado:
+        raise HTTPException(status_code=400, detail="Link inválido")
     if len(payload.senha) < 8:
         raise HTTPException(status_code=400, detail="A senha precisa ter pelo menos 8 caracteres")
 
@@ -48,10 +55,16 @@ async def login(payload: PortalLoginRequest, db: Annotated[AsyncSession, Depends
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso desativado — fale com seu contato na Envox")
 
     cliente = (await db.execute(select(Cliente).where(Cliente.id == contato.cliente_id))).scalar_one_or_none()
-    if cliente is None or cliente.deleted_at is not None:
+    config = await db.get(PortalClienteConfig, contato.cliente_id)
+    if cliente is None or not cliente.ativo or cliente.deleted_at is not None or not config or not config.habilitado:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso desativado")
 
-    access_token = create_access_token({"sub": str(contato.id), "tipo": "cliente_contato"})
+    # Sessões anteriores a uma troca de configuração são revogadas. Isso
+    # impede que um token antigo volte a funcionar após desativar/reativar.
+    access_token = create_access_token({
+        "sub": str(contato.id), "tipo": "cliente_contato",
+        "portal_config_versao": config.atualizado_em.isoformat(),
+    })
     return PortalToken(access_token=access_token, id=contato.id, nome=contato.nome, cliente_id=cliente.id, cliente_nome=cliente.nome)
 
 

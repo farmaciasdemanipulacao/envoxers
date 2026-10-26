@@ -12,6 +12,8 @@ from app.models.envoxer import Envoxer
 from app.models.sessao_web import SessaoWeb
 from app.services.sessoes_web import utcnow, valida_sessao
 from app.models.cliente_contato import ClienteContato
+from app.models.cliente import Cliente
+from app.models.portal_operacao import PortalClienteConfig
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 oauth2_scheme_portal = OAuth2PasswordBearer(tokenUrl="/api/v1/portal/auth/login", auto_error=False)
@@ -111,6 +113,18 @@ async def get_current_cliente_contato(
     result = await db.execute(select(ClienteContato).where(ClienteContato.id == int(contato_id)))
     contato = result.scalar_one_or_none()
     if contato is None or not contato.ativo:
+        raise credentials_exception
+    cliente = await db.get(Cliente, contato.cliente_id)
+    if cliente is None or not cliente.ativo or cliente.deleted_at is not None:
+        raise credentials_exception
+    # A autorização é revalidada A CADA REQUEST, inclusive para JWTs ainda
+    # válidos: desligar o Portal revoga imediatamente todos os acessos.
+    config = await db.get(PortalClienteConfig, contato.cliente_id)
+    if config is None or not config.habilitado:
+        raise credentials_exception
+    # Rejeitar tokens antigos, inclusive após uma desativação seguida
+    # de reativação. Uma nova autenticação recebe a versão atualizada.
+    if payload.get("portal_config_versao") != config.atualizado_em.isoformat():
         raise credentials_exception
     return contato
 

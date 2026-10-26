@@ -9,6 +9,15 @@ import assert from "node:assert/strict";
 const root=fileURLToPath(new URL("../public/", import.meta.url));
 const mime={".html":"text/html", ".js":"application/javascript", ".css":"text/css",
   ".json":"application/json", ".png":"image/png", ".ico":"image/x-icon"};
+async function aguardarDOM(dom, selector, tentativas = 60) {
+  for (let i = 0; i < tentativas; i++) {
+    const alvo = dom.window.document.querySelector(selector);
+    if (alvo) return alvo;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error("Timeout aguardando " + selector + " no teste visual, não um sucesso presumido");
+}
+
 const server=createServer(async (req,res)=>{
   const pathname=new URL(req.url,"http://localhost").pathname;
   try {
@@ -29,8 +38,7 @@ class TrackingResources extends ResourceLoader {
   urls=[];
   fetch(url,opts) {this.urls.push(url);return super.fetch(url,opts);}
 }
-async function open(authorized=false,desktop=false,chatFixture=false) {
-  const resources=new TrackingResources(),errors=[],nativeCalls=[],nativeEvents=new Map();
+async function open(authorized=false,desktop=false,adminPortal=false,chatFixture=false) {  const resources=new TrackingResources(),errors=[],nativeCalls=[],nativeEvents=new Map();
   const virtualConsole=new VirtualConsole();
   virtualConsole.on("jsdomError",e=>errors.push(e.message));
   virtualConsole.on("error",e=>errors.push(String(e)));
@@ -61,11 +69,10 @@ async function open(authorized=false,desktop=false,chatFixture=false) {
       if(!authorized) return;
       win.localStorage.setItem("envoxers_token",chatFixture?"e30.eyJzdWIiOiIzMzMifQ.sig":"DUMMY_TEST_TOKEN");
       win.localStorage.setItem("envoxers_nome","Teste Envoxers");
-      win.localStorage.setItem("envoxers_permissao","envoxer");
+      win.localStorage.setItem("envoxers_permissao",adminPortal?"admin":"envoxer");
       win.localStorage.setItem("envoxers_id","333");
       win.localStorage.setItem("envoxers_modo_acesso","web");
-      win.sessionStorage.setItem("envoxers_view_333",chatFixture?"chat":"arquivos");
-      win.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
+      win.sessionStorage.setItem("envoxers_view_333",adminPortal?"configuracoes":chatFixture?"chat":"arquivos");      win.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
       win.__testSockets=[];
       win.__testReadAcks=[];
       win.WebSocket=class {constructor(){this.readyState=0;win.__testSockets.push(this)}close(){}send(){}};
@@ -101,8 +108,18 @@ async function open(authorized=false,desktop=false,chatFixture=false) {
           ];
         }
         if(path.includes("/auth/me")) data={id:333,nome:"Teste Envoxers",
-          permissao:"envoxer",modulos:["operacao","chat","entregas"]};
+          permissao:adminPortal?"admin":"envoxer",modulos:["operacao","chat","entregas","configuracoes"]};
         if(path.includes("/chat/bloqueio")) data={bloqueado:false,canais:[]};
+        if(path.endsWith("/portal/operacao/admin/clientes")) data=[{
+          id:1,nome:"SECOVI Fictício",config:{cliente_id:1,habilitado:false,modulos:{solicitacoes:true,documentos:true,aprovacoes:false,campanhas:false,biblioteca:false,ia:false},notificacoes:{},visibilidade:{}}
+        }];
+        if(path.endsWith("/portal/operacao/admin/clientes/1/configuracao")) data={
+          cliente:{id:1,nome:"SECOVI Fictício"},
+          config:{cliente_id:1,habilitado:false,modulos:{solicitacoes:true,documentos:true,aprovacoes:false,campanhas:false,biblioteca:false,ia:false},notificacoes:{},visibilidade:{}},
+          unidades:[{id:10,nome:"Alfa",tipo:"regional",ativo:true}],
+          contatos:[{id:20,nome:"Contato Fictício",email:"teste@example.invalid",papel:"solicitante",ativo:true,unidade_ids:[10]}],
+          formulario:{versao:0,campos:[]},modulos_habilitaveis:["solicitacoes","documentos"]
+        };
         if(path.endsWith("/arquivos")) data=[
           {contexto_nome:"Mister Bim",card_chave:"tarefa:10",card_id:10,
             card_tipo:"tarefa",card_titulo:"Social Media — Edição de Cortes",servico_nome:"Vídeo",
@@ -157,8 +174,7 @@ try {
   assert.ok(card,'Pasta de card não foi renderizada');
   card.click();
   await aguardarCondicao(()=>logged.dom.window.document.querySelectorAll('.windows-file-tile').length===2);
-  const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');
-  assert.equal(tiles.length,2,'Miniaturas precisam aparecer também dentro do Drive');
+  const tiles=logged.dom.window.document.querySelectorAll('.windows-file-tile');  assert.equal(tiles.length,2,'Miniaturas precisam aparecer também dentro do Drive');
   const imageTile=await aguardarCondicao(()=>Array.from(logged.dom.window.document.querySelectorAll('.windows-file-tile')).find(tile=>tile.querySelector('.windows-file-thumbnail img')?.alt==='Miniatura de capa-de-teste.png'));
   assert.ok(imageTile,'Miniatura de capa-de-teste.png não apareceu');
   assert.ok(tiles[1].querySelector('.windows-file-thumbnail.video'),'Card de vídeo sem prévia/fallback');
@@ -166,8 +182,20 @@ try {
   assert.ok(!logged.errors.length,logged.errors.join('; '));
   console.log('DRIVE_THUMBNAILS_OK:',tiles.length,'file cards');
   logged.dom.window.close();
+  // Admin Envox precisa navegar na configuração real com fixtures isoladas.
+  const admin=await open(true,false,true);
+  const portalTab=await aguardarDOM(admin.dom,'.config-topnav');
+  const nav=[...portalTab.querySelectorAll('a')].find(a=>a.textContent.includes('Portal do Cliente'));
+  assert.ok(nav,'Módulo Portal do Cliente não entrou em Configurações');
+  nav.click();
+  for(let i=0;i<50&&!admin.dom.window.document.body.textContent.includes('Ativação e módulos');i++) await new Promise(r=>setTimeout(r,100));
+  assert.ok(admin.dom.window.document.body.textContent.includes('Ativação e módulos'),'Configurações do portal não renderizaram');
+  assert.ok(admin.dom.window.document.body.textContent.includes('Regionais e frentes'),'Regionais não renderizadas');
+  assert.ok(!admin.errors.length,'Erro JS na tela de admin do Portal: '+admin.errors.join('; '));
+  console.log('PORTAL_ADMIN_UI_OK: cliente, permissões e módulos');
+  admin.dom.window.close();
   // Regressões de Chat: datas, resposta persistente, prévia e foco após Enter.
-  const chat=await open(true,false,true);
+  const chat=await open(true,false,false,true);
   const chatDoc=chat.dom.window.document;
   const separators=await aguardarCondicao(()=>chatDoc.querySelectorAll('.chat-day-divider').length===2);
   assert.ok(separators,'Separadores de data ausentes');
@@ -247,8 +275,7 @@ try {
     'Confirmação de leitura deve se limitar às mensagens exibidas');
   assert.ok(!chat.errors.length,chat.errors.join('; '));
   console.log('CHAT_UX_OK:',separators,'date separators; reply + preview + focus');
-  chat.dom.window.close();
-  const native=await open(true,true);
+  chat.dom.window.close();  const native=await open(true,true);
   assert.equal(native.dom.window.envoxersDesktop?.active,true);
   assert.ok(native.dom.window.document.querySelector('.app'));
   for(let i=0;i<25&&!native.nativeCalls.some(call=>call.command==='native_badge');i++) await new Promise(resolve=>setTimeout(resolve,50));

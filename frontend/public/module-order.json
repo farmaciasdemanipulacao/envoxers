@@ -14,6 +14,7 @@
   "tc-feedback-sistema.jsx",
   "tc-meu-perfil.jsx",
   "tc-perfis-acesso.jsx",
+  "tc-portal-admin.jsx",
   "tc-configuracoes.jsx",
   "tc-solicitacoes.jsx",
   "tc-calendario.jsx",

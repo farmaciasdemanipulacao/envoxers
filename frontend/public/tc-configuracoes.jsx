@@ -38,6 +38,11 @@ function ConfiguracoesScreen({
             "Serviços",
             <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 4h10M3 8h10M3 12h6" /></svg>
           )}
+          {["admin","gestor"].includes(permissao) && linkItem(
+            "portal-clientes",
+            "Portal do Cliente",
+            <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 6h6M5 9h4"/></svg>
+          )}
           {permissao === "admin" && linkItem(
             "perfis-acesso",
             "Perfis de acesso",
@@ -64,6 +69,7 @@ function ConfiguracoesScreen({
       {item === "envoxers" && <EnvoxersScreen permissao={permissao} />}
       {item === "servicos" && <ServicosScreen permissao={permissao} />}
       {item === "perfis-acesso" && permissao === "admin" && <PerfisAcessoScreen />}
+      {item === "portal-clientes" && ["admin","gestor"].includes(permissao) && <PortalClientesAdminScreen />}
       {item === "perfil" && (
         <MeuPerfilScreen nome={nome} permissao={permissao} fotoUrl={fotoUrl} envoxerId={envoxerId} onFotoAtualizada={onFotoAtualizada} />
       )}

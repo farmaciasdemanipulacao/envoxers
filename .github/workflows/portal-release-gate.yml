@@ -1,0 +1,14 @@
+name: Portal SECOVI - bloqueio de seguranca
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/portal-release-gate.yml'
+  workflow_dispatch:
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify mandatory external-portal security gates
+        run: python backend/tests/portal_release_gate.py
