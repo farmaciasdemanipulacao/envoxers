@@ -30,11 +30,11 @@ class PortalExternalAccessSecurityTest(unittest.IsolatedAsyncioTestCase):
             db.add_all([company_a, company_b])
             await db.flush()
             pwd="senha-ficticia-melhor-que-12-chars"
-            a=ClienteContato(cliente_id=company_a.id,nome="A",email="sec-tenant-a@example.invalid",
+            a=ClienteContato(cliente_id=company_a.id,nome="A",email="sec-tenant-a@example.com",
                              senha_hash=hash_password(pwd),ativo=True,
                              set_senha_token="token-ficticio-a",
                              set_senha_token_expira=datetime.now(timezone.utc)+timedelta(days=1))
-            b=ClienteContato(cliente_id=company_b.id,nome="B",email="sec-tenant-b@example.invalid",
+            b=ClienteContato(cliente_id=company_b.id,nome="B",email="sec-tenant-b@example.com",
                              senha_hash=hash_password(pwd),ativo=True,
                              set_senha_token="token-ficticio-b",
                              set_senha_token_expira=datetime.now(timezone.utc)+timedelta(days=1))
