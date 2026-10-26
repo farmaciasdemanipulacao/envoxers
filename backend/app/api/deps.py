@@ -122,6 +122,10 @@ async def get_current_cliente_contato(
     config = await db.get(PortalClienteConfig, contato.cliente_id)
     if config is None or not config.habilitado:
         raise credentials_exception
+    # Rejeitar tokens antigos, inclusive após uma desativação seguida
+    # de reativação. Uma nova autenticação recebe a versão atualizada.
+    if payload.get("portal_config_versao") != config.atualizado_em.isoformat():
+        raise credentials_exception
     return contato
 
 
