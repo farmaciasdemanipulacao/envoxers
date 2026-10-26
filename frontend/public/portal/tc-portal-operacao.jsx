@@ -7,7 +7,22 @@ const PortalOperacao = (() => {
   };
   const data = (valor) => valor ? new Date(String(valor).slice(0, 10) + "T12:00:00").toLocaleDateString("pt-BR") : "A definir";
   const dateTime = (valor) => valor ? new Date(valor).toLocaleString("pt-BR") : "";
-  function Status({ children }) { return <span className="po-status">{children}</span>; }
+  // Status públicos e das tarefas vêm da API com texto já amigável ao cliente.
+  // As classes representam significado e permanecem estáveis caso a API evolua.
+  const STATUS_TONS = {
+    "Recebida":"recebida", "Em triagem":"triagem", "Em andamento":"andamento",
+    "Não aceita":"recusada", "Em acompanhamento":"neutro",
+    "Planejamento":"planejamento", "Em produção":"producao",
+    "Em revisão":"revisao", "Aguardando aprovação":"aprovacao",
+    "Em ajustes":"ajustes", "Programada":"programada", "Concluída":"concluida"
+  };
+  function Status({ children }) {
+    const label = typeof children === "string" ? children.trim() : String(children || "");
+    const tom = STATUS_TONS[label] || "neutro";
+    return <span className={"po-status po-status--"+tom} data-status={tom}>
+      {label || "Em acompanhamento"}
+    </span>;
+  }
   function Empty({ text }) { return <div className="po-empty">{text}</div>; }
   const ICON_PATHS = {
     inicio:<><path d="M2 7.5 8 2l6 5.5V14H9.5v-4h-3v4H2z"/></>,
