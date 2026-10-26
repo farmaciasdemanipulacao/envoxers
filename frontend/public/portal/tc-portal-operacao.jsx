@@ -491,5 +491,5 @@ const PortalOperacao = (() => {
       </div>
     );
   }
-  return { Shell };
+  return { Shell, Status };
 })();
