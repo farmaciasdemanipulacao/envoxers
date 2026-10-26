@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_cliente_contato
 from app.db.session import get_db
 from app.models.cliente_contato import ClienteContato
+from app.models.portal_operacao import PortalClienteConfig
 from app.models.documento_acordo import DocumentoAcordo
 from app.models.documento_confirmacao import DocumentoConfirmacao
 from app.services.portal_permissoes import pode
@@ -16,6 +17,17 @@ from app.services.documentos_acordo import confirmar_como_cliente_contato
 from app.api.routes.documento_acordo import serializar_documento
 
 router = APIRouter(prefix="/portal", tags=["portal-documentos"])
+
+async def documentos_habilitados(
+    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ClienteContato:
+    # Não vincular aos módulos de solicitações: documentos podem ser
+    # habilitados/desabilitados independentemente para cada cliente.
+    config = await db.get(PortalClienteConfig, contato.cliente_id)
+    if config is None or not config.habilitado or not (config.modulos or {}).get("documentos", True):
+        raise HTTPException(status_code=403, detail="Documentos indisponíveis para esta organização")
+    return contato
 
 def projetar_documento_cliente(dado: DocumentoAcordoResponse, contato_id: int) -> dict:
     """Nunca devolver a um cliente IP, e-mail, ID interno ou identidade de terceiros."""
@@ -36,7 +48,7 @@ def projetar_documento_cliente(dado: DocumentoAcordoResponse, contato_id: int) -
 
 @router.get("/documentos")
 async def listar_documentos_portal(
-    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    contato: Annotated[ClienteContato, Depends(documentos_habilitados)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     stmt = select(DocumentoAcordo).where(DocumentoAcordo.cliente_id == contato.cliente_id)
@@ -54,7 +66,7 @@ async def listar_documentos_portal(
 async def confirmar_documento_portal(
     documento_id: int,
     request: Request,
-    contato: Annotated[ClienteContato, Depends(get_current_cliente_contato)],
+    contato: Annotated[ClienteContato, Depends(documentos_habilitados)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     alvo = await db.get(DocumentoAcordo, documento_id)
