@@ -59,7 +59,12 @@ async def login(payload: PortalLoginRequest, db: Annotated[AsyncSession, Depends
     if cliente is None or not cliente.ativo or cliente.deleted_at is not None or not config or not config.habilitado:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso desativado")
 
-    access_token = create_access_token({"sub": str(contato.id), "tipo": "cliente_contato"})
+    # Sessões anteriores a uma troca de configuração são revogadas. Isso
+    # impede que um token antigo volte a funcionar após desativar/reativar.
+    access_token = create_access_token({
+        "sub": str(contato.id), "tipo": "cliente_contato",
+        "portal_config_versao": config.atualizado_em.isoformat(),
+    })
     return PortalToken(access_token=access_token, id=contato.id, nome=contato.nome, cliente_id=cliente.id, cliente_nome=cliente.nome)
 
 
