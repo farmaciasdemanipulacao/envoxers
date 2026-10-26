@@ -77,8 +77,14 @@ class PortalExternalAccessSecurityTest(unittest.IsolatedAsyncioTestCase):
 
             # A configuração de B jamais ativa A.
             cb.habilitado=True
+            cb.atualizado_em=datetime.now(timezone.utc)+timedelta(seconds=1)
             await db.flush()
-            self.assertIs(await get_current_cliente_contato(session.access_token,db),b)
+            with self.assertRaises(HTTPException) as err:
+                await get_current_cliente_contato(session.access_token,db)
+            self.assertEqual(err.exception.status_code,401)
+            # Somente um novo login usa a nova versão da configuração.
+            renewed=await login(PortalLoginRequest(email=b.email,senha=pwd),db)
+            self.assertIs(await get_current_cliente_contato(renewed.access_token,db),b)
             with self.assertRaises(HTTPException) as err:
                 await login(PortalLoginRequest(email=a.email,senha=pwd),db)
             self.assertEqual(err.exception.status_code,403)
