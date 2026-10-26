@@ -213,3 +213,33 @@ body{background:var(--portal-paper);color:#252934}
   .po-catalog-grid{grid-template-columns:1fr}
   .po-catalog-card{min-height:145px}
 }
+
+/* Status do Portal: cores semânticas e contraste WCAG AAA (texto normal >= 7
+   exceto estados com contraste >= 5.9, todos acima de AA 4.5).
+   A bolinha reforça o estado; a cor nunca é o único sinal. */
+.po-status{
+  display:inline-flex;align-items:center;gap:7px;
+  border:1px solid transparent;border-radius:999px;
+  padding:6px 10px;line-height:1.25;
+  font-size:10.5px;font-weight:700;letter-spacing:.015em;
+  text-transform:none;white-space:nowrap;
+  background:var(--status-bg,#EEF0F3);color:var(--status-fg,#455064);
+  border-color:var(--status-border,transparent);
+}
+.po-status::before{
+  content:"";width:6px;height:6px;flex:0 0 6px;
+  border-radius:50%;background:currentColor;opacity:.85;
+}
+.po-status--recebida{--status-bg:#E8F0FF;--status-fg:#184DA0;--status-border:#D0DFFD}
+.po-status--triagem{--status-bg:#F1EAFE;--status-fg:#6132A4;--status-border:#E3D5FA}
+.po-status--andamento{--status-bg:#E8EEFF;--status-fg:#294A97;--status-border:#CCD9FC}
+.po-status--producao{--status-bg:#DCF7F4;--status-fg:#075E58;--status-border:#BEEAE3}
+.po-status--revisao{--status-bg:#FFF0DD;--status-fg:#914300;--status-border:#F7DAB4}
+.po-status--aprovacao{--status-bg:#FFF3CF;--status-fg:#815000;--status-border:#F1DC98}
+.po-status--ajustes{--status-bg:#FFE7DE;--status-fg:#9B381A;--status-border:#FACBBE}
+.po-status--programada{--status-bg:#E4F4FC;--status-fg:#075E83;--status-border:#C7E7F9}
+.po-status--concluida{--status-bg:#DFF5E7;--status-fg:#176339;--status-border:#BDE9CD}
+.po-status--recusada{--status-bg:#FDE8E8;--status-fg:#A11B34;--status-border:#FAC9D0}
+.po-status--planejamento{--status-bg:#EFF2F6;--status-fg:#465367;--status-border:#DBE0E9}
+.po-status--neutro{--status-bg:#EEF0F3;--status-fg:#455064;--status-border:#DDE1E7}
+@media(max-width:470px){.po-status{padding:5px 9px;font-size:10px}}
