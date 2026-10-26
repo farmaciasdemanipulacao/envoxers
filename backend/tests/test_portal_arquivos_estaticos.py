@@ -20,7 +20,7 @@ class GuardedUploadTest(unittest.IsolatedAsyncioTestCase):
             (private/"fake-contract.pdf").write_text("fictitious sensitive file")
             (root/"avatar-ficticio.jpg").write_bytes(b"fake image bytes")
             files=ArquivosLegadosProtegidos(directory=folder)
-            scope={"type":"http","method":"GET","path":"/api/v1/uploads/"}
+            scope={"type":"http","method":"GET","path":"/api/v1/uploads/","headers":[],"query_string":b""}
 
             for path in ("private/fake-contract.pdf", "./private/fake-contract.pdf",
                          "subdir/../private/fake-contract.pdf", "private\\fake-contract.pdf"):
