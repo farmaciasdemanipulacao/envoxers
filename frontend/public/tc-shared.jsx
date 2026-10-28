@@ -1372,7 +1372,7 @@ function FeedbackSistemaDock({ permissao }) {
 
   return (
     <>
-      {ReactDOM.createPortal(trigger, document.body)}
+      {trigger}
       {testeObrigatorioAlert && ReactDOM.createPortal(testeObrigatorioAlert, document.body)}
       {drawer && ReactDOM.createPortal(drawer, document.body)}
     </>

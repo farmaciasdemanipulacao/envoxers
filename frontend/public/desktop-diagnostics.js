@@ -3,7 +3,7 @@
   "use strict";
   if (new URLSearchParams(location.search).get("envoxers_desktop") !== "1") return;
   const style = document.createElement("style");
-  style.textContent = "#evdx{position:fixed;right:16px;bottom:16px;z-index:2147483640;font:13px/1.5 system-ui,sans-serif;color:#1d2440}body:has(.chat-input-bar) #evdx{display:none!important}#evdx button{cursor:pointer;font:inherit}#evdx-toggle{background:#2547e8;color:#fff;border:0;border-radius:30px;padding:10px 15px;box-shadow:0 6px 22px #101a4d55;font-weight:700}#evdx-panel{background:#fff;border:1px solid #d5daea;border-radius:14px;box-shadow:0 10px 35px #101a4d55;width:min(370px,calc(100vw - 30px));max-height:75vh;overflow:auto;box-sizing:border-box;padding:16px;margin-bottom:10px}#evdx-panel[hidden]{display:none}#evdx-panel h3{margin:0 0 8px;font-size:16px}#evdx-panel p{margin:8px 0}#evdx-panel .actions{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}#evdx-panel .actions button{background:#f0f3fc;color:#17348b;border:1px solid #cbd4ed;border-radius:8px;padding:8px 10px;font-weight:600}#evdx-panel .actions button:disabled{opacity:.5;cursor:wait}#evdx-status{background:#f5f7fb;border-radius:9px;padding:10px;white-space:pre-line;overflow-wrap:anywhere}#evdx-panel .hint{font-size:12px;color:#5c6680}";
+  style.textContent = "#evdx{position:relative;flex:0 0 auto;display:none;z-index:985;font:13px/1.5 system-ui,sans-serif;color:#1d2440}#evdx.evdx-docked{display:block}#evdx button{cursor:pointer;font:inherit}#evdx-toggle{width:34px;height:34px;display:grid;place-items:center;background:#2547e8;color:#fff;border:0;border-radius:9px;padding:0;box-shadow:0 6px 22px #101a4d55;font-weight:700}#evdx-panel{position:fixed;top:64px;right:16px;z-index:986;background:#fff;border:1px solid #d5daea;border-radius:14px;box-shadow:0 10px 35px #101a4d55;width:min(370px,calc(100vw - 30px));max-height:75vh;overflow:auto;box-sizing:border-box;padding:16px;margin-bottom:10px}#evdx-panel[hidden]{display:none}#evdx-panel h3{margin:0 0 8px;font-size:16px}#evdx-panel p{margin:8px 0}#evdx-panel .actions{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}#evdx-panel .actions button{background:#f0f3fc;color:#17348b;border:1px solid #cbd4ed;border-radius:8px;padding:8px 10px;font-weight:600}#evdx-panel .actions button:disabled{opacity:.5;cursor:wait}#evdx-status{background:#f5f7fb;border-radius:9px;padding:10px;white-space:pre-line;overflow-wrap:anywhere}#evdx-panel .hint{font-size:12px;color:#5c6680}";
   document.head.appendChild(style);
   function start() {
     if (document.getElementById("evdx")) return;
@@ -27,12 +27,33 @@
       '<p class="hint" id="evdx-result" aria-live="polite"></p>',
       '<p class="hint">Se o teste for aceito mas o aviso não aparecer, verifique o Não Perturbe e as notificações do Windows.</p>',
       '</section>',
-      '<button id="evdx-toggle" type="button" aria-expanded="false">🖥 Diagnóstico Windows</button>'
+      '<button id="evdx-toggle" type="button" aria-expanded="false" title="Diagnóstico Windows" aria-label="Diagnóstico Windows">🖥</button>'
     ].join("");
     document.body.appendChild(wrapper);
+    // O diagnóstico fica na Topbar e não sobrepõe controles do chat ou timer.
+    // Reencaixa após login, logout e remontagens do React sem alterar o Tauri.
+    function dock() {
+      const actions = document.querySelector(".topbar-actions");
+      if (actions) {
+        if (wrapper.parentNode !== actions) {
+          const logout = actions.querySelector("button.btn-ghost");
+          actions.insertBefore(wrapper, logout || null);
+        }
+        wrapper.classList.add("evdx-docked");
+      } else {
+        if (wrapper.parentNode !== document.body) document.body.appendChild(wrapper);
+        wrapper.classList.remove("evdx-docked");
+      }
+      if (document.querySelector(".modal-overlay.open") && !panel.hidden) {
+        panel.hidden = true;
+        el("evdx-toggle").setAttribute("aria-expanded", "false");
+      }
+    }
     const el = (id) => document.getElementById(id);
     const panel = el("evdx-panel"), status = el("evdx-status"), result = el("evdx-result"), startButton = el("evdx-startup");
     let enabled = false, badgeOn = false, report = "";
+    dock();
+    window.setInterval(dock, 1500);
     const invoke = (command, args = {}) => {
       const core = window.__TAURI__?.core;
       if (!core || typeof core.invoke !== "function") {
