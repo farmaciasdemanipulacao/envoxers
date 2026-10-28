@@ -7296,19 +7296,10 @@ body:has(.foco-bar.active) .feedback-floating-fab{
 .chat-msg-file strong{display:block;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
 .chat-msg-file small{display:block;margin-top:2px;color:var(--ink-4);font-size:8px}
 
-/* No Chat, o envio ocupa o canto inferior direito. O botão de feedback sobe para
-   nunca cobrir "Enviar", inclusive com o composer maior por causa de um anexo. */
+/* No chat, nenhum atalho flutuante deve cobrir mensagens ou o composer.
+   O feedback continua disponível nas demais telas do Envoxers. */
 body:has(.chat-input-bar) .feedback-floating-fab{
-  bottom:calc(104px + env(safe-area-inset-bottom))!important;
-  right:18px;
-}
-body:has(.chat-attachment-draft) .feedback-floating-fab{
-  bottom:calc(154px + env(safe-area-inset-bottom))!important;
-}
-@media(max-width:600px){
-  .chat-attachment-draft{padding-left:12px;padding-right:12px}
-  body:has(.chat-input-bar) .feedback-floating-fab{bottom:calc(112px + env(safe-area-inset-bottom))!important;right:12px}
-  body:has(.chat-attachment-draft) .feedback-floating-fab{bottom:calc(162px + env(safe-area-inset-bottom))!important}
+  display:none!important;
 }
 
 
