@@ -296,7 +296,11 @@ a:hover { text-decoration: underline; }
 .avatar-wrap.sm .avatar-status { width: 14px; height: 14px; }
 .avatar-wrap.md .avatar-status { width: 15px; height: 15px; }
 .avatar-wrap.lg .avatar-status { width: 22px; height: 22px; border-width: 3px; }
-.avatar-status-ativo { background: var(--farol-verde); }
+/* Presença online: verde vivo com contorno para distinguir do cinza offline. */
+.avatar-status-ativo {
+  background: #00C853;
+  box-shadow: inset 0 0 0 1px #087C3D, 0 0 0 1px rgba(0, 200, 83, .25);
+}
 .avatar-status-ausente { background: var(--farol-amarelo); }
 .avatar-status-offline { background: var(--ink-4); }
 
