@@ -92,7 +92,15 @@ async def _obter_ou_criar_card_id(
         await _sincronizar_servico_card_existente(db, tarefa_id, servico_id)
         return tarefa_id
 
-    titulo = f"{tipo}{f' — {descricao}' if descricao else ''} ({ano_mes})"
+    # Tarefa.titulo é VARCHAR(200). Preserva o sufixo do mês e o tipo;
+    # descrições longas continuam integrais no ItemEscopo original.
+    sufixo = f" ({ano_mes})"
+    prefixo = str(tipo or "")[: 200 - len(sufixo)]
+    espaco = 200 - len(prefixo) - len(sufixo)
+    detalhe = f" — {descricao}" if descricao and espaco > 2 else ""
+    if len(detalhe) > espaco:
+        detalhe = detalhe[: max(0, espaco - 1)].rstrip() + "…"
+    titulo = prefixo + detalhe + sufixo
     responsavel_cliente = (await db.execute(
         select(Cliente.responsavel_envoxer_id).where(Cliente.id == cliente_id)
     )).scalar_one_or_none()
