@@ -127,6 +127,7 @@ function PrioridadeListaDash({ tipo, itensBase, ownerId, podeArrastar, onAbrir, 
 function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onNavigate }) {
   const [loading, setLoading] = useStateDash(true);
   const [dados, setDados] = useStateDash(null);
+  const [erroDashboard, setErroDashboard] = useStateDash("");
   const [resumoFoco, setResumoFoco] = useStateDash(null);
   const [farolWidget, setFarolWidget] = useStateDash([]);
   const [eventosHoje, setEventosHoje] = useStateDash([]);
@@ -145,6 +146,7 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
 
   const carregar = async () => {
     setLoading(true);
+    setErroDashboard("");
     try {
       const hoje = new Date();
       // /relatorio/tempo-custo agora é aberto a todo mundo (valores vêm redigidos
@@ -172,6 +174,7 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
       setPendencias(pend);
       setEnvoxersList(envs.filter((e) => e.ativo));
     } catch (err) {
+      setErroDashboard(err?.message || "Falha ao carregar os dados do painel.");
       toast(err.message, "error");
     } finally {
       setLoading(false);
@@ -207,6 +210,20 @@ function DashboardScreen({ permissao, envoxerId, dataVersion, onAbrirTarefa, onN
 
   if (loading) {
     return <div className="page"><div className="app-loading">Carregando…</div></div>;
+  }
+
+  // Nunca acessar dados.cards se alguma API falhou: mantém a navegação utilizável.
+  if (!dados?.cards || !dados?.etapas) {
+    return (
+      <div className="page">
+        <div className="page-header"><h1>Dash do dia</h1></div>
+        <div className="dash-card" role="alert" style={{padding:24}}>
+          <h2>Não foi possível carregar o painel</h2>
+          <p>{erroDashboard || "Os dados estão temporariamente indisponíveis."}</p>
+          <button className="btn btn-envox" onClick={carregar}>Tentar novamente</button>
+        </div>
+      </div>
+    );
   }
 
   const semanaPct = resumoFoco && resumoFoco.semana_meta_min > 0
