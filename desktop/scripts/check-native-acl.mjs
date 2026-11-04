@@ -46,7 +46,7 @@ assert.match(nativeDownload, /download_dir\(\)/, "Pasta Downloads precisa ser re
 assert.match(read("../frontend/public/desktop-downloads.js"), /envox-download-panel/, "Gerenciador de downloads ausente");
 assert.match(read("../frontend/public/desktop-downloads.js"), /video\.currentTime/, "Prévia de vídeo ausente");
 assert.match(read("src-tauri/src/updates.rs"), /envoxers:update-progress/, "Progresso do atualizador ausente");
-assert.equal(conf.version, "0.3.2");
+assert.equal(conf.version, "0.3.3");
 assert.equal(conf.plugins?.updater?.endpoints?.[0], "https://envoxers.envox.com.br/desktop-updates/latest.json");
 assert.ok(conf.plugins?.updater?.pubkey?.length > 100, "Chave pública do atualizador ausente");
 assert.equal(conf.bundle.createUpdaterArtifacts, false, "Assinatura deve ocorrer apenas na VPS");
@@ -56,4 +56,8 @@ assert.match(read("scripts/publish-signed-updates.py"), /--private-key-path/);
 assert.match(read("../.github/workflows/envoxers-desktop-windows.yml"), /gh release create/);
 assert.equal(pkg.version, conf.version);
 assert.equal(lock.version, pkg.version);
-console.log("NATIVE_ACL_OK: 9 comandos, progresso de downloads e pasta nativa, atualizador assinado.");
+console.log("NATIVE_ACL_OK: comandos nativos, downloads, updater assinado e deep link validados.");
+
+assert.match(read("src-tauri/Cargo.toml"), /tauri-plugin-deep-link/, "Plugin deep-link ausente");
+assert.match(read("src-tauri/tauri.conf.json"), /"schemes":\s*\[\s*"envoxers"\s*\]/, "Protocolo envoxers ausente");
+assert.match(read("../frontend/public/tc-auth.jsx"), /envoxers:\/\/open\?source=login/, "Login não tenta detectar o Desktop");
