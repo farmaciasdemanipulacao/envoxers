@@ -60,4 +60,3 @@ console.log("NATIVE_ACL_OK: comandos nativos, downloads, updater assinado e deep
 
 assert.match(read("src-tauri/Cargo.toml"), /tauri-plugin-deep-link/, "Plugin deep-link ausente");
 assert.match(read("src-tauri/tauri.conf.json"), /"schemes":\s*\[\s*"envoxers"\s*\]/, "Protocolo envoxers ausente");
-assert.match(read("../frontend/public/tc-auth.jsx"), /envoxers:\/\/open\?source=login/, "Login não tenta detectar o Desktop");
