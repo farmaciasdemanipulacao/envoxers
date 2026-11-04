@@ -159,3 +159,8 @@ versão, sem desinstalação manual.
 6. Baixar arquivo repetido e garantir que não seja sobrescrito.
 7. Abrir com uma versão anterior e confirmar compatibilidade.
 8. Conferir progresso da próxima atualização de 0.3.2 para uma versão futura.
+
+
+## v0.3.3 | Login Meu computador
+
+O Desktop registra o protocolo envoxers:// no Windows. O login Web usa esse protocolo para tentar abrir o aplicativo; se ele não responder, oferece o instalador oficial mais recente. O navegador não instala EXE silenciosamente.

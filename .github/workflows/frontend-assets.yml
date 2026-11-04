@@ -10,6 +10,9 @@ on:
       - 'frontend/**'
       - '.github/workflows/frontend-assets.yml'
 
+permissions:
+  contents: write
+
 jobs:
   compile-and-test:
     runs-on: ubuntu-latest
@@ -26,6 +29,18 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run test:smoke
+      - name: Commit compiled assets on desktop protocol branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/desktop-protocol-20261104'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/assets-runtime frontend/public/index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "build(frontend): recompilar login desktop onboarding"
+            git push
+          fi
+        working-directory: .
       - name: Check compiled assets are committed
         run: git diff --exit-code -- frontend/public/assets-runtime frontend/public/index.html
         working-directory: .
