@@ -1,8 +1,8 @@
 {
   "login": {
-    "file": "/assets-runtime/login.js?v=53974f9cf6bf",
-    "bytes": 21348,
-    "hash": "53974f9cf6bf"
+    "file": "/assets-runtime/login.js?v=d2a0d14d1e11",
+    "bytes": 18788,
+    "hash": "d2a0d14d1e11"
   },
   "app": {
     "file": "/assets-runtime/app.js?v=ba466f0f073c",
