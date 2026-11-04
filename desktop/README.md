@@ -159,3 +159,13 @@ versão, sem desinstalação manual.
 6. Baixar arquivo repetido e garantir que não seja sobrescrito.
 7. Abrir com uma versão anterior e confirmar compatibilidade.
 8. Conferir progresso da próxima atualização de 0.3.2 para uma versão futura.
+
+
+## v0.3.3 | Login Meu computador e detecção por protocolo
+
+- O instalador registra o protocolo envoxers:// no Windows.
+- Ao escolher Meu computador no login Web, o navegador tenta abrir envoxers://open.
+- Se o aplicativo responder, ele abre e executa sua verificação normal de atualização.
+- Se não responder em poucos segundos, o login oferece o instalador oficial publicado em /desktop-updates/latest.json.
+- Navegadores não recebem permissão para inspecionar programas instalados nem executar EXE silenciosamente; a confirmação do Windows continua obrigatória.
+- Versões anteriores a 0.3.3 podem não responder ao protocolo e recebem o instalador mais recente como fallback.
