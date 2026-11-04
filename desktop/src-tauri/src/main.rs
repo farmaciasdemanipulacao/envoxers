@@ -120,6 +120,7 @@ fn configurar_autostart(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| abrir(app)))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         // Sem --minimized: o usuário consegue ver que o app iniciou com o Windows.
@@ -136,6 +137,11 @@ fn main() {
             updates::native_install_update
         ])
         .setup(|app| {
+            #[cfg(windows)]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                app.deep_link().register_all()?;
+            }
             let open = MenuItem::with_id(app, "open", "Abrir Envoxers", true, None::<&str>)?;
             let startup = MenuItem::with_id(
                 app, "startup", "Alternar início com Windows", true, None::<&str>,
