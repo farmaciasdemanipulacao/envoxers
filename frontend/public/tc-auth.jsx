@@ -12,29 +12,60 @@ function LoginScreen({ onLoggedIn }) {
   const [desktopLink, setDesktopLink] = useStateAuth("");
   const [desktopErro, setDesktopErro] = useStateAuth("");
   const [desktopBaixando, setDesktopBaixando] = useStateAuth(false);
+  const [desktopDetectando, setDesktopDetectando] = useStateAuth(false);
+  const [desktopAberto, setDesktopAberto] = useStateAuth(false);
   const qrRef = useRefAuth(null);
   const link = qr ? (window.location.origin + "/?pair=" + encodeURIComponent(qr.id)) : "";
 
+  function prepararInstaladorDesktop() {
+    setDesktopConvite(true);
+    setDesktopDetectando(false);
+    setDesktopErro("");
+    setDesktopLink("");
+    fetch("/desktop-updates/latest.json", {cache:"no-store"})
+      .then(r => { if (!r.ok) throw new Error("Atualização indisponível"); return r.json(); })
+      .then(meta => {
+        const raw = meta?.platforms?.["windows-x86_64"]?.url;
+        const url = new URL(raw, window.location.origin);
+        if (url.origin !== window.location.origin || !url.pathname.startsWith("/desktop-updates/") || !url.pathname.endsWith(".exe")) {
+          throw new Error("Endereço do instalador não validado");
+        }
+        setDesktopLink(url.href);
+      })
+      .catch(() => setDesktopErro("Não foi possível consultar o instalador oficial agora. Você pode continuar pelo navegador."));
+  }
+
+  function detectarDesktopOuInstalar() {
+    setDesktopDetectando(true);
+    let finalizado = false;
+    const cleanup = () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+    };
+    const marcouAbertura = () => {
+      if (finalizado) return;
+      finalizado = true;
+      cleanup();
+      setDesktopDetectando(false);
+      setDesktopAberto(true);
+    };
+    const onVisibility = () => { if (document.hidden) marcouAbertura(); };
+    const onBlur = () => marcouAbertura();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur, {once:true});
+    window.location.href = "envoxers://open?source=login&check_update=1";
+    window.setTimeout(() => {
+      if (finalizado) return;
+      finalizado = true;
+      cleanup();
+      prepararInstaladorDesktop();
+    }, 2400);
+  }
+
   function entrar(dados, mostrarDesktop = false) {
     EnvoxersAPI.setSession(dados.access_token, dados.nome, dados.permissao, dados.id, dados.foto_url, dados.modo || "rapido");
-    // A sessão é válida, mas o usuário escolheu a experiência de computador.
-    // Navegadores não podem inspecionar programas instalados; oferecer o
-    // instalador oficial sem alegar falsamente que o app está ausente.
     if (mostrarDesktop && !window.envoxersDesktop?.active && /Windows/i.test(navigator.userAgent)) {
-      setDesktopConvite(true);
-      setDesktopErro("");
-      setDesktopLink("");
-      fetch("/desktop-updates/latest.json", {cache:"no-store"})
-        .then(r => { if (!r.ok) throw new Error("Atualização indisponível"); return r.json(); })
-        .then(meta => {
-          const raw = meta?.platforms?.["windows-x86_64"]?.url;
-          const url = new URL(raw, window.location.origin);
-          if (url.origin !== window.location.origin || !url.pathname.startsWith("/desktop-updates/") || !url.pathname.endsWith(".exe")) {
-            throw new Error("Endereço do instalador não validado");
-          }
-          setDesktopLink(url.href);
-        })
-        .catch(() => setDesktopErro("Não foi possível consultar o instalador oficial agora. Você pode continuar pelo navegador."));
+      detectarDesktopOuInstalar();
       return;
     }
     onLoggedIn();
@@ -114,6 +145,30 @@ function LoginScreen({ onLoggedIn }) {
     ["web", "Entrar pelo navegador", "Acesso completo sem instalar"],
     ["rapido", "Acesso rápido", "Máquina emprestada ou compartilhada"]
   ];
+
+  if (desktopDetectando) {
+    return <div className="login-screen">
+      <div className="login-box login-box-access" style={{maxWidth:430,textAlign:"center"}}>
+        <div className="brand" style={{justifyContent:"center",paddingBottom:12}}><span className="brand-mark">envox<span className="brand-dot"></span></span></div>
+        <h2 style={{margin:"8px 0 10px"}}>Procurando o Envoxers Desktop…</h2>
+        <p style={{lineHeight:1.6}}>Se o Windows perguntar se deseja abrir o aplicativo, confirme. Caso ele não esteja instalado, mostraremos o instalador oficial automaticamente.</p>
+        <button className="btn" type="button" onClick={prepararInstaladorDesktop}
+          style={{width:"100%",justifyContent:"center",marginTop:14}}>Baixar o aplicativo</button>
+      </div>
+    </div>;
+  }
+
+  if (desktopAberto) {
+    return <div className="login-screen">
+      <div className="login-box login-box-access" style={{maxWidth:430,textAlign:"center"}}>
+        <div className="brand" style={{justifyContent:"center",paddingBottom:12}}><span className="brand-mark">envox<span className="brand-dot"></span></span></div>
+        <h2 style={{margin:"8px 0 10px"}}>Envoxers Desktop aberto</h2>
+        <p style={{lineHeight:1.6}}>Detectamos a abertura do aplicativo. Ele próprio verifica se existe uma atualização e oferece a versão mais recente quando necessário.</p>
+        <button className="btn" type="button" onClick={onLoggedIn}
+          style={{width:"100%",justifyContent:"center",marginTop:14}}>Continuar também no navegador</button>
+      </div>
+    </div>;
+  }
 
   if (desktopConvite) {
     return <div className="login-screen">
