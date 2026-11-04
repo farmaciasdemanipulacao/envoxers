@@ -8,11 +8,35 @@ function LoginScreen({ onLoggedIn }) {
   const [erro, setErro] = useStateAuth("");
   const [loading, setLoading] = useStateAuth(false);
   const [qr, setQr] = useStateAuth(null);
+  const [desktopConvite, setDesktopConvite] = useStateAuth(null);
+  const [desktopLink, setDesktopLink] = useStateAuth("");
+  const [desktopErro, setDesktopErro] = useStateAuth("");
+  const [desktopBaixando, setDesktopBaixando] = useStateAuth(false);
   const qrRef = useRefAuth(null);
   const link = qr ? (window.location.origin + "/?pair=" + encodeURIComponent(qr.id)) : "";
 
-  function entrar(dados) {
+  function entrar(dados, mostrarDesktop = false) {
     EnvoxersAPI.setSession(dados.access_token, dados.nome, dados.permissao, dados.id, dados.foto_url, dados.modo || "rapido");
+    // A sessão é válida, mas o usuário escolheu a experiência de computador.
+    // Navegadores não podem inspecionar programas instalados; oferecer o
+    // instalador oficial sem alegar falsamente que o app está ausente.
+    if (mostrarDesktop && !window.envoxersDesktop?.active && /Windows/i.test(navigator.userAgent)) {
+      setDesktopConvite(true);
+      setDesktopErro("");
+      setDesktopLink("");
+      fetch("/desktop-updates/latest.json", {cache:"no-store"})
+        .then(r => { if (!r.ok) throw new Error("Atualização indisponível"); return r.json(); })
+        .then(meta => {
+          const raw = meta?.platforms?.["windows-x86_64"]?.url;
+          const url = new URL(raw, window.location.origin);
+          if (url.origin !== window.location.origin || !url.pathname.startsWith("/desktop-updates/") || !url.pathname.endsWith(".exe")) {
+            throw new Error("Endereço do instalador não validado");
+          }
+          setDesktopLink(url.href);
+        })
+        .catch(() => setDesktopErro("Não foi possível consultar o instalador oficial agora. Você pode continuar pelo navegador."));
+      return;
+    }
     onLoggedIn();
   }
 
@@ -26,7 +50,7 @@ function LoginScreen({ onLoggedIn }) {
         body: JSON.stringify(modo === "normal" && !desktop ? { email, senha } : { email, senha, modo: desktop ? "desktop" : modo, minutos })
       });
       if (modo === "normal" && !desktop) dados.modo = "normal";
-      entrar(dados);
+      entrar(dados, modo === "normal");
     } catch (err) { setErro(err.message || "Falha no acesso"); }
     finally { setLoading(false); }
   };
@@ -90,6 +114,31 @@ function LoginScreen({ onLoggedIn }) {
     ["web", "Entrar pelo navegador", "Acesso completo sem instalar"],
     ["rapido", "Acesso rápido", "Máquina emprestada ou compartilhada"]
   ];
+
+  if (desktopConvite) {
+    return <div className="login-screen">
+      <div className="login-box login-box-access" role="dialog" aria-modal="true" aria-labelledby="desktop-onboarding-title" style={{maxWidth:460}}>
+        <div className="brand" style={{justifyContent:"center",paddingBottom:12}}><span className="brand-mark">envox<span className="brand-dot"></span></span></div>
+        <h2 id="desktop-onboarding-title" style={{textAlign:"center",margin:"8px 0 12px"}}>Envoxers no seu computador</h2>
+        <p style={{textAlign:"center",lineHeight:1.6}}>Seu login foi realizado. Para receber notificações do Windows e atualizações do aplicativo, use o Envoxers Desktop.</p>
+        <div className="access-safety" style={{margin:"16px 0"}}>
+          <strong>Já tem o aplicativo?</strong>
+          <span>Abra o Envoxers pelo menu Iniciar do Windows. Ele verifica atualizações automaticamente.</span>
+        </div>
+        <p style={{fontSize:13,lineHeight:1.6}}>Se ainda não instalou, baixe o instalador oficial. O Windows pedirá sua confirmação para executar a instalação.</p>
+        {desktopErro && <div className="login-error" role="status">{desktopErro}</div>}
+        <a className="btn btn-envox" href={desktopLink || undefined}
+          download={desktopLink ? undefined : ""}
+          onClick={e => { if (!desktopLink) e.preventDefault(); else setDesktopBaixando(true); }}
+          style={{display:"flex",justifyContent:"center",width:"100%",marginTop:16,opacity:desktopLink?1:0.6,pointerEvents:desktopLink?"auto":"none"}}>
+          {desktopBaixando ? "Instalador solicitado. Abra o arquivo baixado" : desktopLink ? "Baixar Envoxers para Windows" : "Preparando instalador…"}
+        </a>
+        <button className="btn" type="button" onClick={onLoggedIn}
+          style={{width:"100%",justifyContent:"center",marginTop:10}}>Continuar pelo navegador</button>
+        <p style={{fontSize:11,textAlign:"center",opacity:.75,marginTop:14}}>Por segurança, o navegador não consegue confirmar se o aplicativo está instalado nem executar o instalador sozinho.</p>
+      </div>
+    </div>;
+  }
 
   return <div className="login-screen">
     <div className="login-box login-box-access">
