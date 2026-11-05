@@ -414,7 +414,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
     farol: ["solicitacoes", "farol", "alertas"].includes(view),
     icp: ["icp", "churn"].includes(view),
     desenvolvimento: view === "f4",
-    admin: ["config-alertas", "relatorio", "faturamento", "feedback-sistema"].includes(view),
+    admin: ["config-alertas", "relatorio", "faturamento", "feedback-sistema", "diagnostico-windows"].includes(view),
   }[key] || false);
   const sectionClass = (key) =>
     `nav-section nav-section-collapsible ${sectionOpen[key] ? "open" : "closed"}${sectionHasActive(key) ? " has-active" : ""}`;
@@ -639,6 +639,11 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
               "feedback-sistema",
               "Erros e Sugestões",
               <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 3h12v8H8l-4 3v-3H2z"/><path d="M5 6h6M5 8h4"/></svg>
+            )}
+            {permissao === "admin" && window.envoxersDesktop?.active && item(
+              "diagnostico-windows",
+              "Diagnóstico Windows",
+              <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="2.5" width="12" height="8" rx="1.5"/><path d="M5 13.5h6M8 10.5v3"/><path d="M4.5 5.5h7M4.5 7.5h4"/></svg>
             )}
           </nav>
         </div>

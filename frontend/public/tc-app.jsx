@@ -317,7 +317,7 @@ function moduloDaView(view) {
   if (["solicitacoes","farol","alertas"].includes(view)) return "farol";
   if (["icp","churn"].includes(view)) return "icp";
   if (view === "f4") return "desenvolvimento";
-  if (["config-alertas","relatorio","faturamento","feedback-sistema","foco-relatorio"].includes(view)) return "admin";
+  if (["config-alertas","relatorio","faturamento","feedback-sistema","foco-relatorio","diagnostico-windows"].includes(view)) return "admin";
   if (view === "configuracoes") return "configuracoes";
   return null;
 }
@@ -370,6 +370,35 @@ function limparUrlCard() {
   const url = new URL(window.location.href);
   url.searchParams.delete("card");
   window.history.replaceState(window.history.state, "", url.toString());
+}
+
+function DiagnosticoWindowsScreen() {
+  const hostRef = useRefApp(null);
+  const [disponivel, setDisponivel] = useStateApp(true);
+
+  useEffectApp(() => {
+    const api = window.EnvoxersWindowsDiagnostics;
+    if (!api?.mount || !hostRef.current) {
+      setDisponivel(false);
+      return;
+    }
+    const ok = api.mount(hostRef.current);
+    if (ok === false) setDisponivel(false);
+    return () => api?.unmount?.();
+  }, []);
+
+  return (
+    <div className="page">
+      <EnvoxersShared.PageHeader title="Diagnóstico Windows" subtitle="Ferramentas nativas do Envoxers Desktop para administradores." />
+      {!disponivel && (
+        <div className="empty-state">
+          <strong>Diagnóstico indisponível nesta sessão.</strong>
+          <p>Abra esta tela pelo Envoxers Desktop com uma conta de administrador.</p>
+        </div>
+      )}
+      <div ref={hostRef}></div>
+    </div>
+  );
 }
 
 function AppShell() {
@@ -455,7 +484,10 @@ function AppShell() {
       view === "feedback-sistema" &&
       permissao !== "admin" &&
       permissao !== "tecnico";
-    if (adminFinanceiroBloqueado || feedbackBloqueado) {
+    const diagnosticoBloqueado =
+      view === "diagnostico-windows" &&
+      (permissao !== "admin" || !window.envoxersDesktop?.active);
+    if (adminFinanceiroBloqueado || feedbackBloqueado || diagnosticoBloqueado) {
       setView(primeiraViewPermitida(modulosAcesso, permissao));
     }
   }, [view, permissao, perfilComercial, modulosAcesso]);
@@ -969,6 +1001,7 @@ function AppShell() {
     arquivos: "Operação / Arquivos",
     "feedback-sistema": "Admin / Erros e Sugestões",
     "foco-relatorio": "Admin / Focos",
+    "diagnostico-windows": "Admin / Diagnóstico Windows",
     f4: "Desenvolvimento / Desenvolvimento & Pessoas",
   };
 
@@ -1118,6 +1151,7 @@ function AppShell() {
         )}
         {view === "arquivos" && <ArquivosScreen permissao={permissao} onAbrirTarefa={abrirTarefa} />}
         {view === "feedback-sistema" && (permissao === "admin" || permissao === "tecnico") && <FeedbackSistemaScreen abrirTicketId={feedbackAbrirId} onTicketAberto={() => setFeedbackAbrirId(null)} />}
+        {view === "diagnostico-windows" && permissao === "admin" && window.envoxersDesktop?.active && <DiagnosticoWindowsScreen />}
         {view === "f4" && <F4Screen permissao={permissao} envoxerId={envoxerId} />}
         {view === "configuracoes" && (
           <ConfiguracoesScreen

@@ -29,7 +29,7 @@ class TrackingResources extends ResourceLoader {
   urls=[];
   fetch(url,opts) {this.urls.push(url);return super.fetch(url,opts);}
 }
-async function open(authorized=false,desktop=false,chatFixture=false) {
+async function open(authorized=false,desktop=false,chatFixture=false,permission="envoxer") {
   const resources=new TrackingResources(),errors=[],nativeCalls=[],nativeEvents=new Map();
   const virtualConsole=new VirtualConsole();
   virtualConsole.on("jsdomError",e=>errors.push(e.message));
@@ -61,7 +61,7 @@ async function open(authorized=false,desktop=false,chatFixture=false) {
       if(!authorized) return;
       win.localStorage.setItem("envoxers_token",chatFixture?"e30.eyJzdWIiOiIzMzMifQ.sig":"DUMMY_TEST_TOKEN");
       win.localStorage.setItem("envoxers_nome","Teste Envoxers");
-      win.localStorage.setItem("envoxers_permissao","envoxer");
+      win.localStorage.setItem("envoxers_permissao",permission);
       win.localStorage.setItem("envoxers_id","333");
       win.localStorage.setItem("envoxers_modo_acesso","web");
       win.sessionStorage.setItem("envoxers_view_333",chatFixture?"chat":"arquivos");
@@ -101,7 +101,9 @@ async function open(authorized=false,desktop=false,chatFixture=false) {
           ];
         }
         if(path.includes("/auth/me")) data={id:333,nome:"Teste Envoxers",
-          permissao:"envoxer",modulos:["operacao","chat","entregas"]};
+          permissao:permission,modulos:permission==="admin"
+            ? ["chat","comercial","operacao","entregas","farol","icp","desenvolvimento","admin","configuracoes"]
+            : ["operacao","chat","entregas"]};
         if(path.includes("/chat/bloqueio")) data={bloqueado:false,canais:[]};
         if(path.endsWith("/arquivos")) data=[
           {contexto_nome:"Mister Bim",card_chave:"tarefa:10",card_id:10,
@@ -248,7 +250,7 @@ try {
   assert.ok(!chat.errors.length,chat.errors.join('; '));
   console.log('CHAT_UX_OK:',separators,'date separators; reply + preview + focus');
   chat.dom.window.close();
-  const native=await open(true,true);
+  const native=await open(true,true,false,"admin");
   assert.equal(native.dom.window.envoxersDesktop?.active,true);
   assert.ok(native.dom.window.document.querySelector('.app'));
   for(let i=0;i<25&&!native.nativeCalls.some(call=>call.command==='native_badge');i++) await new Promise(resolve=>setTimeout(resolve,50));
@@ -262,9 +264,12 @@ try {
   assert.ok(native.nativeCalls.some(call=>call.command==='native_alert'));
   assert.ok(native.dom.window.envoxersDesktop.lastMessageAt);
   assert.ok(native.dom.window.envoxersDesktop.lastAlertAt);
-  assert.ok(native.dom.window.document.querySelector('#evdx-toggle'), 'diagnóstico nativo não montou');
-  native.dom.window.document.querySelector('#evdx-toggle').click();
-  await new Promise(resolve=>setTimeout(resolve,40));
+  assert.equal(native.dom.window.document.querySelector('#evdx-toggle'), null, 'diagnóstico não deve mais ser flutuante');
+  const diagLink=[...native.dom.window.document.querySelectorAll('.nav a')]
+    .find(a=>a.textContent.includes('Diagnóstico Windows'));
+  assert.ok(diagLink, 'diagnóstico deve aparecer no menu Admin do Desktop');
+  diagLink.click();
+  await aguardarCondicao(()=>native.dom.window.document.querySelector('#evdx-panel') && !native.dom.window.document.querySelector('#evdx-panel').hidden);
   assert.match(native.dom.window.document.querySelector('#evdx-status').textContent,/Ponte Tauri: conectada/);
   native.dom.window.document.querySelector('#evdx-alert').click();
   native.dom.window.document.querySelector('#evdx-startup').click();
