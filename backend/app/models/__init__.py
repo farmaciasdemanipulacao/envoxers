@@ -56,5 +56,6 @@ from app.models.demanda_avulsa import DemandaAvulsa  # noqa: F401
 from app.models.foco_ajuste import FocoAjuste  # noqa: F401
 from app.models.perfil_acesso import PerfilAcesso  # noqa: F401
 from app.models.sessao_web import SessaoWeb, PareamentoWeb  # noqa: F401
+from app.models.presenca import PresencaConfig, PresencaEstado, PresencaIntervalo, PresencaAuditoria  # noqa: F401
 
 from app.models.pdi_jornada import PdiJornada, PdiRegistro, PdiDiagnostico, PdiLembreteEnvio  # noqa: F401

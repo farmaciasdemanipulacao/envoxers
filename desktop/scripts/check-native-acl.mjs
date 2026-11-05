@@ -6,7 +6,7 @@ const root = resolve(import.meta.dirname, "..");
 const read = path => readFileSync(resolve(root, path), "utf8");
 const json = path => JSON.parse(read(path));
 
-const commands = ["native_alert", "native_badge", "native_status", "native_set_autostart",   "native_download", "native_save_file", "native_open_downloads", "native_check_update", "native_install_update"];
+const commands = ["native_alert", "native_badge", "native_status", "native_idle_seconds", "native_set_autostart",   "native_download", "native_save_file", "native_open_downloads", "native_check_update", "native_install_update"];
 const expectedPermissions = commands.map(c => "allow-" + c.replaceAll("_", "-"));
 const build = read("src-tauri/build.rs");
 const main = read("src-tauri/src/main.rs");
@@ -31,7 +31,7 @@ assert.deepEqual(cap.remote?.urls, ["https://envoxers.envox.com.br/*"], "Origem 
 assert.deepEqual(cap.permissions, ["core:default", ...expectedPermissions], "Permissões explícitas faltando");
 assert.deepEqual(conf.app.security.capabilities, ["envoxers-remote"], "Capability não ativada");
 
-const js = read("../frontend/public/runtime-boot.js") + read("../frontend/public/desktop-diagnostics.js") + read("../frontend/public/desktop-downloads.js") + read("../frontend/public/desktop-updater.js");
+const js = read("../frontend/public/runtime-boot.js") + read("../frontend/public/desktop-diagnostics.js") + read("../frontend/public/desktop-downloads.js") + read("../frontend/public/desktop-updater.js") + read("../frontend/public/tc-app.jsx");
 for (const command of commands) {
   assert.ok(js.includes('"' + command + '"'), "Frontend não invoca comando: " + command);
 }
@@ -46,7 +46,7 @@ assert.match(nativeDownload, /download_dir\(\)/, "Pasta Downloads precisa ser re
 assert.match(read("../frontend/public/desktop-downloads.js"), /envox-download-panel/, "Gerenciador de downloads ausente");
 assert.match(read("../frontend/public/desktop-downloads.js"), /video\.currentTime/, "Prévia de vídeo ausente");
 assert.match(read("src-tauri/src/updates.rs"), /envoxers:update-progress/, "Progresso do atualizador ausente");
-assert.equal(conf.version, "0.3.3");
+assert.equal(conf.version, "0.3.4");
 assert.equal(conf.plugins?.updater?.endpoints?.[0], "https://envoxers.envox.com.br/desktop-updates/latest.json");
 assert.ok(conf.plugins?.updater?.pubkey?.length > 100, "Chave pública do atualizador ausente");
 assert.equal(conf.bundle.createUpdaterArtifacts, false, "Assinatura deve ocorrer apenas na VPS");

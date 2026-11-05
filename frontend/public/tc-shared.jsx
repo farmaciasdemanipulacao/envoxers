@@ -414,7 +414,7 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
     farol: ["solicitacoes", "farol", "alertas"].includes(view),
     icp: ["icp", "churn"].includes(view),
     desenvolvimento: view === "f4",
-    admin: ["config-alertas", "relatorio", "faturamento", "feedback-sistema", "diagnostico-windows"].includes(view),
+    admin: ["config-alertas", "relatorio", "faturamento", "feedback-sistema", "diagnostico-windows", "monitoramento-presenca"].includes(view),
   }[key] || false);
   const sectionClass = (key) =>
     `nav-section nav-section-collapsible ${sectionOpen[key] ? "open" : "closed"}${sectionHasActive(key) ? " has-active" : ""}`;
@@ -617,6 +617,11 @@ function Sidebar({ view, onNavigate, nome, permissao, fotoUrl, envoxerId, chatNa
               "foco-relatorio",
               "Focos",
               <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5v4l2.5 1.5"/><path d="M11.5 2.5l1.2 1.2"/></svg>
+            )}
+            {permissao === "admin" && item(
+              "monitoramento-presenca",
+              "Monitoramento de Presença",
+              <svg className="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14c.4-2.7 2.3-4.5 5.5-4.5s5.1 1.8 5.5 4.5"/></svg>
             )}
             {permissao === "admin" && item(
               "relatorio",

@@ -62,7 +62,7 @@ jobs:
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: Envoxers-Windows-v0.3.3-Desktop-Onboarding
+          name: Envoxers-Windows-v0.3.4-Desktop-Onboarding
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 30

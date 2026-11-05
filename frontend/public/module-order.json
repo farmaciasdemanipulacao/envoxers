@@ -30,5 +30,6 @@
   "tc-churn-lista.jsx",
   "tc-chat.jsx",
   "tc-comercial.jsx",
+  "tc-presenca.jsx",
   "tc-app.jsx"
 ]

@@ -317,7 +317,7 @@ function moduloDaView(view) {
   if (["solicitacoes","farol","alertas"].includes(view)) return "farol";
   if (["icp","churn"].includes(view)) return "icp";
   if (view === "f4") return "desenvolvimento";
-  if (["config-alertas","relatorio","faturamento","feedback-sistema","foco-relatorio","diagnostico-windows"].includes(view)) return "admin";
+  if (["config-alertas","relatorio","faturamento","feedback-sistema","foco-relatorio","diagnostico-windows","monitoramento-presenca"].includes(view)) return "admin";
   if (view === "configuracoes") return "configuracoes";
   return null;
 }
@@ -478,7 +478,7 @@ function AppShell() {
       return;
     }
     const adminFinanceiroBloqueado =
-      (view === "faturamento" || view === "relatorio" || view === "foco-relatorio") &&
+      (view === "faturamento" || view === "relatorio" || view === "foco-relatorio" || view === "monitoramento-presenca") &&
       permissao !== "admin";
     const feedbackBloqueado =
       view === "feedback-sistema" &&
@@ -875,6 +875,55 @@ function AppShell() {
     return () => clearInterval(intervalId);
   }, [focoAtivo]);
 
+
+  // Monitoramento transparente e agregado somente enquanto o Foco estiver rodando.
+  // Web detecta interações SOMENTE dentro desta página; desktop mede o tempo de
+  // ociosidade do SO pelo GetLastInputInfo, sem ler teclas, tela ou outros apps.
+  useEffectApp(() => {
+    if (!focoAtivo || focoAtivo.pausado_em) return;
+    let ativo = true;
+    let ultimaInteracaoNaPagina = Date.now();
+    let alertaAnterior = false;
+    let emEnvio = false;
+    const observarInteracao = () => { ultimaInteracaoNaPagina = Date.now(); };
+    const eventos = ["keydown", "pointerdown", "pointermove"];
+    eventos.forEach(ev => document.addEventListener(ev, observarInteracao, { passive:true }));
+    const enviar = async () => {
+      if (!ativo || emEnvio || !EnvoxersAPI.getToken()) return;
+      emEnvio = true;
+      try {
+        let origem = "web";
+        let segundos = Math.min(86400, Math.floor((Date.now() - ultimaInteracaoNaPagina) / 1000));
+        if (window.envoxersDesktop?.active) {
+          try {
+            const medicao = await window.__TAURI__.core.invoke("native_idle_seconds");
+            if (Number.isFinite(Number(medicao)) && medicao != null) {
+              origem = "desktop";
+              segundos = Math.max(0, Math.min(86400, Math.floor(Number(medicao))));
+            }
+          } catch (_) { /* executável antigo: sinal web, não tentar sondar SO */ }
+        }
+        if (!ativo || (origem === "web" && document.hidden)) return;
+        const resp = await EnvoxersAPI.api("/presenca/me/atividade", {
+          method: "POST", body: JSON.stringify({origem, idle_seconds:segundos})
+        });
+        if (ativo && resp?.alerta && resp?.notificar_colaborador && !alertaAnterior) {
+          toast("Possível período sem interação detectado. Seu Foco permanece ativo e pode ser justificado.", "warning");
+        }
+        alertaAnterior = !!resp?.alerta;
+      } catch (_) { /* indisponibilidade do monitoramento não deve interferir com o timer */ }
+      finally { emEnvio = false; }
+    };
+    enviar();
+    const periodo = setInterval(enviar, 30000);
+    return () => {
+      ativo = false;
+      clearInterval(periodo);
+      eventos.forEach(ev => document.removeEventListener(ev, observarInteracao));
+      EnvoxersAPI.api("/presenca/me/encerrar", {method:"POST"}).catch(()=>{});
+    };
+  }, [focoAtivo?.id, !!focoAtivo?.pausado_em]);
+
   // Sem toast de sucesso aqui de propósito — a barra/botão já confirmam visualmente
   // (contador aparece/roda/congela/some). Toast só pra erro, que não tem outro sinal visual.
   const [confirmandoFinalizar, setConfirmandoFinalizar] = useStateApp(false);
@@ -1001,6 +1050,7 @@ function AppShell() {
     arquivos: "Operação / Arquivos",
     "feedback-sistema": "Admin / Erros e Sugestões",
     "foco-relatorio": "Admin / Focos",
+    "monitoramento-presenca": "Admin / Monitoramento de Presença",
     "diagnostico-windows": "Admin / Diagnóstico Windows",
     f4: "Desenvolvimento / Desenvolvimento & Pessoas",
   };
@@ -1092,6 +1142,10 @@ function AppShell() {
           leftAction={view === "chat" ? <button className="btn btn-sm topbar-new-chat" onClick={() => setChatNewConversationSignal((v) => v + 1)}>+ Nova conversa</button> : null}
           onOpenFeedback={abrirFeedbackAdmin}
         />
+        {focoAtivo && !focoAtivo.pausado_em && <div className="presenca-transparencia" role="status">
+          Monitoramento de presença: durante o Foco, o Envoxers pode informar apenas tempo sem interação com teclado/mouse.
+          Nenhuma tecla, mensagem, tela, imagem ou áudio é captado. Ausência de interação não significa ausência de trabalho.
+        </div>}
         {EnvoxersAPI.isQuick() && <div className="access-session-bar"><strong>Acesso rápido em computador temporário</strong><button type="button" className="btn btn-sm" onClick={handleLogout}>Encerrar e limpar</button></div>}
         {temModulo("desenvolvimento") && <PdiAvisoGlobal envoxerId={envoxerId} permissao={permissao} view={view} onAbrir={() => navegarEFecharMenu("f4")} />}
         {view === "comercial-dashboard" && <ComercialScreen mode="dashboard" />}
@@ -1129,6 +1183,7 @@ function AppShell() {
         {view === "calendario" && <CalendarioScreen />}
         {view === "relatorio" && permissao === "admin" && <RelatorioScreen />}
         {view === "foco-relatorio" && permissao === "admin" && <FocoRelatorioScreen />}
+        {view === "monitoramento-presenca" && permissao === "admin" && <PresencaMonitoramentoScreen />}
         {view === "farol" && <FarolScreen permissao={permissao} />}
         {view === "alertas" && <AlertasScreen permissao={permissao} onAbrirCliente={abrirCliente} />}
         {view === "entregaveis" && <EntregaveisScreen onAbrirCliente={abrirCliente} />}

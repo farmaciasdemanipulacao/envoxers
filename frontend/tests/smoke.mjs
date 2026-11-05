@@ -250,6 +250,25 @@ try {
   assert.ok(!chat.errors.length,chat.errors.join('; '));
   console.log('CHAT_UX_OK:',separators,'date separators; reply + preview + focus');
   chat.dom.window.close();
+  const adminPresenca=await open(true,false,false,"admin");
+  const linkPresenca=[...adminPresenca.dom.window.document.querySelectorAll(".nav a")]
+    .find(a=>a.textContent.includes("Monitoramento de Presença"));
+  assert.ok(linkPresenca,"Somente Admin deve ter link do Monitoramento de Presença");
+  linkPresenca.click();
+  const telaPresenca=await aguardarElemento(adminPresenca.dom.window.document,".presenca-admin-page");
+  assert.ok(telaPresenca,"Tela de monitoramento não montou");
+  assert.match(telaPresenca.textContent,/Painel ao vivo/);
+  assert.match(telaPresenca.textContent,/A câmera permanece desligada/);
+  assert.ok(!adminPresenca.errors.length,adminPresenca.errors.join("; "));
+  console.log("PRESENCA_ADMIN_SCREEN_OK");
+  adminPresenca.dom.window.close();
+  const gestorPresenca=await open(true,false,false,"gestor");
+  assert.ok(![...gestorPresenca.dom.window.document.querySelectorAll(".nav a")]
+    .some(a=>a.textContent.includes("Monitoramento de Presença")),
+    "Gestor não deve visualizar menu exclusivo do administrador");
+  console.log("PRESENCA_GESTOR_HIDDEN_OK");
+  gestorPresenca.dom.window.close();
+
   const native=await open(true,true,false,"admin");
   assert.equal(native.dom.window.envoxersDesktop?.active,true);
   assert.ok(native.dom.window.document.querySelector('.app'));

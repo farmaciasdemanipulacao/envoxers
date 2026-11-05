@@ -31,6 +31,48 @@ fn native_status(app: tauri::AppHandle) -> NativeStatus {
     }
 }
 
+
+// Consulta somente o tempo agregado desde a última entrada no Windows.
+// Não lê conteúdo digitado, programas, janela ativa, mouse ou dispositivos.
+#[cfg(windows)]
+#[repr(C)]
+struct LastInputInfo {
+    cb_size: u32,
+    dw_time: u32,
+}
+
+#[cfg(windows)]
+#[link(name = "user32")]
+extern "system" {
+    fn GetLastInputInfo(info: *mut LastInputInfo) -> i32;
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetTickCount() -> u32;
+}
+
+#[tauri::command]
+fn native_idle_seconds() -> Result<Option<u64>, String> {
+    #[cfg(windows)]
+    {
+        let mut info = LastInputInfo {
+            cb_size: std::mem::size_of::<LastInputInfo>() as u32,
+            dw_time: 0,
+        };
+        if unsafe { GetLastInputInfo(&mut info) } == 0 {
+            return Err("Não foi possível consultar o estado de entrada do Windows".into());
+        }
+        let atual = unsafe { GetTickCount() };
+        return Ok(Some((atual.wrapping_sub(info.dw_time) / 1000) as u64));
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(None)
+    }
+}
+
 #[tauri::command]
 fn native_set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
     let auto = app.autolaunch();
@@ -129,6 +171,7 @@ fn main() {
             native_alert,
             native_badge,
             native_status,
+            native_idle_seconds,
             native_set_autostart,
             downloads::native_download,
             downloads::native_save_file,

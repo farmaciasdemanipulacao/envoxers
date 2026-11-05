@@ -1,0 +1,52 @@
+.presenca-admin-page{--presenca-line:var(--border,#dce2ed);width:100%;max-width:100%}
+.presenca-notice{display:grid;gap:5px;padding:16px 20px;border:1px solid var(--presenca-line);border-left:4px solid #2547e8;border-radius:12px;background:var(--surface,#fff);margin:12px 0 18px;font-size:13px;line-height:1.5}
+.presenca-notice strong{font-size:14px}
+.presenca-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.presenca-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;padding:16px;background:var(--surface,#fff);border:1px solid var(--presenca-line);border-radius:14px;margin-bottom:18px}
+.presenca-filtros .field{min-width:0}
+.presenca-kpis{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:12px}
+.presenca-kpi{background:var(--surface,#fff);border:1px solid var(--presenca-line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.presenca-kpi small{color:var(--text-secondary,#64748b);font-size:12px}
+.presenca-kpi strong{font-size:29px;font-weight:700;line-height:1}
+.presenca-subline,.presenca-disclaimer{font-size:12px;color:var(--text-secondary,#64748b)}
+.presenca-subline{margin:12px 0}
+.presenca-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
+.presenca-card,.presenca-config-card{background:var(--surface,#fff);border:1px solid var(--presenca-line);border-radius:16px;padding:19px;display:grid;gap:15px}
+.presenca-identidade{display:flex;align-items:center;gap:12px}
+.presenca-identidade>div:nth-child(2){flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.presenca-identidade>div:nth-child(2) strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.presenca-identidade small{font-size:12px;color:var(--text-secondary,#64748b)}
+.presenca-online{font-size:11px;padding:5px 8px;border-radius:999px;font-weight:600}
+.presenca-online.online{background:#e6f6eb;color:#176e3a}
+.presenca-online.offline{background:#eff2f6;color:#64748b}
+.presenca-card-main{display:flex;flex-wrap:wrap;gap:6px}
+.presenca-status{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:650;background:#edf0f5;color:#56627a}
+.presenca-status.status-ativo{background:#e6f6eb;color:#176e3a}
+.presenca-status.status-pausado{background:#fff4da;color:#8a5b12}
+.presenca-status.status-encerrado{background:#e8eefc;color:#334e9c}
+.presenca-status.presenca-warning{background:#fff4da;color:#98641a}
+.presenca-status.presenca-alerta{background:#ffebea;color:#bd3838}
+.presenca-task{font-weight:600;font-size:14px;overflow-wrap:anywhere;min-height:28px}
+.presenca-metricas{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:0}
+.presenca-metricas>div{min-width:0}
+.presenca-metricas dt{font-size:11px;color:var(--text-secondary,#64748b)}
+.presenca-metricas dd{font-size:13px;font-weight:600;margin:4px 0 0;overflow-wrap:anywhere}
+.presenca-actions{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:10px 0 16px}
+.presenca-table-wrap{width:100%;overflow-x:auto;background:var(--surface,#fff);border:1px solid var(--presenca-line);border-radius:12px}
+.presenca-table{width:100%;border-collapse:collapse;min-width:880px;font-size:12px}
+.presenca-table th,.presenca-table td{padding:13px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--presenca-line)}
+.presenca-table th{font-size:11px;letter-spacing:.02em;color:var(--text-secondary,#64748b);font-weight:650}
+.presenca-table details{padding-top:8px;min-width:145px}
+.presenca-table summary{cursor:pointer;color:#2547e8}
+.presenca-table details div{line-height:1.5;padding-top:5px}
+.presenca-config{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(240px,1fr);gap:16px}
+.presenca-config-card{align-content:start}
+.presenca-config-card h3{margin:0;font-size:18px}
+.presenca-config-card p{margin:0;color:var(--text-secondary,#64748b);line-height:1.5}
+.presenca-config-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.presenca-config-fields .presenca-check{display:flex;flex-direction:row;align-items:center;gap:10px;grid-column:1/-1;font-size:13px}
+.presenca-config-fields .presenca-check input{width:18px;height:18px;flex:none}
+.presenca-error{padding:14px;border-radius:10px;border:1px solid #da5555;color:#b32e2e;margin-bottom:12px}
+.presenca-transparencia{margin:0 16px 12px;padding:9px 13px;border-radius:10px;border:1px solid var(--presenca-line);background:var(--surface,#fff);font-size:11px;color:var(--text-secondary,#64748b)}
+@media(max-width:1000px){.presenca-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.presenca-config{grid-template-columns:1fr}}
+@media(max-width:640px){.presenca-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.presenca-grid{grid-template-columns:1fr}.presenca-config-fields{grid-template-columns:1fr}}

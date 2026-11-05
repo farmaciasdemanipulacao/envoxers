@@ -15,6 +15,7 @@
     "allow-native-alert",
     "allow-native-badge",
     "allow-native-status",
+    "allow-native-idle-seconds",
     "allow-native-set-autostart",
     "allow-native-download",
     "allow-native-save-file",

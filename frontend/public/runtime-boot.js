@@ -172,6 +172,7 @@
           style("/envox-forms.css?v=2"),
           style("/pdi-jornada.css?v=20261015commentavatars1"),
           style("/f4-premium.css?v=20261015compact1"),
+          style("/presenca.css?v=20261105-1"),
           script(manifest.app.file)
         ]);
         if (!window.AppShell || !window.EnvoxersShared) {
