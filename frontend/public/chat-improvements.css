@@ -9,6 +9,25 @@
 .chat-msg-link { color:var(--envox); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere; }
 .chat-msg-link:hover { text-decoration-thickness:2px; }
 .chat-msg-link:focus-visible { outline:2px solid var(--envox); outline-offset:2px; }
+/* Balões enviados são azuis: o link precisa permanecer branco e visível. */
+.chat-msg.own .chat-msg-texto .chat-msg-link,
+.chat-msg.own .chat-msg-texto .chat-msg-link:visited {
+  color: #fff;
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+  text-decoration-color: #fff;
+}
+.chat-msg.own .chat-msg-texto .chat-msg-link:hover {
+  color: #fff;
+  background: rgba(255,255,255,.16);
+  border-radius: 2px;
+}
+.chat-msg.own .chat-msg-texto .chat-msg-link:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
 .chat-day-divider {
   width:100%; align-self:stretch; display:flex; align-items:center; gap:12px;
   color:var(--ink-4); font-size:11px; font-weight:600; margin:5px 0 3px;
