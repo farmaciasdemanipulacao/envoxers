@@ -111,7 +111,7 @@ async function open(authorized=false,desktop=false,chatFixture=false,permission=
             const body=JSON.parse(options.body);
             data={...base,id:303,created_at:"2026-10-21T15:02:00Z",texto:body.texto,
               resposta_a_id:body.resposta_a_id,resposta_a:{id:301,autor_nome:"Colaboradora",texto:"Primeiro dia"}};
-          } else if(path.endsWith("/chat/canais/77/mensagens")) data=[
+          } else if((path.endsWith("/chat/canais/77/mensagens") || path.includes("/chat/canais/77/mensagens?")) && options.method!=="POST") data=[
             {...base,id:301,texto:"Primeiro dia"},
             {...base,id:302,autor_envoxer_id:333,autor_nome:"Teste Envoxers",created_at:"2026-10-21T10:00:00Z",texto:"Veja o print",
               anexo_url:"/api/v1/uploads/print-teste.png",anexo_nome:"print-teste.png",anexo_mime_type:"image/png"}
