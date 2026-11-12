@@ -289,6 +289,7 @@ try {
   assert.ok(longChat.dom.window.__testChatFetches.some(p=>p.includes('before_id=201')),
     'Histórico anterior deve usar cursor, sem substituir mensagens atuais');
   longChat.dom.window.__testServerAdvance=true;
+  longDoc.querySelector('.chat-input-bar textarea').focus();
   longChat.dom.window.dispatchEvent(new longChat.dom.window.Event('envoxers:chat-reconnected'));
   assert.ok(await aguardarCondicao(()=>longDoc.querySelectorAll('.chat-msg').length===350,80),
     'Reconexão não recuperou todas as 200 mensagens perdidas');
