@@ -29,7 +29,7 @@ class TrackingResources extends ResourceLoader {
   urls=[];
   fetch(url,opts) {this.urls.push(url);return super.fetch(url,opts);}
 }
-async function open(authorized=false,desktop=false,chatFixture=false,permission="envoxer") {
+async function open(authorized=false,desktop=false,chatFixture=false,permission="envoxer",longChatFixture=false) {
   const resources=new TrackingResources(),errors=[],nativeCalls=[],nativeEvents=new Map();
   const virtualConsole=new VirtualConsole();
   virtualConsole.on("jsdomError",e=>errors.push(e.message));
@@ -68,6 +68,8 @@ async function open(authorized=false,desktop=false,chatFixture=false,permission=
       win.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){}});
       win.__testSockets=[];
       win.__testReadAcks=[];
+      win.__testChatFetches=[];
+      win.__testServerAdvance=false;
       win.WebSocket=class {constructor(){this.readyState=0;win.__testSockets.push(this)}close(){}send(){}};
       win.fetch=(url,options={})=>{
         const path=String(url);
@@ -90,7 +92,22 @@ async function open(authorized=false,desktop=false,chatFixture=false,permission=
             data={mensagem_id:301,emoji,ativa:win.__testReacted,alterado_por_id:333,
               reacoes:win.__testReacted?[{emoji,quantidade:1}]:[]};
           }
-          if(path.endsWith("/chat/canais/77/mensagens") && options.method==="POST") {
+          if(longChatFixture && path.includes("/chat/canais/77/mensagens") && options.method!=="POST") {
+            win.__testChatFetches.push(path);
+            const params=new URL(path,win.location.origin).searchParams;
+            const before=Number(params.get("before_id")||0);
+            const avancou=win.__testServerAdvance;
+            const inicio=before===201 ? 151 : before===401 ? 301 : before===301 ? 201 : avancou ? 401 : 201;
+            const quantidade=before===201 ? 50 : 100;
+            data=Array.from({length:quantidade},(_,i)=>{
+              const id=inicio+i;
+              return {...base,id,
+                texto:id===300
+                  ? "Veja https://example.com/pagina?x=1. Também www.envox.com.br. Email teste@envox.com.br"
+                  : id===299 ? "Visite envox.com.br/servicos" : "Mensagem histórica "+id,
+                created_at:new Date(Date.UTC(2026,9,20,10,0,id)).toISOString()};
+            });
+          } else if(path.endsWith("/chat/canais/77/mensagens") && options.method==="POST") {
             const body=JSON.parse(options.body);
             data={...base,id:303,created_at:"2026-10-21T15:02:00Z",texto:body.texto,
               resposta_a_id:body.resposta_a_id,resposta_a:{id:301,autor_nome:"Colaboradora",texto:"Primeiro dia"}};
@@ -250,6 +267,39 @@ try {
   assert.ok(!chat.errors.length,chat.errors.join('; '));
   console.log('CHAT_UX_OK:',separators,'date separators; reply + preview + focus');
   chat.dom.window.close();
+
+  const longChat=await open(true,false,true,"envoxer",true);
+  const longDoc=longChat.dom.window.document;
+  assert.ok(await aguardarCondicao(()=>longDoc.querySelectorAll('.chat-msg').length===100),
+    'Primeira página do histórico deve exibir 100 mensagens recentes');
+  const links=[...longDoc.querySelectorAll('[data-chat-mensagem-id="300"] .chat-msg-link')];
+  assert.equal(links.length,2,'URL completa e domínio www devem ficar clicáveis, mas e-mail não');
+  assert.equal(links[0].getAttribute('href'),'https://example.com/pagina?x=1');
+  assert.equal(links[0].getAttribute('target'),'_blank');
+  assert.match(links[0].getAttribute('rel'),/noopener/);
+  assert.equal(links[1].getAttribute('href'),'https://www.envox.com.br');
+  assert.ok([...longDoc.querySelectorAll('[data-chat-mensagem-id="299"] .chat-msg-link')]
+    .some(a=>a.getAttribute('href')==='https://envox.com.br/servicos'),
+    'Domínio sem protocolo deve ficar clicável');
+  const older=longDoc.querySelector('.chat-history-more button');
+  assert.ok(older,'Acesso a mensagens antigas ausente');
+  older.click();
+  assert.ok(await aguardarCondicao(()=>longDoc.querySelectorAll('.chat-msg').length===150),
+    'Página anterior do histórico não foi carregada');
+  assert.ok(longChat.dom.window.__testChatFetches.some(p=>p.includes('before_id=201')),
+    'Histórico anterior deve usar cursor, sem substituir mensagens atuais');
+  longChat.dom.window.__testServerAdvance=true;
+  longChat.dom.window.dispatchEvent(new longChat.dom.window.Event('envoxers:chat-reconnected'));
+  assert.ok(await aguardarCondicao(()=>longDoc.querySelectorAll('.chat-msg').length===350,80),
+    'Reconexão não recuperou todas as 200 mensagens perdidas');
+  assert.ok(longDoc.querySelector('[data-chat-mensagem-id="151"]'));
+  assert.ok(longDoc.querySelector('[data-chat-mensagem-id="500"]'));
+  assert.ok(longChat.dom.window.__testChatFetches.some(p=>p.includes('before_id=401')),
+    'Recuperação de lacuna longa deve buscar páginas intermediárias');
+  assert.ok(!longChat.errors.length,longChat.errors.join('; '));
+  console.log('CHAT_HISTORY_LINKS_OK: paginação, reconexão e URLs seguras');
+  longChat.dom.window.close();
+
   const adminPresenca=await open(true,false,false,"admin");
   const linkPresenca=[...adminPresenca.dom.window.document.querySelectorAll(".nav a")]
     .find(a=>a.textContent.includes("Monitoramento de Presença"));
