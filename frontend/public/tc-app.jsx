@@ -719,6 +719,8 @@ function AppShell() {
         window.envoxersDesktop.socketStatus = "conectado";
         window.dispatchEvent(new Event("envoxers:desktop-diagnostic"));
         enviarVisibilidade(); enviarCanalEmFoco();
+        // Ao restabelecer o WebSocket, recuperar mensagens recebidas durante a queda.
+        window.dispatchEvent(new Event("envoxers:chat-reconnected"));
       };
 
       ws.onmessage = (evt) => {

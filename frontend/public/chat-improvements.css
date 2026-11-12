@@ -1,4 +1,14 @@
-/* Chat: datas, respostas encadeadas e visualização de imagens. */
+/* Chat: datas, respostas encadeadas, histórico e links. */
+.chat-history-more { display:flex; justify-content:center; padding:6px 12px 14px; }
+.chat-history-more button {
+  border:1px solid var(--line-2); border-radius:999px; background:var(--bg-elev);
+  color:var(--envox); padding:7px 14px; font:500 12px var(--font-ui); cursor:pointer;
+}
+.chat-history-more button:hover { background:var(--envox-soft); }
+.chat-history-more button:disabled { cursor:wait; opacity:.65; }
+.chat-msg-link { color:var(--envox); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere; }
+.chat-msg-link:hover { text-decoration-thickness:2px; }
+.chat-msg-link:focus-visible { outline:2px solid var(--envox); outline-offset:2px; }
 .chat-day-divider {
   width:100%; align-self:stretch; display:flex; align-items:center; gap:12px;
   color:var(--ink-4); font-size:11px; font-weight:600; margin:5px 0 3px;

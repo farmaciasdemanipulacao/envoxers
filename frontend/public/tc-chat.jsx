@@ -1,5 +1,45 @@
 const { useState: useStateChat, useEffect: useEffectChat, useRef: useRefChat } = React;
 
+const CHAT_TAMANHO_PAGINA = 100;
+
+// Mantém as mensagens em ordem e evita duplicidades entre REST, WebSocket e sincronização.
+function mesclarMensagensChat(atuais, recebidas) {
+  const porId = new Map();
+  (atuais || []).forEach((m) => porId.set(m.id, m));
+  (recebidas || []).forEach((m) => porId.set(m.id, m));
+  return [...porId.values()].sort((a, b) => a.id - b.id);
+}
+
+// Converte apenas links http(s) e domínios em anchors; o restante continua
+// sendo texto escapado pelo React (sem innerHTML ou execução de scripts).
+function textoComLinksChat(texto) {
+  const padrao = /(?:https?:\/\/|www\.)[^\s<>"']+|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com\.br|[a-z]{2,})(?:\/[^\s<>"']*)?/gi;
+  const partes = [];
+  let posicao = 0;
+  for (const achado of texto.matchAll(padrao)) {
+    const inicio = achado.index;
+    // Não converte o domínio que faz parte de um endereço de e-mail.
+    if (inicio > 0 && /[\w@]/.test(texto[inicio - 1])) continue;
+    const exibido = achado[0].replace(/[.,;:!?)}\]]+$/g, "");
+    if (!exibido) continue;
+    const destino = /^https?:\/\//i.test(exibido) ? exibido : "https://" + exibido;
+    try {
+      const url = new URL(destino);
+      if (!["http:", "https:"].includes(url.protocol) || !url.hostname) continue;
+    } catch (_) {
+      continue;
+    }
+    if (inicio > posicao) partes.push(texto.slice(posicao, inicio));
+    partes.push(
+      <a key={inicio} className="chat-msg-link" href={destino}
+        target="_blank" rel="noopener noreferrer" title="Abrir link em nova aba">{exibido}</a>
+    );
+    posicao = inicio + exibido.length;
+  }
+  if (posicao < texto.length) partes.push(texto.slice(posicao));
+  return partes;
+}
+
 function fmtHoraChat(iso) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
@@ -90,6 +130,8 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const [canais, setCanais] = useStateChat([]);
   const [canalAtivoId, setCanalAtivoId] = useStateChat(null);
   const [mensagens, setMensagens] = useStateChat([]);
+  const [temHistoricoAnterior, setTemHistoricoAnterior] = useStateChat(false);
+  const [carregandoHistorico, setCarregandoHistorico] = useStateChat(false);
   const [leituras, setLeituras] = useStateChat([]);
   const [detalheLeiturasId, setDetalheLeiturasId] = useStateChat(null);
   const [posDetalhesLeitura, setPosDetalhesLeitura] = useStateChat({ top: 0, left: 0 });
@@ -108,6 +150,10 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   const [diretasAberto, setDiretasAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_diretas", true));
   const [clientesAberto, setClientesAberto] = useStateChat(() => lerAcordeaoSalvo("envoxers_chat_acc_clientes", false));
   const mensagensRef = useRefChat(null);
+  const carregandoHistoricoRef = useRefChat(false);
+  const sincronizandoCanalRef = useRefChat(null);
+  const restaurarPosicaoRef = useRefChat(null);
+  const acompanharFimRef = useRefChat(true);
   const mensagensAtuaisRef = useRefChat([]);
   mensagensAtuaisRef.current = mensagens;
   const ultimaMensagemRef = useRefChat(null);
@@ -194,7 +240,20 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
   };
 
   useEffectChat(() => { carregarCanais(); }, []);
-  useEffectChat(() => { setRespondendo(null); setImagemAberta(null); setReagindoId(null); setDetalheLeiturasId(null); setLeituras([]); ultimaMensagemRef.current = null; }, [canalAtivoId]);
+  useEffectChat(() => {
+    setRespondendo(null);
+    setImagemAberta(null);
+    setReagindoId(null);
+    setDetalheLeiturasId(null);
+    setLeituras([]);
+    setMensagens([]);
+    setTemHistoricoAnterior(false);
+    setCarregandoHistorico(false);
+    carregandoHistoricoRef.current = false;
+    restaurarPosicaoRef.current = null;
+    acompanharFimRef.current = true;
+    ultimaMensagemRef.current = null;
+  }, [canalAtivoId]);
   useEffectChat(() => {
     if (reagindoId == null) return;
     const onEscape = (e) => { if (e.key === "Escape") setReagindoId(null); };
@@ -225,14 +284,14 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
     (async () => {
       try {
         const [data, lidos] = await Promise.all([
-          EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/mensagens`),
+          EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/mensagens?limit=${CHAT_TAMANHO_PAGINA}`),
           EnvoxersAPI.api(`/chat/canais/${canalAtivoId}/leituras`),
         ]);
         if (cancelado || canalAtivoRef.current !== canalAtivoId) return;
-        setMensagens(data);
+        setMensagens((prev) => mesclarMensagensChat(prev, data));
+        setTemHistoricoAnterior(data.length === CHAT_TAMANHO_PAGINA);
         setLeituras(lidos);
-        // A mensagem precisa ter sido efetivamente exibida, com a tela ativa.
-        // Nunca confirmamos "lida" só porque a API carregou em segundo plano.
+        // Confirma somente mensagens efetivamente apresentadas na conversa ativa.
         if (data.length) requestAnimationFrame(() => {
           if (!cancelado) confirmarLeituraVisivel(canalAtivoId, data[data.length - 1].id).catch(() => {});
         });
@@ -242,6 +301,78 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
     })();
     return () => { cancelado = true; };
   }, [canalAtivoId]);
+
+  const carregarMensagensAnteriores = async () => {
+    const id = canalAtivoRef.current;
+    const primeira = mensagensAtuaisRef.current[0];
+    if (!id || !primeira || !temHistoricoAnterior || carregandoHistoricoRef.current) return;
+    carregandoHistoricoRef.current = true;
+    setCarregandoHistorico(true);
+    const area = mensagensRef.current;
+    const posicao = area ? { canalId: id, topo: area.scrollTop, altura: area.scrollHeight } : null;
+    try {
+      const data = await EnvoxersAPI.api(
+        `/chat/canais/${id}/mensagens?before_id=${primeira.id}&limit=${CHAT_TAMANHO_PAGINA}`
+      );
+      if (canalAtivoRef.current !== id) return;
+      setTemHistoricoAnterior(data.length === CHAT_TAMANHO_PAGINA);
+      if (data.length) {
+        restaurarPosicaoRef.current = posicao;
+        setMensagens((prev) => mesclarMensagensChat(prev, data));
+      }
+    } catch (err) {
+      if (canalAtivoRef.current === id) toast(err.message, "error");
+    } finally {
+      carregandoHistoricoRef.current = false;
+      if (canalAtivoRef.current === id) setCarregandoHistorico(false);
+    }
+  };
+
+  // Recupera inclusive mensagens perdidas durante uma desconexão longa, sem
+  // descartar páginas antigas já abertas. A API existente usa paginação before_id.
+  const sincronizarConversa = async (id) => {
+    if (!id || sincronizandoCanalRef.current === id) return;
+    sincronizandoCanalRef.current = id;
+    try {
+      const ultimoConhecido = mensagensAtuaisRef.current[mensagensAtuaisRef.current.length - 1]?.id;
+      const recentes = await EnvoxersAPI.api(
+        `/chat/canais/${id}/mensagens?limit=${CHAT_TAMANHO_PAGINA}`
+      );
+      if (canalAtivoRef.current !== id) return;
+      let recuperadas = recentes;
+      let cursor = recentes[0]?.id;
+      let loteCompleto = recentes.length === CHAT_TAMANHO_PAGINA;
+      // Busca páginas intermediárias até reencontrar o último ID já exibido.
+      while (ultimoConhecido && cursor > ultimoConhecido && loteCompleto) {
+        const pagina = await EnvoxersAPI.api(
+          `/chat/canais/${id}/mensagens?before_id=${cursor}&limit=${CHAT_TAMANHO_PAGINA}`
+        );
+        if (canalAtivoRef.current !== id) return;
+        if (!pagina.length || pagina[0].id >= cursor) break;
+        recuperadas = [...pagina, ...recuperadas];
+        cursor = pagina[0].id;
+        loteCompleto = pagina.length === CHAT_TAMANHO_PAGINA;
+      }
+      if (canalAtivoRef.current !== id) return;
+      setMensagens((prev) => mesclarMensagensChat(prev, recuperadas));
+      if (!ultimoConhecido) setTemHistoricoAnterior(recentes.length === CHAT_TAMANHO_PAGINA);
+      if (recuperadas.length) requestAnimationFrame(() => {
+        confirmarLeituraVisivel(id, recuperadas[recuperadas.length - 1].id).catch(() => {});
+      });
+    } catch (err) {
+      if (canalAtivoRef.current === id) toast("Falha ao atualizar conversa: " + err.message, "error");
+    } finally {
+      if (sincronizandoCanalRef.current === id) sincronizandoCanalRef.current = null;
+    }
+  };
+
+  const aoRolarMensagens = (evento) => {
+    const area = evento.currentTarget;
+    acompanharFimRef.current = area.scrollHeight - area.scrollTop - area.clientHeight <= 120;
+    if (area.scrollTop <= 90 && temHistoricoAnterior && !carregandoHistoricoRef.current) {
+      carregarMensagensAnteriores();
+    }
+  };
 
   useEffectChat(() => {
     if (!wsEvent) return;
@@ -263,7 +394,7 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
     }
     if (tipo !== "mensagem_nova" || !mensagem) return;
     if (canal_id === canalAtivoRef.current) {
-      setMensagens((prev) => prev.some((m) => m.id === mensagem.id) ? prev : [...prev, mensagem]);
+      setMensagens((prev) => mesclarMensagensChat(prev, [mensagem]));
       if (document.visibilityState !== 'visible' || !document.hasFocus()) {
         carregarCanais();
         return;
@@ -284,23 +415,32 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
       const canal = canalAtivoRef.current;
       if (!canal) return;
       carregarLeituras(canal).catch(() => {});
-      const ultima = mensagensAtuaisRef.current[mensagensAtuaisRef.current.length - 1];
-      if (ultima) confirmarLeituraVisivel(canal, ultima.id).catch(() => {});
+      sincronizarConversa(canal).catch(() => {});
     };
     window.addEventListener("focus", aoVoltar);
+    window.addEventListener("envoxers:chat-reconnected", aoVoltar);
     document.addEventListener("visibilitychange", aoVoltar);
     return () => {
       window.removeEventListener("focus", aoVoltar);
+      window.removeEventListener("envoxers:chat-reconnected", aoVoltar);
       document.removeEventListener("visibilitychange", aoVoltar);
     };
   }, []);
 
   useEffectChat(() => {
-    // Reagir a uma mensagem antiga não deve pular a conversa para o final.
+    const area = mensagensRef.current;
+    const posicao = restaurarPosicaoRef.current;
     const ultimaId = mensagens.length ? mensagens[mensagens.length - 1].id : null;
+    if (posicao && posicao.canalId === canalAtivoId && area) {
+      area.scrollTop = area.scrollHeight - posicao.altura + posicao.topo;
+      restaurarPosicaoRef.current = null;
+      ultimaMensagemRef.current = ultimaId;
+      return;
+    }
+    // Mensagem nova não tira o usuário do meio de uma leitura antiga.
     if (ultimaId !== ultimaMensagemRef.current) {
       ultimaMensagemRef.current = ultimaId;
-      if (mensagensRef.current) mensagensRef.current.scrollTop = mensagensRef.current.scrollHeight;
+      if (area && acompanharFimRef.current) area.scrollTop = area.scrollHeight;
     }
   }, [mensagens]);
 
@@ -386,7 +526,8 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
           body: JSON.stringify({ texto: t, resposta_a_id: respostaEnvio?.id || null }),
         });
       }
-      setMensagens((prev) => prev.some((m) => m.id === resposta.id) ? prev : [...prev, resposta]);
+      acompanharFimRef.current = true;
+      setMensagens((prev) => mesclarMensagensChat(prev, [resposta]));
       revogarPreviewChat(anexoEnvio);
     } catch (err) {
       setTexto((atual) => atual ? t + "\n" + atual : t);
@@ -552,7 +693,15 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
           )}
           <span>{canalAtivo ? nomeCanalExibicao(canalAtivo) : "Selecione um canal"}</span>
         </div>
-        <div className="chat-messages" ref={mensagensRef}>
+        <div className="chat-messages" ref={mensagensRef} onScroll={aoRolarMensagens}>
+          {temHistoricoAnterior && (
+            <div className="chat-history-more">
+              <button type="button" disabled={carregandoHistorico}
+                onClick={carregarMensagensAnteriores}>
+                {carregandoHistorico ? "Carregando mensagens anteriores…" : "Carregar mensagens anteriores"}
+              </button>
+            </div>
+          )}
           {mensagens.map((m, indice) => {
             const separadorDia = indice === 0 || chaveDiaChat(m.created_at) !== chaveDiaChat(mensagens[indice - 1].created_at);
             const original = m.resposta_a_id ? mensagens.find((item) => item.id === m.resposta_a_id) : null;
@@ -659,7 +808,7 @@ function ChatScreen({ envoxersList, wsEvent, newConversationSignal = 0, onLeitur
                           <span>{citacao?.excluida ? "Mensagem excluída" : (citacao?.texto || (citacao?.anexo_nome ? "📎 " + citacao.anexo_nome : "Mensagem original"))}</span>
                         </button>
                       )}
-                      {m.texto && <div className="chat-msg-texto">{m.texto}</div>}
+                      {m.texto && <div className="chat-msg-texto">{textoComLinksChat(m.texto)}</div>}
                       {m.anexo_url && (
                         ((m.anexo_mime_type || "").startsWith("image/") || /\.(png|jpe?g|webp|gif|avif)$/i.test(m.anexo_nome || "")) ? (
                           <div className="chat-image-attachment">
