@@ -274,6 +274,11 @@ try {
     'Primeira página do histórico deve exibir 100 mensagens recentes');
   const links=[...longDoc.querySelectorAll('[data-chat-mensagem-id="300"] .chat-msg-link')];
   assert.equal(links.length,2,'URL completa e domínio www devem ficar clicáveis, mas e-mail não');
+  // No balão azul do autor, o link deve ter contraste, inclusive após visita.
+  const ownLinkMessage=longDoc.querySelector('[data-chat-mensagem-id="300"]');
+  ownLinkMessage.classList.add('own');
+  assert.equal(longChat.dom.window.getComputedStyle(links[0]).color,'rgb(255, 255, 255)',
+    'Link do próprio usuário não pode ser azul sobre balão azul');
   assert.equal(links[0].getAttribute('href'),'https://example.com/pagina?x=1');
   assert.equal(links[0].getAttribute('target'),'_blank');
   assert.match(links[0].getAttribute('rel'),/noopener/);
